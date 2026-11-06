@@ -2,11 +2,38 @@ import {useEffect,useState,type FormEvent} from 'react';
 import {call,type Policy} from './api';
 import {passwordValid,PASSWORD_HELP} from '../../shared/accountPolicy';
 
-export type PlatformAdmin={role?:string;admin_role?:string|null;passkey_required?:boolean;csrf_token:string;allowed_menus:{path:string;label:string}[]};
+type DashboardAccess={allowed:boolean;configured:boolean;path:string|null};
+export type PlatformAdmin={role?:string;admin_role?:string|null;passkey_required?:boolean;csrf_token:string;allowed_menus:{path:string;label:string}[];operations_dashboard?:DashboardAccess;log_dashboard?:DashboardAccess};
+const LEGACY_DASHBOARD_ROUTES=new Set(['/api/admin/operations/kibana','/api/admin/operations/dashboard','/api/admin/operations/logs']);
+const OPERATIONS_PATH='/api/admin/operations/dashboard';
+const BEHAVIOR_PATH='/api/admin/operations/logs';
+
+function DashboardTile({label,description,expected,access}:{label:string;description:string;expected:string;access:DashboardAccess}){
+  const connected=access.configured&&access.path===expected;
+  return <article className="p-admin-dashboard-tile">
+    <h4>{label}</h4><p>{description}</p>
+    {connected?<a className="p-admin-dashboard-link" href={expected}>{label} 열기 ↗</a>
+      :<span className="p-admin-dashboard-link p-admin-dashboard-unavailable" aria-disabled="true">연결 준비 중</span>}
+  </article>;
+}
+
 export function PlatformAdminHome({admin}:{admin:PlatformAdmin|null}){
   if(admin?.passkey_required)return <section className="p-card p-admin-status"><span className="p-badge">추가 인증 대기</span><h2>관리자 1차 로그인을 완료했습니다</h2><p>메인 플랫폼의 관리자 계정이 확인되었습니다. 관리자 업무를 사용하려면 추가 인증을 마쳐야 합니다.</p><p className="p-alert">로컬 패스키 검증은 현재 보류 중입니다. 매장 심사 등 관리자 업무는 잠긴 상태로 유지합니다.</p><p className="p-muted">사업자·사용자 회원 로그인과 관리자 인증은 별도입니다. 이 계정은 muther. 한 서비스에만 한정된 계정이 아닙니다.</p><a href="/platform">메인 플랫폼으로</a></section>;
   if(admin?.role!=='ADMIN')return <section className="p-card"><h2>플랫폼 관리자 로그인이 필요합니다</h2><p>공통 계정과 매장 관리권한 심사를 관리하는 운영자 전용 공간입니다.</p><a className="p-link-button" href="/platform/admin/login">플랫폼 관리자 로그인</a></section>;
-  return <section className="p-card"><h2>메인 플랫폼 관리자</h2><p>현재 계정에 허용된 업무만 표시합니다.</p><div className="p-admin-menu">{admin.allowed_menus.map(menu=><a key={menu.path} href={menu.path}>{menu.label} →</a>)}</div>{admin.allowed_menus.length===0&&<p>허용된 관리자 메뉴가 없습니다. 운영 권한을 확인해 주세요.</p>}</section>;
+  const ads=admin.allowed_menus.some(menu=>menu.path==='/admin/ads');
+  const behavior=admin.log_dashboard?.allowed===true?admin.log_dashboard:null;
+  const operations=admin.operations_dashboard?.allowed===true?admin.operations_dashboard:null;
+  const remaining=admin.allowed_menus.filter(menu=>menu.path!=='/admin/ads'&&!LEGACY_DASHBOARD_ROUTES.has(menu.path));
+  const hasDashboards=ads||!!behavior||!!operations;
+  return <section className="p-card p-admin-overview"><h2>메인 플랫폼 관리자</h2><p>이 계정에 허용된 관리자 업무만 표시합니다.</p>
+    {hasDashboards&&<><h3>대시보드</h3><div className="p-admin-dashboard-grid" aria-label="관리자 전용 대시보드">
+      {ads&&<article className="p-admin-dashboard-tile"><h4>광고 대시보드</h4><p>광고 등록·게시 관리와 노출·클릭 현황을 확인합니다.</p><a className="p-admin-dashboard-link" href="/admin/ads">광고 대시보드 열기 →</a></article>}
+      {behavior&&<DashboardTile label="사용자 행동 분석" description="Kibana 사용자 행동 분석 대시보드입니다." expected={BEHAVIOR_PATH} access={behavior}/>}
+      {operations&&<DashboardTile label="운영 대시보드" description="Kibana 서비스 운영 지표 대시보드입니다." expected={OPERATIONS_PATH} access={operations}/>}
+    </div></>}
+    {remaining.length>0&&<><h3>기타 관리 업무</h3><div className="p-admin-menu">{remaining.map(menu=><a key={menu.path} href={menu.path}>{menu.label} →</a>)}</div></>}
+    {!hasDashboards&&remaining.length===0&&<p>허용된 관리자 메뉴가 없습니다. 운영 권한을 확인해 주세요.</p>}
+  </section>;
 }
 
 type RecoveryLink={purpose:'ID_HINT'|'PASSWORD_RESET';token:string}|{invalid:true}|null;

@@ -1,7 +1,7 @@
 import {useEffect,useRef,useState} from 'react';
 import {api,canonical,key} from '../../shared/api';
 import {Icon} from '../../components/Icons';
-import {AdminHeader,type AdminMe} from '../admin/AdminLayout';
+import {PlatformAdminReturn,type AdminMe} from '../admin/AdminLayout';
 
 type Measurement={status?:string;impressions:number|null;clicks:number|null;as_of?:string|null;is_stale?:boolean};
 type Ad={ad_id:string;title:string;asset_id:string;link_url:string;placement:'top'|'bottom';starts_at:string;ends_at:string;
@@ -99,11 +99,11 @@ export function AdsAdmin(){
   const shownPreview=previewAsset?.placement===previewPlacement?previewAsset:rows.find(ad=>ad.placement===previewPlacement);
   const selectedImage=fileUrl||(form.asset_id?assetUrl(form.asset_id):'');
   return <>
-    <AdminHeader me={me} path="/admin/ads" onError={setError}/>
-    <main className="admin ads-admin"><h1>광고 관리</h1><p className="ads-subtitle">상·하단 배너 게시 상태를 관리하세요.</p>
+
+    <main className="admin ads-admin"><PlatformAdminReturn/><h1>광고 관리</h1><p className="ads-subtitle">상·하단 배너 게시 상태를 관리하세요.</p>
       {error&&<p role="alert" className="notice error">{error} <button disabled={busy||loading} onClick={()=>void load()}>다시 확인</button></p>}
       {notice&&<p role="status" className="notice">{notice}</p>}
-      {!allowed?<p>광고 관리 권한을 확인해 주세요. <a href="/login">로그인</a></p>:<>
+      {!allowed?<p>광고 관리 권한을 확인해 주세요. <a href="/platform/admin/login">로그인</a></p>:<>
         <section className="ads-metrics" aria-label="광고 요약">
           {[{title:'게시 중',value:summary?.counts.ACTIVE,icon:'▶',kind:'active'},
             {title:'예약',value:summary?.counts.RESERVED,icon:'◷',kind:'reserved'},
