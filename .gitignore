@@ -61,3 +61,6 @@ GEMINI.md
 /.codex/
 /.agents/
 *.bundle
+
+# Local planning drafts stay outside the shared source.
+/track2_venue_platform_draft_plan.md
