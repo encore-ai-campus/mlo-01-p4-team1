@@ -56,7 +56,7 @@ def validate_binding(b, *, real=False):
             actions=s.get('Action',[]); actions=[actions] if isinstance(actions,str) else actions
             resources=s.get('Resource',[]); resources=[resources] if isinstance(resources,str) else resources
             require(s.get('Effect')=='Allow' and actions and resources and 'NotAction' not in s and 'NotResource' not in s,'CI policy must be explicit')
-            require(all('*' not in v for v in actions),'wildcard CI action')
+            require(all('*' not in v and '?' not in v for v in actions),'wildcard CI action')
             if '*' in resources:
                 # EC2 Describe APIs and these non-resource-scoped read APIs
                 # cannot be granted with invented resource ARNs. Writes and
@@ -65,9 +65,10 @@ def validate_binding(b, *, real=False):
                 require(readonly,'unbounded CI resource')
                 if any(a.startswith('ec2:') for a in actions):
                     require(s.get('Condition',{}).get('StringEquals',{}).get('aws:RequestedRegion')=='ap-northeast-2','EC2 read region condition required')
-            if 'iam:PassRole' in actions:
+            if 'iam:passrole' in {action.casefold() for action in actions}:
                 require(s.get('Condition',{}).get('StringEquals',{}).get('iam:PassedToService')=='ec2.amazonaws.com','PassRole service condition required')
-                require(all(v.startswith('arn:aws:iam::') and ':role/p4-runtime-' in v and '*' not in v for v in resources),'PassRole runtime roles only')
+                runtime_arns={f'arn:aws:iam::{b["account_ids"][node["account"]]}:role/p4-runtime-{name}' for name,node in NODES.items()}
+                require(all(v in runtime_arns for v in resources),'PassRole exact topology runtime roles only')
     if b['artifact']:
         artifact=b['artifact']
         require(set(artifact)=={'key','version','sha256','manifest_sha256'},'artifact key/version/archive+manifest hashes required')

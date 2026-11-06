@@ -2,6 +2,7 @@ from django.urls import path
 from backend.recommendation import api
 from backend.common import api as common, music_api, history_api
 from backend.common import youtube_review as admin_review, sso
+from backend.common.readiness import Readiness
 
 from backend.recommendation import youtube_review_api as review
 from backend.recommendation.youtube_queue_api import YoutubeQueue
@@ -29,6 +30,7 @@ urlpatterns = [
     path('api/youtube-review/native-block',review.ReviewNativeBlock.as_view()),
     path('api/youtube-review/block',review.ReviewBlock.as_view()),
     path('health/',common.Health.as_view()),
+    path('readyz',Readiness.as_view()),
     path('api/auth/me',common.Me.as_view()),
     path('api/auth/login',common.Login.as_view()),
     path('api/auth/logout',common.Logout.as_view()),

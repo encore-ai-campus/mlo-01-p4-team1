@@ -81,7 +81,7 @@ stage 순서는 preflight → bootstrap-plan → bootstrap → plan → apply �
 
 ## 검증 근거와 남은 검수
 
-raw 로그는 `.artifacts/runs/<UTC-run-id>/`에 매 실행 새로 보존하고 `.artifacts/latest-run.json`에 최근 경로를 남깁니다. 기록은 세션·최종 인계는 `docs/handoff/infra/agent-a/`에 기록합니다. 로컬 검증은 실제 IAM 평가, 3AZ 물리 배치, SSM Agent 등록·명령, DNS·Peering·S3 실통신, CloudFront 인증·cache·origin 우회, Linux EC2 부팅, 집 PC·GPU·부하 검증을 대체하지 않습니다. S3 access logging/CloudTrail data event/CloudWatch 지표와 암호화된 관측 저장소의 구성·비용은 배포 검토에서 확정합니다. 새로운 유료 서비스를 이 기본 구성에 임의 추가하지 않습니다.
+raw 로그는 `.artifacts/runs/<UTC-run-id>/`에 매 실행 새로 보존하고 `.artifacts/latest-run.json`에 최근 경로를 남깁니다. 내부 세션·상태·최종 인계는 Git 제외 `.local/agents/`에 기록합니다. 로컬 검증은 실제 IAM 평가, 3AZ 물리 배치, SSM Agent 등록·명령, DNS·Peering·S3 실통신, CloudFront 인증·cache·origin 우회, Linux EC2 부팅, 집 PC·GPU·부하 검증을 대체하지 않습니다. S3 access logging/CloudTrail data event/CloudWatch 지표와 암호화된 관측 저장소의 구성·비용은 배포 검토에서 확정합니다. 새로운 유료 서비스를 이 기본 구성에 임의 추가하지 않습니다.
 
 공식 참고: [Terraform mocks](https://developer.hashicorp.com/terraform/language/tests/mocking), [S3 backend lockfile](https://developer.hashicorp.com/terraform/language/backend/s3), [SSM VPC Endpoint](https://docs.aws.amazon.com/systems-manager/latest/userguide/setup-create-vpc.html), [ALB origin 제한](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/restrict-access-to-load-balancer.html), [S3 보안](https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html).
 
@@ -92,3 +92,5 @@ raw 로그는 `.artifacts/runs/<UTC-run-id>/`에 매 실행 새로 보존하고 
 ## 2026-11-01 인증 전 실행 경계 보완
 
 [최신 공통 실행 계약](../contracts/preauthentication.v1.md)을 따릅니다. 기존 wrapper는 저수준 실행 포트이며 운영 진입점은 서명·소스/입력 해시를 검사하는 `scripts/infra_control.py execute`입니다. bootstrap-plan은 plan을 저장하고 bootstrap은 외부에서 승인한 같은 plan만 적용합니다. 최초 bootstrap에는 승인한 단일 controller 계약을, 이후에는 전용 operation controller 역할의 S3 CAS를 사용합니다. 16개 runtime 역할·5개 Endpoint·중앙 bucket에 exact operation 객체 권한을 정의했고, 조건 없는 덮어쓰기·삭제·state key 접근은 모의 검사에서 차단합니다. 실제 IAM·STS 경로는 아직 검수하지 않았습니다.
+
+PassRole CI 입력은 계정별 topology에서 도출한 16개 runtime role ARN의 부분집합만 허용합니다. 접두사가 같은 미등록 역할·다른 계정에 놓인 node 역할·wildcard는 거부합니다. IAM action 대소문자와 관계없이 같은 제한을 적용하며 action의 `*`·`?` wildcard를 차단합니다. 활성화된 mock OIDC plan은 provider URL/audience·Federated principal·역할별 정확한 environment subject·단일 trust statement를 대조하며, provider/principal/action/audience/subject/statement 변형과 plan/apply subject 교환 9건을 거부합니다. 이는 로컬 입력·평가 결과 검증이며 AWS IAM의 실제 허용 판정은 실환경 인수에 남습니다.

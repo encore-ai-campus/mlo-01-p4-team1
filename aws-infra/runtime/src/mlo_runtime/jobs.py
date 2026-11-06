@@ -8,7 +8,7 @@ import re
 import subprocess
 
 from .operations import local_lock, UnsafeTransition
-from .render import QUERIES
+from .queries import QUERIES
 
 JOBS = {
     "raw-reconcile",

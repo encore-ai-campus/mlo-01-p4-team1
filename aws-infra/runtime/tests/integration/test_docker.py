@@ -137,6 +137,8 @@ class DockerIntegration(unittest.TestCase):
     def test_mongodb_tls_auth_backup_restore_recreate(self):
         lab = self.lab("mongodb")
         certificates(lab.folder)
+        # Disposable per-run key, never an operational key or an existing database.
+        (lab.folder / "mongodb-keyfile").write_text("bG9jYWwtb25seS1yZXBsaWNhLXNldC1maXh0dXJlLTAwMDAwMDAw")
         lab.configure(
             {
                 "image": lab.image("mongodb"),
@@ -148,7 +150,7 @@ class DockerIntegration(unittest.TestCase):
                 "entrypoint": [
                     "bash",
                     "-ec",
-                    "cp /seed/server.pem /tmp/server.pem; chown mongodb:mongodb /tmp/server.pem; chmod 600 /tmp/server.pem; exec docker-entrypoint.sh mongod --bind_ip_all --tlsMode requireTLS --tlsCertificateKeyFile /tmp/server.pem --tlsCAFile /seed/ca.crt --tlsAllowConnectionsWithoutCertificates",
+                    "cp /seed/server.pem /tmp/server.pem; cp /seed/mongodb-keyfile /tmp/mongodb-keyfile; chown mongodb:mongodb /tmp/server.pem /tmp/mongodb-keyfile; chmod 600 /tmp/server.pem /tmp/mongodb-keyfile; exec docker-entrypoint.sh mongod --replSet ads-rs --keyFile /tmp/mongodb-keyfile --bind_ip_all --tlsMode requireTLS --tlsCertificateKeyFile /tmp/server.pem --tlsCAFile /seed/ca.crt --tlsAllowConnectionsWithoutCertificates",
                 ],
             }
         )
@@ -168,10 +170,13 @@ class DockerIntegration(unittest.TestCase):
         ]
         shell = ["mongosh", *connection, "--quiet", "--eval"]
         lab.ready([*shell, "db.runCommand({ping:1})"])
+        lab.exec(*shell, "rs.initiate({_id:'ads-rs',members:[{_id:0,host:'localhost:27017'}]})")
+        lab.ready([*shell, "quit(db.hello().isWritablePrimary ? 0 : 1)"])
         lab.exec(
             *shell,
             "db.getSiblingDB('acceptance').events.insertOne({_id:1,body:'preserved'})",
         )
+        lab.exec(*shell, "const s=db.getMongo().startSession();s.startTransaction();s.getDatabase('acceptance').events.insertOne({_id:2,body:'transaction'});s.commitTransaction();s.endSession();if(db.getSiblingDB('acceptance').events.countDocuments({_id:2})!==1)quit(2)")
         bad = lab.exec(
             "mongosh",
             "--host",
