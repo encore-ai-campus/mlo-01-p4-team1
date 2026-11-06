@@ -1,6 +1,8 @@
 # Lifecycle 로컬 구현 v1
 
-Issue #10의 종료·백업·삭제 **로컬 simulator**입니다. `inspect`, `plan`, `execute`, `resume`, `verify`를 제공하며 모든 결과의 `ready_for_aws`는 false입니다. 실제 AWS adapter와 backend 접근 경로는 제공하지 않습니다.
+Track2 확장은 [종료·보존·격리 복구 계약](docs/TRACK2.md)을 따릅니다. 별도 형식의 C 합성 입력에 writer별 drain·Outbox/queue 확인·세대별 checkpoint·완전 release·archive/삭제 원장 대조를 추가했습니다. 실제 PostgreSQL/MongoDB의 전용 Docker dump/독립 복원/정지도 C integration의 필수 항목입니다. 실제 앱·원격 adapter 인수와 구분합니다.
+
+Issue #10의 종료·백업·삭제 **로컬 simulator**입니다. `inspect`, `plan`, `execute`, `resume`, `verify`를 제공하며 모든 결과의 `ready_for_aws`는 false입니다. Foundation mock graph 검토·공통 실행 잠금·실제 로컬 PostgreSQL/MongoDB 종료 연계도 별도 통합 인터페이스로 검사합니다. 실제 AWS adapter와 backend 접근 경로는 제공하지 않습니다.
 
 ## 준비와 검사
 
@@ -79,9 +81,18 @@ resume은 같은 계획/입력과 새로 유효한 승인·증거를 요구합�
 
 ## 아직 인수할 사항
 
-실제 Foundation destroy 차단·VPC/ENI/EBS/S3 보호·ALB deletion protection은 유지했습니다. 실제 A state/module graph export·보존 구성·보호 해제, 운영 PG/Mongo/SSM/S3 hook·독립 복원, A/B/C 공통 잠금은 C requests에서 검토할 제안입니다.
+실제 Foundation destroy 차단·VPC/ENI/EBS/S3 보호·ALB deletion protection은 유지했습니다. `foundation.review_snapshots()`는 실제 A mock plan 7개 전체를 받아 보존 집합을 검토하고, `review_root_plan()`은 저장 계획의 정확한 삭제/보존 분할을 검사합니다. mock graph 검토는 실제 state/API의 소유권·보호 해제·삭제 승인이 아닙니다.
 
-현재 Makefile의 predeploy-check에는 C suite가 포함되지 않습니다. C 스크립트로 따로 검사합니다. C workflow는 수동·명시적 변수·prepared Linux X64 runner를 요구하며 원격 실행은 not_run입니다. 실제 AWS/3AZ/amd64/SSM·집 PC·운영 보존 기간과 backend 최종 제거는 별도 검수입니다.
+공통 `infra_common.coordination.OperationLease`는 localhost S3 SDK 대역의 조건부 쓰기와 영구 epoch로 A 생성·B 배포·C 종료를 배제합니다. C simulator는 전달받은 공통 guard를 단계마다 확인하며, `runtime.stop_engine_backends()`는 C 경로에서 B의 실제 PostgreSQL/MongoDB dump → 버전 사본 → hash → 독립 컨테이너 복원 → stop → 관측을 연결합니다. 서비스 전체 종료 증거는 서명된 local-lab fixture이며, localhost 버전 사본은 실제 S3의 내구성·독립 장애 영역 검증이 아닙니다.
+
+연계 검증은 저장소 루트에서 다음 명령으로 실행합니다. 로컬 suite는 합성 입력과 격리된 credentials 대역을 사용하며 Docker는 이 시험이 만든 전용 컨테이너/볼륨만 사용합니다.
+
+```bash
+make foundation-integration integration-lifecycle preauth-check
+make predeploy-check
+```
+
+현재 Makefile의 `predeploy-check`에는 C 단위·통합과 `integration-lifecycle`·`preauth-check`가 포함돼 있습니다. 누락·0 tests·skip·실패는 통과가 아닙니다. C workflow는 수동·명시적 변수·prepared Linux X64 runner를 요구하며 원격 실행은 not_run입니다. 실제 state graph/보존 구성·SSM/S3 hook·교차 계정 잠금 권한·3AZ/amd64·집 PC·운영 보존 기간과 backend 최종 제거는 별도 검수입니다.
 
 Terraform의 [plan 명령](https://developer.hashicorp.com/terraform/cli/commands/plan)과 [prevent_destroy](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle)를 참고해 provider 없는 1.11.4에서 실제 동작을 시험했습니다. 저장 plan은 `apply <saved-plan>`로 실행하며 `destroy <saved-plan>` 명령은 만들지 않았습니다.
 
@@ -96,4 +107,4 @@ Terraform의 [plan 명령](https://developer.hashicorp.com/terraform/cli/command
 - result.deleted는 synthetic ownership state의 logical removal입니다. `removal_semantics=synthetic-logical-removal`, `physical_resources_deleted=false`, `physical_data_deleted=false`를 구조적으로 출력합니다. 합성 원본 DB·JSON 자체의 물리 삭제를 뜻하지 않습니다.
 - 실패 stderr는 lifecycle-error-v1 JSON이며 error_code/phase/step_id/safe_reason/journal_location/recovery_action을 제공합니다. 예외 원문·credentials·입력 JSON은 출력하지 않습니다. 보고서 저장 실패는 결과 stdout과 journal을 보존하고 report_write_failure로 구분합니다.
 
-[운영·복구 절차](docs/OPERATIONS.md)와 [후속 인터페이스·신뢰 경계](docs/CONTRACTS.md)를 함께 읽습니다. offline state auditor와 lease reference model은 계약 시험 전용이며 실제 state 연결·분산 잠금 구현이 아닙니다. 강화된 runtime 증거와 result 필드 때문에 과거 plan/approval/evidence는 재사용하지 말고 새 합성 lab에서 다시 만듭니다. 기존 lab·영수증은 삭제하지 않습니다.
+[운영·복구 절차](docs/OPERATIONS.md)와 [후속 인터페이스·신뢰 경계](docs/CONTRACTS.md)를 함께 읽습니다. `snapshot_contract`의 offline state auditor와 `lease_contract`의 메모리 reference model은 계약 시험 전용입니다. 위 공통 연계 구현과 구분하며, 어느 경로도 실제 state/API 검수나 운영 잠금 인수를 대체하지 않습니다. 강화된 runtime 증거와 result 필드 때문에 과거 plan/approval/evidence는 재사용하지 말고 새 합성 lab에서 다시 만듭니다. 기존 lab·영수증은 삭제하지 않습니다.

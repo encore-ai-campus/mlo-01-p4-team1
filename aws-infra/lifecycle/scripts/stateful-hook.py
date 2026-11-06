@@ -9,7 +9,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from mlo_lifecycle.adapter import SQLiteStatefulBackend
-from mlo_lifecycle.model import need, read
+from mlo_lifecycle.model import digest, need, read
 
 
 def main():
@@ -26,6 +26,12 @@ def main():
     lab = Path(os.environ["MLO_C_LAB"]).resolve()
     identity = read(lab / "identity.json")
     need(identity["example_only"] is True and identity["generation"] == args.generation, "non-local/mixed-generation hook refused")
+    if "track2_sha256" in identity:
+        from mlo_lifecycle.track2 import sealed, validate_spec
+        spec = read(lab / "track2-spec.json")
+        need(digest(spec) == identity["track2_sha256"], "Track2 hook input changed")
+        validate_spec(spec, args.generation)
+        sealed(lab, spec)
     backend = SQLiteStatefulBackend(lab, args.node, args.generation)
     operation = args.operation
     if operation in {"copy", "verify-copy", "verify-restore"}:

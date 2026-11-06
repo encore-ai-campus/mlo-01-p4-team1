@@ -58,7 +58,7 @@ def audit(states):
             if s['Effect']=='Allow':
                 require(s['Principal']!='*' and '*' not in scalar_list(s['Principal']['AWS']),'public bucket grant forbidden')
                 require('aws:PrincipalArn' in s.get('Condition',{}).get('ArnEquals',{}),'exact bucket role condition required')
-                require(all('*' not in a for a in scalar_list(s['Action'])),'broad bucket action')
+                require(all('*' not in a and '?' not in a for a in scalar_list(s['Action'])),'broad bucket action')
     for v in select('aws_iam_role'):
         trust=statements(v['assume_role_policy'])
         for s in trust:
@@ -66,13 +66,14 @@ def audit(states):
             for principal in s['Principal'].values():require('*' not in scalar_list(principal),'wildcard principal forbidden')
     for v in select('aws_iam_role_policy'):
         for s in statements(v['policy']):
-            actions=scalar_list(s['Action']);res=scalar_list(s['Resource'])
-            require(all('*' not in a for a in actions),'wildcard IAM action')
-            if 'iam:PassRole' in actions:
-                require('*' not in res and s.get('Condition',{}).get('StringEquals',{}).get('iam:PassedToService')=='ec2.amazonaws.com','unbounded PassRole')
+            actions=[a.casefold() for a in scalar_list(s['Action'])];res=scalar_list(s['Resource'])
+            require(all('*' not in a and '?' not in a for a in actions),'wildcard IAM action')
+            if 'iam:passrole' in actions:
+                runtime_arns={f'arn:aws:iam::{fixture_binding()["account_ids"][node["account"]]}:role/p4-runtime-{name}' for name,node in NODES.items()}
+                require(all(arn in runtime_arns for arn in res) and s.get('Condition',{}).get('StringEquals',{}).get('iam:PassedToService')=='ec2.amazonaws.com','unbounded PassRole')
             if any(a.startswith('s3:') for a in actions):require('*' not in res,'unbounded S3 grant')
-            if 's3:ListBucket' in actions:require('s3:prefix' in s.get('Condition',{}).get('StringLike',s.get('Condition',{}).get('StringEquals',{})),'S3 prefix condition required')
-            if any(a in actions for a in ['s3:GetObject','s3:PutObject','s3:GetObjectVersion']):
+            if 's3:listbucket' in actions:require('s3:prefix' in s.get('Condition',{}).get('StringLike',s.get('Condition',{}).get('StringEquals',{})),'S3 prefix condition required')
+            if any(a in actions for a in ['s3:getobject','s3:putobject','s3:getobjectversion']):
                 for resource in res:
                     require(not resource.endswith('/*') or resource.count('/')>=2 or resource.endswith('.tflock'),'S3 object prefix widened to bucket root')
     for account in ACCOUNTS:
@@ -82,13 +83,14 @@ def audit(states):
             for s in statements(v['policy']):
                 allowed=s.get('Condition',{}).get('ArnEquals',{}).get('aws:PrincipalArn')
                 expected={f'arn:aws:iam::{fixture_binding()["account_ids"][n["account"]]}:role/p4-runtime-{name}' for name,n in NODES.items() if v['vpc_endpoint_type']=='Interface' or n['account']==account}
-                require(set(scalar_list(allowed))==expected,'endpoint role restriction missing/widened')
-                require(all('*' not in a for a in scalar_list(s['Action'])),'endpoint action wildcard')
+                actual=set(scalar_list(allowed))
+                require(actual==expected if v['vpc_endpoint_type']=='Interface' else bool(actual) and actual<=expected,'endpoint role restriction missing/widened')
+                require(all('*' not in a and '?' not in a for a in scalar_list(s['Action'])),'endpoint action wildcard')
                 if v['vpc_endpoint_type']=='Gateway':require('*' not in scalar_list(s['Resource']),'unbounded endpoint resource')
     for v in select('aws_cloudfront_cache_policy'):
         require(all(v[k]==0 for k in ['min_ttl','default_ttl','max_ttl']),'API caching forbidden')
     for v in select('aws_cloudfront_origin_request_policy'):
-        require(v['cookies_config'][0]['cookie_behavior']=='all' and v['headers_config'][0]['header_behavior']=='allViewer' and v['query_strings_config'][0]['query_string_behavior']=='all','API forwarding incomplete')
+        require(v['cookies_config'][0]['cookie_behavior']=='all' and v['headers_config'][0]=={'header_behavior':'allViewerAndWhitelistCloudFront','headers':[{'items':['CloudFront-Forwarded-Proto']}]} and v['query_strings_config'][0]['query_string_behavior']=='all','API forwarding incomplete')
     for v in select('aws_cloudfront_distribution'):
         require(v['default_cache_behavior'][0]['viewer_protocol_policy']=='redirect-to-https','viewer HTTPS required')
         require(v['origin'][0]['custom_origin_config'][0]['origin_protocol_policy']=='http-only','origin scope changed')
@@ -110,6 +112,9 @@ def mutation_checks(states):
            ('aws_lb_listener',lambda v:v['default_action'][0]['fixed_response'][0].update(status_code='200')),
            ('aws_iam_role',lambda v:v.update(assume_role_policy=json.dumps({'Version':'2012-10-17','Statement':[{'Effect':'Allow','Action':'sts:AssumeRole','Principal':'*'}]}))),
            ('aws_iam_role_policy',lambda v:v.update(policy=json.dumps({'Version':'2012-10-17','Statement':[{'Effect':'Allow','Action':'iam:PassRole','Resource':'*'}]}))),
+           ('aws_iam_role_policy',lambda v:v.update(policy=json.dumps({'Version':'2012-10-17','Statement':[{'Effect':'Allow','Action':'IAM:passrole','Resource':'*'}]}))),
+           ('aws_iam_role_policy',lambda v:v.update(policy=json.dumps({'Version':'2012-10-17','Statement':[{'Effect':'Allow','Action':'iam:PassRol?','Resource':'arn:aws:iam::111111111111:role/p4-runtime-control-a'}]}))),
+           ('aws_iam_role_policy',lambda v:v.update(policy=json.dumps({'Version':'2012-10-17','Statement':[{'Effect':'Allow','Action':'iam:PassRole','Resource':'arn:aws:iam::111111111111:role/p4-runtime-nonexistent','Condition':{'StringEquals':{'iam:PassedToService':'ec2.amazonaws.com'}}}]}))),
            ('aws_iam_role_policy',lambda v:v.update(policy=json.dumps({'Version':'2012-10-17','Statement':[{'Effect':'Allow','Action':'s3:GetObject','Resource':'arn:aws:s3:::example-only-foundation-raw/*'}]}))),
            ('aws_iam_role_policy',lambda v:v.update(policy=json.dumps({'Version':'2012-10-17','Statement':[{'Effect':'Allow','Action':'s3:ListBucket','Resource':'arn:aws:s3:::example-only-foundation-raw'}]}))),
            ('aws_vpc_endpoint',lambda v:v.update(policy=json.dumps({'Version':'2012-10-17','Statement':[{'Effect':'Allow','Principal':'*','Action':'s3:*','Resource':'*'}]}))),
@@ -128,7 +133,7 @@ def mutation_checks(states):
     try:audit(missing)
     except ContractError:pass
     else:raise ContractError('one-way route mutation accepted')
-    print('PASS: 15 evaluated resource/policy mutation rejection checks')
+    print(f'PASS: {len(cases)+1} evaluated resource/policy mutation rejection checks')
 
 def audit_bound(state,binding):
     rs=resources(state)
@@ -145,15 +150,17 @@ def audit_bound(state,binding):
     require('assert ' not in '\n'.join(sources),'optimized Python must retain security decisions')
     oidc=[r['values'] for r in rs if r['type']=='aws_iam_openid_connect_provider']
     require(len(oidc)==1,'OIDC binding missing')
+    require(oidc[0]['url']=='https://token.actions.githubusercontent.com' and oidc[0]['client_id_list']==['sts.amazonaws.com'],'OIDC provider/audience widening')
     ci=[r['values'] for r in rs if r['type']=='aws_iam_role' and '.ci[' in r['address']]
-    require(len(ci)==3,'separate plan/apply/runtime roles missing')
-    subjects=set()
+    expected_roles={'p4-ci-'+purpose:subject for purpose,subject in binding['oidc_subjects'].items()}
+    require(len(ci)==len(expected_roles) and {role['name'] for role in ci}==set(expected_roles),'separate plan/apply/runtime roles missing')
     for role in ci:
-        trust=statements(role['assume_role_policy'])[0]
-        require(trust['Action']=='sts:AssumeRoleWithWebIdentity','OIDC action mismatch')
-        condition=trust['Condition']['StringEquals'];require(condition['token.actions.githubusercontent.com:aud']=='sts.amazonaws.com','OIDC audience mismatch')
-        subjects.add(condition['token.actions.githubusercontent.com:sub'])
-    require(subjects==set(binding['oidc_subjects'].values()),'OIDC subject widening')
+        trust=statements(role['assume_role_policy'])
+        require(len(trust)==1,'extra OIDC trust statement')
+        trust=trust[0]
+        require(trust.get('Effect')=='Allow' and trust.get('Action')=='sts:AssumeRoleWithWebIdentity','OIDC action/effect mismatch')
+        require(trust.get('Principal')=={'Federated':oidc[0]['arn']},'OIDC provider principal mismatch')
+        require(trust.get('Condition')=={'StringEquals':{'token.actions.githubusercontent.com:aud':'sts.amazonaws.com','token.actions.githubusercontent.com:sub':expected_roles[role['name']]}},'OIDC role subject/audience widening')
     for r in rs:
         if r['type']=='aws_iam_role_policy' and '.artifact[' in r['address']:
             s=statements(r['values']['policy'])[0]
@@ -163,6 +170,38 @@ def audit_bound(state,binding):
             require(s['Condition']['StringEquals']['s3:VersionId']==binding['artifact']['version'],'cross-account artifact version policy missing')
             require(len(s['Condition']['ArnEquals']['aws:PrincipalArn'])==16,'artifact roles missing')
     print('PASS: enabled artifact SSM Document/version grants and exact three-role OIDC binding')
+
+def bound_mutation_checks(state,binding):
+    """Reject widened OIDC trust using resources from the enabled mock plan."""
+    import copy
+    def alter_trust(values,change):
+        policy=json.loads(values['assume_role_policy']);change(policy['Statement']);values['assume_role_policy']=json.dumps(policy)
+    cases=[('aws_iam_openid_connect_provider',lambda v:v.update(url='https://unapproved.invalid')),
+           ('aws_iam_openid_connect_provider',lambda v:v['client_id_list'].append('unapproved')),
+           ('aws_iam_role',lambda v:alter_trust(v,lambda ss:ss[0].update(Principal={'Federated':'arn:aws:iam::999999999999:oidc-provider/unapproved.invalid'}))),
+           ('aws_iam_role',lambda v:alter_trust(v,lambda ss:ss.append(copy.deepcopy(ss[0])))),
+           ('aws_iam_role',lambda v:alter_trust(v,lambda ss:ss[0].update(Action='sts:AssumeRole'))),
+           ('aws_iam_role',lambda v:alter_trust(v,lambda ss:ss[0]['Condition']['StringEquals'].update({'token.actions.githubusercontent.com:aud':'unapproved'}))),
+           ('aws_iam_role',lambda v:alter_trust(v,lambda ss:ss[0]['Condition']['StringEquals'].update({'token.actions.githubusercontent.com:sub':'repo:*/*:*'}))),
+           ('aws_iam_role',lambda v:alter_trust(v,lambda ss:ss[0].update(Condition={'StringLike':ss[0]['Condition']['StringEquals']})))]
+    for kind,mutate in cases:
+        changed=copy.deepcopy(state)
+        target=next(r for r in resources(changed) if r['type']==kind and (kind!='aws_iam_role' or '.ci[' in r['address']))
+        mutate(target['values'])
+        try:audit_bound(changed,binding)
+        except ContractError:continue
+        raise ContractError('bound OIDC mutation accepted: '+kind)
+    changed=copy.deepcopy(state)
+    roles=[r['values'] for r in resources(changed) if r['type']=='aws_iam_role' and '.ci[' in r['address']]
+    policies=[json.loads(role['assume_role_policy']) for role in roles[:2]]
+    key='token.actions.githubusercontent.com:sub'
+    conditions=[p['Statement'][0]['Condition']['StringEquals'] for p in policies]
+    conditions[0][key],conditions[1][key]=conditions[1][key],conditions[0][key]
+    for role,policy in zip(roles,policies):role['assume_role_policy']=json.dumps(policy)
+    try:audit_bound(changed,binding)
+    except ContractError:pass
+    else:raise ContractError('swapped OIDC plan/apply role subjects accepted')
+    print('PASS: nine evaluated OIDC provider/principal/action/audience/subject/statement mutation rejection checks')
 
 def audit_transfer(states,binding):
     """Evaluate the used IAM subset independently across identity + bucket + endpoint."""

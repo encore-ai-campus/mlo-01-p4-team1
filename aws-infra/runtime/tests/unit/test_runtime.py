@@ -138,6 +138,14 @@ class RenderTests(unittest.TestCase):
                 self.assertNotIn("format", json.dumps(compose(node, self.inventory)))
             if node["role"] == "mongodb":
                 self.assertIn("requireTLS", files["mongod.yaml"])
+                self.assertIn("ads-rs", files["mongod.yaml"])
+                self.assertIn("mongodb-keyfile", files["mongod.yaml"])
+            if node["role"] in {"control", "advertising"}:
+                config = json.loads(files["service.json"])
+                self.assertEqual(config["bind"], node["private_ip"] + (":8000" if node["role"] == "control" else ":8001"))
+                service = "web" if node["role"] == "control" else "advertising"
+                self.assertTrue(any(v.endswith(":/etc/mlo/service.json:ro")
+                                    for v in compose(node, self.inventory)["services"][service]["volumes"]))
 
 
 class MemoryLease:

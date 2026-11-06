@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sys
 import unittest
+from required_suite import accepted, counts
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = ["test_preauth_boundary", "test_preauth_destroy", "test_preauth_workflows"]
@@ -33,11 +34,8 @@ def main():
         suite.addTests(tests)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     summary = {
-        "status": "pass" if result.wasSuccessful() and not result.skipped else "fail",
-        "tests": result.testsRun,
-        "failures": len(result.failures),
-        "errors": len(result.errors),
-        "skipped": len(result.skipped),
+        "status": "pass" if accepted(result) else "fail",
+        **counts(result),
         "real_aws_calls": False,
         "ready_for_aws": False,
         "modules": MODULES,

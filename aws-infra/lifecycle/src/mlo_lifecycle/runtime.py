@@ -11,15 +11,28 @@ from infra_common.evidence import validate_shutdown
 from mlo_runtime.operations import stop_stateful
 
 
-def stop_engine_backends(inventory, backends, guard, evidence, issuers, directory):
+def stop_engine_backends(inventory, backends, guard, evidence, issuers, directory, *, track2_check=None):
     need(set(backends) == {"postgresql", "mongodb"}, "both engine backends required")
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    track2_binding = None
 
     def current_evidence():
+        nonlocal track2_binding
         token = require_operation(guard, "destroy")
         proof = evidence() if callable(evidence) else evidence
         validate_shutdown(proof, inventory, token, issuers)
+        if track2_check is not None:
+            snapshot = track2_check()
+            need(snapshot["epoch"] == token["epoch"]
+                 and snapshot["generation"] == inventory["generation"],
+                 "Track2 seal differs from engine shutdown epoch/generation")
+            observed = digest(snapshot)
+            need(track2_binding in (None, observed), "Track2 preservation seal changed during shutdown")
+            track2_binding = observed
+            artifact = directory / "track2-evidence" / (observed + ".json")
+            if not artifact.exists():
+                atomic(artifact, snapshot)
         artifact = directory / "evidence" / (digest(proof) + ".json")
         if not artifact.exists():
             atomic(artifact, proof)
@@ -43,6 +56,8 @@ def stop_engine_backends(inventory, backends, guard, evidence, issuers, director
         "pending": None,
         "complete": False,
     }
+    if track2_binding is not None:
+        result["track2_seal_sha256"] = track2_binding
     atomic(journal, result)
     for node, backend in backends.items():
         token = require_operation(guard, "destroy")
@@ -73,7 +88,7 @@ def stop_engine_backends(inventory, backends, guard, evidence, issuers, director
         result["completed"][node] = digest(receipt)
         result["pending"] = None
         atomic(journal, result)
-    require_operation(guard, "destroy")
+    current_evidence()
     result["complete"] = True
     atomic(journal, result)
     return result

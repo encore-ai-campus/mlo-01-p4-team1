@@ -331,7 +331,7 @@ def verify(plan, bundle, lab, key, *, journal=None):
                 )
             )
         )
-    return {
+    result = {
         "schema_version": "lifecycle-result-v1",
         "ready_for_aws": False,
         "adapter": "local-simulator",
@@ -357,3 +357,10 @@ def verify(plan, bundle, lab, key, *, journal=None):
         "all_resources_deleted": False,
         "scope": "local simulator only; retained resources can continue to incur costs",
     }
+    if "track2" in bundle:
+        result["schema_version"] = "lifecycle-track2-result-v1"
+        result["track2"] = {"registry_sha256": digest(bundle["track2"]),
+                            "writers": sorted(bundle["track2"]["writers"]),
+                            "retention": bundle["track2"]["retention"],
+                            "hook_source": "synthetic-stop-v1", "actual_app_hooks": "not_run"}
+    return result

@@ -23,6 +23,60 @@
     },
     "data_sizes": {
       "type": "map(number)"
+    },
+    "track2": {
+      "type": "object({enabled=bool,dataset_version=string,driver_queries=map(set(string)),ingest_nodes=set(string),endpoint_ids=map(string),media=object({enabled=bool,bucket=string,ttl_approved=bool,browser_ttl=number,edge_ttl=number}),archive=object({enabled=bool,bucket=string}),tls=object({enabled=bool,origin_name=string,certificate_arn=string,control_port=number,control_tls_ready=bool})})",
+      "default": {
+        "enabled": false,
+        "dataset_version": "",
+        "driver_queries": {},
+        "ingest_nodes": [],
+        "endpoint_ids": {},
+        "media": {
+          "enabled": false,
+          "bucket": "",
+          "ttl_approved": false,
+          "browser_ttl": 0,
+          "edge_ttl": 0
+        },
+        "archive": {
+          "enabled": false,
+          "bucket": ""
+        },
+        "tls": {
+          "enabled": false,
+          "origin_name": "",
+          "certificate_arn": "",
+          "control_port": 8443,
+          "control_tls_ready": false
+        }
+      },
+      "validation": [
+        {
+          "condition": "${!var.track2.enabled ? jsonencode(var.track2) == jsonencode(jsondecode(\"{\\\"enabled\\\": false, \\\"dataset_version\\\": \\\"\\\", \\\"driver_queries\\\": {}, \\\"ingest_nodes\\\": [], \\\"endpoint_ids\\\": {}, \\\"media\\\": {\\\"enabled\\\": false, \\\"bucket\\\": \\\"\\\", \\\"ttl_approved\\\": false, \\\"browser_ttl\\\": 0, \\\"edge_ttl\\\": 0}, \\\"archive\\\": {\\\"enabled\\\": false, \\\"bucket\\\": \\\"\\\"}, \\\"tls\\\": {\\\"enabled\\\": false, \\\"origin_name\\\": \\\"\\\", \\\"certificate_arn\\\": \\\"\\\", \\\"control_port\\\": 8443, \\\"control_tls_ready\\\": false}}\")) : true}",
+          "error_message": "Disabled Track2 cannot contain active inputs."
+        },
+        {
+          "condition": "${!var.track2.enabled || (can(regex(\"^[a-z0-9][a-z0-9-]{0,62}$\",var.track2.dataset_version)) && length(var.track2.endpoint_ids)==5 && length(distinct(values(var.track2.endpoint_ids)))==5 && alltrue([for a in [\"encore1\",\"encore2\",\"encore3\",\"encore4\",\"encore5\"]:can(regex(\"^vpce-[a-f0-9]{17}$\",var.track2.endpoint_ids[a]))]))}",
+          "error_message": "Track2 dataset and five distinct local endpoint IDs required."
+        },
+        {
+          "condition": "${!var.track2.enabled || (length(var.track2.driver_queries)>0 && alltrue([for n,qs in var.track2.driver_queries:contains([\"control-a\",\"control-b\"],n) && length(qs)>0 && alltrue([for q in qs:q==\"venues-catalog\"])]) && alltrue([for n in var.track2.ingest_nodes:contains([\"control-a\",\"control-b\"],n)]))}",
+          "error_message": "Only Control may ingest venues or own query checkpoints."
+        },
+        {
+          "condition": "${!var.track2.media.enabled || (var.track2.enabled && var.track2.media.ttl_approved && var.track2.media.browser_ttl>=0 && floor(var.track2.media.browser_ttl)==var.track2.media.browser_ttl && var.track2.media.edge_ttl>0 && floor(var.track2.media.edge_ttl)==var.track2.media.edge_ttl && var.track2.media.edge_ttl>=var.track2.media.browser_ttl && var.track2.media.edge_ttl<=31536000)}",
+          "error_message": "Approved bounded photo TTL inputs required."
+        },
+        {
+          "condition": "${!var.track2.tls.enabled || (var.track2.enabled && var.track2.tls.control_tls_ready && var.track2.tls.control_port==8443 && can(regex(\"^([a-z0-9][a-z0-9-]*[.])+[a-z]{2,}$\",var.track2.tls.origin_name)) && !endswith(var.track2.tls.origin_name,\".amazonaws.com\") && !endswith(var.track2.tls.origin_name,\".cloudfront.net\") && can(regex(\"^arn:aws:acm:ap-northeast-2:[0-9]{12}:certificate/[a-f0-9-]{36}$\",var.track2.tls.certificate_arn)))}",
+          "error_message": "Full TLS requires a controlled hostname, ACM certificate and Control TLS readiness."
+        },
+        {
+          "condition": "${!var.track2.enabled || (length(distinct(concat(values(var.binding.bucket_names),[var.binding.state_bucket],var.track2.media.enabled ? [var.track2.media.bucket] : [],var.track2.archive.enabled ? [var.track2.archive.bucket] : [])))==length(var.binding.bucket_names)+1+(var.track2.media.enabled ? 1 : 0)+(var.track2.archive.enabled ? 1 : 0) && alltrue([for name in concat(var.track2.media.enabled ? [var.track2.media.bucket] : [],var.track2.archive.enabled ? [var.track2.archive.bucket] : []):can(regex(\"^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$\",name))]))}",
+          "error_message": "Optional buckets must have valid names and be distinct from all data/state buckets."
+        }
+      ]
     }
   },
   "locals": {
@@ -1760,7 +1814,9 @@
         ],
         "lake": [
           "lake/feedback/*",
-          "aws/${var.binding.environment}/${var.binding.generation}/*/checkpoint/*"
+          "aws/${var.binding.environment}/${var.binding.generation}/weather-stream/checkpoint/*",
+          "aws/${var.binding.environment}/${var.binding.generation}/feedback-postgresql/checkpoint/*",
+          "aws/${var.binding.environment}/${var.binding.generation}/feedback-analytics-batch/checkpoint/*"
         ]
       },
       "spark": {
@@ -1788,12 +1844,16 @@
       }
     },
     "s3_grants": "${{for name,n in local.topology:name=>flatten([for purpose,prefixes in lookup(local.storage_grants,n.role,{}) : [{Effect=\"Allow\",Action=[\"s3:ListBucket\",\"s3:ListBucketMultipartUploads\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names[purpose]}\"],Condition={StringLike={\"s3:prefix\"=prefixes}}},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:GetObjectVersion\",\"s3:PutObject\",\"s3:AbortMultipartUpload\",\"s3:ListMultipartUploadParts\"],Resource=[for p in prefixes:\"arn:aws:s3:::${var.binding.bucket_names[purpose]}/${p}\"]}]] )}}",
-    "lake_cleanup": "${{for name,n in local.topology:name=>(contains([\"control\",\"spark\"],n.role) ? [{Effect=\"Allow\",Action=[\"s3:DeleteObject\"],Resource=concat([\"arn:aws:s3:::${var.binding.bucket_names.lake}/lake/feedback/*\"],n.role==\"control\" ? [\"arn:aws:s3:::${var.binding.bucket_names.lake}/aws/${var.binding.environment}/${var.binding.generation}/*/checkpoint/*\"] : [])}] : [])}}",
+    "lake_cleanup": "${{for name,n in local.topology:name=>(contains([\"control\",\"spark\"],n.role) ? [{Effect=\"Allow\",Action=[\"s3:DeleteObject\"],Resource=concat([\"arn:aws:s3:::${var.binding.bucket_names.lake}/lake/feedback/*\"],n.role==\"control\" ? [for q in [\"weather-stream\",\"feedback-postgresql\",\"feedback-analytics-batch\"]:\"arn:aws:s3:::${var.binding.bucket_names.lake}/aws/${var.binding.environment}/${var.binding.generation}/${q}/checkpoint/*\"] : [])}] : [])}}",
     "artifact_enabled": "${length(var.binding.artifact)>0}",
     "artifact_key": "${try(var.binding.artifact.key,\"UNBOUND\")}",
     "artifact_version": "${try(var.binding.artifact.version,\"UNBOUND\")}",
     "artifact_sha256": "${try(var.binding.artifact.sha256,\"UNBOUND\")}",
-    "artifact_manifest_sha256": "${try(var.binding.artifact.manifest_sha256,\"UNBOUND\")}"
+    "artifact_manifest_sha256": "${try(var.binding.artifact.manifest_sha256,\"UNBOUND\")}",
+    "track2_buckets": "${merge(var.binding.bucket_names,{media=var.track2.media.bucket,archive=var.track2.archive.bucket})}",
+    "track2_scopes": "${{for name,n in local.topology:name=>concat(contains([\"control\",\"spark\"],n.role) ? [{purpose=\"raw\",prefixes=[\"raw/venues/${var.track2.dataset_version}/*\"],actions=[\"s3:GetObject\",\"s3:GetObjectVersion\"]},{purpose=\"lake\",prefixes=[for layer in [\"bronze\",\"silver\",\"gold\"]:\"lake/venues/${var.track2.dataset_version}/v1/${layer}/*\"],actions=[\"s3:GetObject\",\"s3:GetObjectVersion\",\"s3:PutObject\",\"s3:AbortMultipartUpload\",\"s3:ListMultipartUploadParts\",\"s3:DeleteObject\"]}] : [],contains(var.track2.ingest_nodes,name) ? [{purpose=\"raw\",prefixes=[\"raw/venues/${var.track2.dataset_version}/*\"],actions=[\"s3:PutObject\",\"s3:AbortMultipartUpload\",\"s3:ListMultipartUploadParts\"]}] : [],[for q in lookup(var.track2.driver_queries,name,toset([])):{purpose=\"lake\",prefixes=[\"aws/${var.binding.environment}/${var.binding.generation}/${q}/checkpoint/*\"],actions=[\"s3:GetObject\",\"s3:GetObjectVersion\",\"s3:PutObject\",\"s3:AbortMultipartUpload\",\"s3:ListMultipartUploadParts\",\"s3:DeleteObject\"]}],var.track2.media.enabled && n.role==\"control\" ? [{purpose=\"media\",prefixes=[\"media/venues/approved/*\"],actions=[\"s3:GetObject\",\"s3:GetObjectVersion\",\"s3:PutObject\",\"s3:AbortMultipartUpload\",\"s3:ListMultipartUploadParts\",\"s3:DeleteObject\"]}] : [],var.track2.archive.enabled && name==\"control-b\" ? [{purpose=\"archive\",prefixes=[\"observability/${var.binding.environment}/${var.binding.generation}/*\"],actions=[\"s3:PutObject\",\"s3:AbortMultipartUpload\",\"s3:ListMultipartUploadParts\"]}] : [])}}",
+    "track2_grants": "${{for name,n in local.topology:name=>flatten([for s in local.track2_scopes[name]:[{Effect=\"Allow\",Action=[\"s3:ListBucket\"],Resource=[\"arn:aws:s3:::${local.track2_buckets[s.purpose]}\"],Condition={StringLike={\"s3:prefix\"=s.prefixes},StringEquals={\"aws:SourceVpce\"=try(var.track2.endpoint_ids[n.account],\"UNBOUND\")}}},{Effect=\"Allow\",Action=s.actions,Resource=[for p in s.prefixes:\"arn:aws:s3:::${local.track2_buckets[s.purpose]}/${p}\"],Condition={StringEquals={\"aws:SourceVpce\"=try(var.track2.endpoint_ids[n.account],\"UNBOUND\")}}}]] )}}",
+    "track2_bucket_statements": "${{for purpose in [\"raw\",\"lake\",\"media\",\"archive\"]:purpose=>flatten([for name,n in local.topology:[for s in local.track2_grants[name]:merge(s,{Principal={AWS=\"arn:aws:iam::${var.binding.account_ids[n.account]}:root\"},Condition=merge(s.Condition,{ArnEquals={\"aws:PrincipalArn\"=\"arn:aws:iam::${var.binding.account_ids[n.account]}:role/p4-runtime-${name}\"}})}) if contains(s.Resource,\"arn:aws:s3:::${local.track2_buckets[purpose]}\") || anytrue([for p in s.Resource:startswith(p,\"arn:aws:s3:::${local.track2_buckets[purpose]}/\")])]])}}"
   },
   "resource": {
     "aws_vpc": {
@@ -1861,7 +1921,21 @@
         "service_name": "com.amazonaws.ap-northeast-2.s3",
         "vpc_endpoint_type": "Gateway",
         "route_table_ids": "${[for r in aws_route_table.this:r.id]}",
-        "policy": "${jsonencode({Version=\"2012-10-17\",Statement=concat(jsondecode(jsonencode({Version=\"2012-10-17\",Statement=concat([{Effect=\"Allow\",Principal=\"*\",Action=[\"s3:GetObject\", \"s3:PutObject\"],Resource=[local.operation_arn],Condition={ArnEquals={\"aws:PrincipalArn\"=local.local_runtime_arns}}}],[{Effect=\"Allow\",Principal=\"*\",Action=[\"s3:GetObject\",\"s3:GetObjectVersion\",\"s3:PutObject\",\"s3:DeleteObject\",\"s3:AbortMultipartUpload\",\"s3:ListMultipartUploadParts\",\"s3:ListBucket\",\"s3:ListBucketMultipartUploads\",\"s3:GetBucketLocation\"],Resource=local.s3_resources,Condition={ArnEquals={\"aws:PrincipalArn\"=local.local_runtime_arns}}}],[for s in local.controller_grants:merge(s,{Principal=\"*\",Condition=merge(try(s.Condition,{}),{ArnEquals={\"aws:PrincipalArn\"=local.controller_arn}})})],local.artifact_enabled ? [{Effect=\"Allow\",Principal=\"*\",Action=[\"s3:GetObjectVersion\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names.transfer}/${local.artifact_key}\"],Condition={StringEquals={\"s3:VersionId\"=local.artifact_version},ArnEquals={\"aws:PrincipalArn\"=local.local_runtime_arns}}}] : [])})).Statement,local.artifact_enabled && local.controller_enabled ? [{Effect=\"Allow\",Principal=\"*\",Action=[\"s3:GetObjectVersion\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names.transfer}/${local.artifact_key}\"],Condition={StringEquals={\"s3:VersionId\"=local.artifact_version},ArnEquals={\"aws:PrincipalArn\"=local.controller_arn}}}] : [])})}"
+        "policy": "${jsonencode({Version=\"2012-10-17\",Statement=concat(jsondecode(jsonencode({Version=\"2012-10-17\",Statement=concat(jsondecode(jsonencode({Version=\"2012-10-17\",Statement=concat([{Effect=\"Allow\",Principal=\"*\",Action=[\"s3:GetObject\", \"s3:PutObject\"],Resource=[local.operation_arn],Condition={ArnEquals={\"aws:PrincipalArn\"=local.local_runtime_arns}}}],flatten([for name,n in local.nodes:[for s in concat(local.s3_grants[name],local.lake_cleanup[name]):merge(s,{Principal=\"*\",Condition=merge(try(s.Condition,{}),{ArnEquals={\"aws:PrincipalArn\"=\"arn:aws:iam::${var.binding.account_ids[n.account]}:role/p4-runtime-${name}\"}})})]]),[for s in local.controller_grants:merge(s,{Principal=\"*\",Condition=merge(try(s.Condition,{}),{ArnEquals={\"aws:PrincipalArn\"=local.controller_arn}})})],local.artifact_enabled ? [{Effect=\"Allow\",Principal=\"*\",Action=[\"s3:GetObjectVersion\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names.transfer}/${local.artifact_key}\"],Condition={StringEquals={\"s3:VersionId\"=local.artifact_version},ArnEquals={\"aws:PrincipalArn\"=local.local_runtime_arns}}}] : [])})).Statement,local.artifact_enabled && local.controller_enabled ? [{Effect=\"Allow\",Principal=\"*\",Action=[\"s3:GetObjectVersion\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names.transfer}/${local.artifact_key}\"],Condition={StringEquals={\"s3:VersionId\"=local.artifact_version},ArnEquals={\"aws:PrincipalArn\"=local.controller_arn}}}] : [])})).Statement,flatten([for name,n in local.nodes:[for s in local.track2_grants[name]:merge(s,{Principal=\"*\",Condition=merge(s.Condition,{ArnEquals={\"aws:PrincipalArn\"=\"arn:aws:iam::${var.binding.account_ids[n.account]}:role/p4-runtime-${name}\"}})}) if var.track2.enabled]]))})}",
+        "lifecycle": {
+          "postcondition": [
+            {
+              "condition": "${!var.track2.enabled || try(var.track2.endpoint_ids[var.account]==self.id,false)}",
+              "error_message": "Track2 must use this account own S3 endpoint; review first-stage outputs."
+            }
+          ],
+          "precondition": [
+            {
+              "condition": "${length(jsonencode({Version=\"2012-10-17\",Statement=concat(jsondecode(jsonencode({Version=\"2012-10-17\",Statement=concat(jsondecode(jsonencode({Version=\"2012-10-17\",Statement=concat([{Effect=\"Allow\",Principal=\"*\",Action=[\"s3:GetObject\", \"s3:PutObject\"],Resource=[local.operation_arn],Condition={ArnEquals={\"aws:PrincipalArn\"=local.local_runtime_arns}}}],flatten([for name,n in local.nodes:[for s in concat(local.s3_grants[name],local.lake_cleanup[name]):merge(s,{Principal=\"*\",Condition=merge(try(s.Condition,{}),{ArnEquals={\"aws:PrincipalArn\"=\"arn:aws:iam::${var.binding.account_ids[n.account]}:role/p4-runtime-${name}\"}})})]]),[for s in local.controller_grants:merge(s,{Principal=\"*\",Condition=merge(try(s.Condition,{}),{ArnEquals={\"aws:PrincipalArn\"=local.controller_arn}})})],local.artifact_enabled ? [{Effect=\"Allow\",Principal=\"*\",Action=[\"s3:GetObjectVersion\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names.transfer}/${local.artifact_key}\"],Condition={StringEquals={\"s3:VersionId\"=local.artifact_version},ArnEquals={\"aws:PrincipalArn\"=local.local_runtime_arns}}}] : [])})).Statement,local.artifact_enabled && local.controller_enabled ? [{Effect=\"Allow\",Principal=\"*\",Action=[\"s3:GetObjectVersion\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names.transfer}/${local.artifact_key}\"],Condition={StringEquals={\"s3:VersionId\"=local.artifact_version},ArnEquals={\"aws:PrincipalArn\"=local.controller_arn}}}] : [])})).Statement,flatten([for name,n in local.nodes:[for s in local.track2_grants[name]:merge(s,{Principal=\"*\",Condition=merge(s.Condition,{ArnEquals={\"aws:PrincipalArn\"=\"arn:aws:iam::${var.binding.account_ids[n.account]}:role/p4-runtime-${name}\"}})}) if var.track2.enabled]]))}))<=20480}",
+              "error_message": "S3 endpoint policy exceeds 20 KiB; reduce/review the query registry."
+            }
+          ]
+        }
       },
       "ssm": {
         "for_each": "${var.account==\"encore1\" ? toset([\"ssm\",\"ssmmessages\"]) : toset([])}",
@@ -1997,6 +2071,19 @@
         "for_each": "${local.artifact_enabled ? local.nodes : {}}",
         "role": "${aws_iam_role.runtime[each.key].id}",
         "policy": "${jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=[\"s3:GetObjectVersion\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names.transfer}/${var.binding.artifact.key}\"],Condition={StringEquals={\"s3:VersionId\"=var.binding.artifact.version}}}]})}"
+      },
+      "track2": {
+        "for_each": "${var.track2.enabled ? {for name,n in local.nodes:name=>n if length(local.track2_scopes[name])>0} : {}}",
+        "role": "${aws_iam_role.runtime[each.key].id}",
+        "policy": "${jsonencode({Version=\"2012-10-17\",Statement=local.track2_grants[each.key]})}",
+        "lifecycle": {
+          "precondition": [
+            {
+              "condition": "${length(jsonencode({Version=\"2012-10-17\",Statement=concat([{\"Effect\": \"Allow\", \"Action\": [\"ssm:UpdateInstanceInformation\", \"ssm:ListAssociations\", \"ssm:ListInstanceAssociations\", \"ssm:PutInventory\", \"ssm:PutComplianceItems\", \"ssm:UpdateAssociationStatus\", \"ssm:UpdateInstanceAssociationStatus\", \"ssmmessages:CreateControlChannel\", \"ssmmessages:CreateDataChannel\", \"ssmmessages:OpenControlChannel\", \"ssmmessages:OpenDataChannel\"], \"Resource\": [\"*\"]}],local.s3_grants[each.key],local.lake_cleanup[each.key],[{Effect=\"Allow\",Action=[\"ssm:GetDocument\",\"ssm:DescribeDocument\"],Resource=[\"arn:aws:ssm:ap-northeast-2:${var.binding.account_ids[var.account]}:document/p4-runtime-artifact\"]}])}))+length(jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=[\"s3:GetObject\", \"s3:PutObject\"],Resource=[local.operation_arn]}]}))+length(jsonencode({Version=\"2012-10-17\",Statement=local.track2_grants[each.key]}))+(local.artifact_enabled ? length(jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=[\"s3:GetObjectVersion\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names.transfer}/${var.binding.artifact.key}\"],Condition={StringEquals={\"s3:VersionId\"=var.binding.artifact.version}}}]})) : 0)<=10240}",
+              "error_message": "Combined runtime inline policies exceed 10240 characters; review the query registry."
+            }
+          ]
+        }
       }
     },
     "aws_iam_instance_profile": {
@@ -2149,13 +2236,13 @@
       "count": "${var.account==\"encore1\" ? 1 : 0}",
       "source": "../bucket",
       "name": "${var.binding.bucket_names.raw}",
-      "statements": "${flatten([for name,n in local.topology:[for s in concat(local.s3_grants[name],local.lake_cleanup[name]):merge(s,{Principal={AWS=\"arn:aws:iam::${var.binding.account_ids[n.account]}:root\"},Condition=merge(try(s.Condition,{}),{ArnEquals={\"aws:PrincipalArn\"=\"arn:aws:iam::${var.binding.account_ids[n.account]}:role/p4-runtime-${name}\"}})}) if anytrue([for resource in s.Resource:startswith(resource,\"arn:aws:s3:::${var.binding.bucket_names.raw}\")])]])}"
+      "statements": "${concat(flatten([for name,n in local.topology:[for s in concat(local.s3_grants[name],local.lake_cleanup[name]):merge(s,{Principal={AWS=\"arn:aws:iam::${var.binding.account_ids[n.account]}:root\"},Condition=merge(try(s.Condition,{}),{ArnEquals={\"aws:PrincipalArn\"=\"arn:aws:iam::${var.binding.account_ids[n.account]}:role/p4-runtime-${name}\"}})}) if anytrue([for resource in s.Resource:startswith(resource,\"arn:aws:s3:::${var.binding.bucket_names.raw}\")])]]),[for s in concat(local.track2_bucket_statements.raw,[{Effect=\"Deny\",Principal=\"*\",Action=\"s3:*\",Resource=[for p in [\"raw/venues/*\"]:\"arn:aws:s3:::${var.binding.bucket_names.raw}/${p}\"],Condition={StringNotEquals={\"aws:SourceVpce\"=values(var.track2.endpoint_ids)}}}]):s if var.track2.enabled])}"
     },
     "lake": {
       "count": "${var.account==\"encore1\" ? 1 : 0}",
       "source": "../bucket",
       "name": "${var.binding.bucket_names.lake}",
-      "statements": "${flatten([for name,n in local.topology:[for s in concat(local.s3_grants[name],local.lake_cleanup[name]):merge(s,{Principal={AWS=\"arn:aws:iam::${var.binding.account_ids[n.account]}:root\"},Condition=merge(try(s.Condition,{}),{ArnEquals={\"aws:PrincipalArn\"=\"arn:aws:iam::${var.binding.account_ids[n.account]}:role/p4-runtime-${name}\"}})}) if anytrue([for resource in s.Resource:startswith(resource,\"arn:aws:s3:::${var.binding.bucket_names.lake}\")])]])}"
+      "statements": "${concat(flatten([for name,n in local.topology:[for s in concat(local.s3_grants[name],local.lake_cleanup[name]):merge(s,{Principal={AWS=\"arn:aws:iam::${var.binding.account_ids[n.account]}:root\"},Condition=merge(try(s.Condition,{}),{ArnEquals={\"aws:PrincipalArn\"=\"arn:aws:iam::${var.binding.account_ids[n.account]}:role/p4-runtime-${name}\"}})}) if anytrue([for resource in s.Resource:startswith(resource,\"arn:aws:s3:::${var.binding.bucket_names.lake}\")])]]),[for s in concat(local.track2_bucket_statements.lake,[{Effect=\"Deny\",Principal=\"*\",Action=\"s3:*\",Resource=[for p in concat([\"lake/venues/*\"],[for q in distinct(flatten(values(var.track2.driver_queries))):\"aws/${var.binding.environment}/${var.binding.generation}/${q}/checkpoint/*\"]):\"arn:aws:s3:::${var.binding.bucket_names.lake}/${p}\"],Condition={StringNotEquals={\"aws:SourceVpce\"=values(var.track2.endpoint_ids)}}}]):s if var.track2.enabled])}"
     },
     "backup": {
       "count": "${var.account==\"encore1\" ? 1 : 0}",
@@ -2168,6 +2255,12 @@
       "source": "../bucket",
       "name": "${var.binding.bucket_names.transfer}",
       "statements": "${concat(concat(flatten([for account,ids in try(var.binding.controller_instance_ids,{}) : [for s in [{Effect=\"Allow\",Principal={AWS=\"arn:aws:iam::${var.binding.account_ids[account]}:root\"},Action=[\"s3:GetBucketLocation\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names.transfer}\"],Condition={ArnEquals={\"aws:PrincipalArn\"=\"arn:aws:iam::${var.binding.account_ids[account]}:role/p4-controller-${account}\"}}},{Effect=\"Allow\",Principal={AWS=\"arn:aws:iam::${var.binding.account_ids[account]}:root\"},Action=[\"s3:ListBucket\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names.transfer}\"],Condition={StringLike={\"s3:prefix\"=[for id in ids:\"${id}/*\"]},ArnEquals={\"aws:PrincipalArn\"=\"arn:aws:iam::${var.binding.account_ids[account]}:role/p4-controller-${account}\"}}},{Effect=\"Allow\",Principal={AWS=\"arn:aws:iam::${var.binding.account_ids[account]}:root\"},Action=[\"s3:GetObject\",\"s3:PutObject\",\"s3:DeleteObject\"],Resource=[for id in ids:\"arn:aws:s3:::${var.binding.bucket_names.transfer}/${id}/*\"],Condition={ArnEquals={\"aws:PrincipalArn\"=\"arn:aws:iam::${var.binding.account_ids[account]}:role/p4-controller-${account}\"}}}] : s if length(ids)>0]]),local.artifact_enabled ? [{Effect=\"Allow\",Principal={AWS=[for id in values(var.binding.account_ids):\"arn:aws:iam::${id}:root\"]},Action=[\"s3:GetObjectVersion\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names.transfer}/${local.artifact_key}\"],Condition={StringEquals={\"s3:VersionId\"=local.artifact_version},ArnEquals={\"aws:PrincipalArn\"=local.runtime_arns}}}] : []),local.artifact_enabled ? [for account in keys(try(var.binding.controller_instance_ids,{})):{Effect=\"Allow\",Principal={AWS=\"arn:aws:iam::${var.binding.account_ids[account]}:root\"},Action=[\"s3:GetObjectVersion\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names.transfer}/${local.artifact_key}\"],Condition={StringEquals={\"s3:VersionId\"=local.artifact_version},ArnEquals={\"aws:PrincipalArn\"=\"arn:aws:iam::${var.binding.account_ids[account]}:role/p4-controller-${account}\"}}}] : [])}"
+    },
+    "observability_archive": {
+      "source": "../bucket",
+      "count": "${var.account==\"encore1\" && var.track2.enabled && var.track2.archive.enabled ? 1 : 0}",
+      "name": "${var.track2.archive.bucket}",
+      "statements": "${concat(local.track2_bucket_statements.archive,[{Effect=\"Deny\",Principal=\"*\",Action=\"s3:*\",Resource=[\"arn:aws:s3:::${var.track2.archive.bucket}\",\"arn:aws:s3:::${var.track2.archive.bucket}/*\"],Condition={StringNotEquals={\"aws:SourceVpce\"=try(var.track2.endpoint_ids.encore1,\"UNBOUND\")}}}])}"
     }
   },
   "output": {
@@ -2199,7 +2292,25 @@
         "vpc_id": "${aws_vpc.this.id}",
         "subnets": "${[for k,s in aws_subnet.this:s.id if startswith(k,\"public-\")]}",
         "control_sgs": "${[for k,s in aws_security_group.host:s.id if startswith(k,\"control-\")]}",
-        "targets": "${[for k,n in local.nodes:aws_instance.host[k].id if n.role==\"control\"]}"
+        "targets": "${[for k,n in local.nodes:aws_instance.host[k].id if n.role==\"control\"]}",
+        "media_statements": "${[for s in local.track2_bucket_statements.media:s if var.track2.enabled && var.track2.media.enabled]}"
+      }
+    },
+    "foundation_track2_account": {
+      "value": {
+        "component": "${var.account}",
+        "enabled": "${var.track2.enabled}",
+        "schema_version": "foundation-track2/1",
+        "environment": "${var.binding.environment}",
+        "generation": "${var.binding.generation}",
+        "example_only": "${var.binding.example_only}",
+        "region": "ap-northeast-2",
+        "dataset_version": "${var.track2.dataset_version}",
+        "driver_queries": "${var.track2.driver_queries}",
+        "ingest_nodes": "${sort(tolist(var.track2.ingest_nodes))}",
+        "endpoint_id": "${aws_vpc_endpoint.s3.id}",
+        "archive_bucket_ref": "${var.track2.archive.enabled ? var.track2.archive.bucket : null}",
+        "ready_for_aws": false
       }
     }
   }
