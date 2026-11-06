@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0.0",
+  "observed_at": "2026-10-29T23:43:00+09:00",
+  "scope": "Registry index digests verified with docker buildx imagetools inspect. Runtime acceptance is separate.",
+  "images": {
+    "ubuntu": {
+      "ref": "ubuntu:24.04",
+      "digest": "sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852",
+      "source": "https://hub.docker.com/_/ubuntu"
+    },
+    "postgresql": {
+      "ref": "postgres:16.11",
+      "digest": "sha256:468e1f126ca5af849799cda06ac9b03d8090aae9fa5163408b3e8da44fad0702",
+      "source": "https://hub.docker.com/_/postgres"
+    },
+    "mongodb": {
+      "ref": "mongo:8.0.17",
+      "digest": "sha256:9814652e33f0cf8b9fddea8b46dfc9d8e19b130dcfdd7b510ca58bb0d40c8b71",
+      "source": "https://hub.docker.com/_/mongo"
+    },
+    "haproxy": {
+      "ref": "haproxy:3.2.6-alpine",
+      "digest": "sha256:3a819392f5a6af2a9203d1c63ff0feba74f0c940623a558511be06d7d85e361c",
+      "source": "https://hub.docker.com/_/haproxy"
+    },
+    "kafka": {
+      "ref": "apache/kafka:4.1.2",
+      "digest": "sha256:5cc2a2fd93fa2687b44015eee04fb2c3edd9e526bd64bf8bec5ff1e268772e0e",
+      "source": "https://kafka.apache.org/41/getting-started/docker/"
+    },
+    "spark": {
+      "ref": "apache/spark:4.1.3-java21-python3",
+      "digest": "sha256:bf9d035a7c32a8ca46aa58d6348182ffd7d2dff6409206ecfbb3915ff1fef211",
+      "source": "https://github.com/apache/spark-docker"
+    },
+    "zookeeper": {
+      "ref": "zookeeper:3.9.4",
+      "digest": "sha256:dfa9ba46d14bd52bcb3c1dac3ba91f179cf4cebf7ee576e1c2df09c68fc1d30d",
+      "source": "https://hub.docker.com/_/zookeeper"
+    },
+    "elasticsearch": {
+      "ref": "docker.elastic.co/elasticsearch/elasticsearch:8.19.23",
+      "digest": "sha256:4d0724bb8d78d7a2330693623e26ca4d621079d062ecc8a30b3e1fc180ec14c1",
+      "source": "https://www.docker.elastic.co/r/elasticsearch"
+    }
+  },
+  "unresolved": [
+    "Squid image + source digest",
+    "app/relay images + source lock",
+    "Tailscale deb version + sha256",
+    "SSM Agent + Session Manager plugin package version/hash",
+    "Ubuntu Docker Engine 29.8.0 + Compose 5.5.1 deb hashes"
+  ],
+  "platforms": [
+    "linux/amd64",
+    "linux/arm64"
+  ]
+}

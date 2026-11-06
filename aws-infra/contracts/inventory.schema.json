@@ -1,0 +1,370 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mlo-p4/inventory-v1.schema.json",
+  "title": "MLO P4 inventory contract v1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "example_only": {
+      "type": "boolean"
+    },
+    "environment": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "generation": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "region": {
+      "const": "ap-northeast-2"
+    },
+    "az_ids": {
+      "type": "object",
+      "properties": {
+        "a": {
+          "type": "string",
+          "pattern": "^apne2-az[0-9]+$"
+        },
+        "b": {
+          "type": "string",
+          "pattern": "^apne2-az[0-9]+$"
+        },
+        "c": {
+          "type": "string",
+          "pattern": "^apne2-az[0-9]+$"
+        }
+      },
+      "required": [
+        "a",
+        "b",
+        "c"
+      ],
+      "additionalProperties": false
+    },
+    "accounts": {
+      "type": "object",
+      "properties": {
+        "encore1": {
+          "type": "object",
+          "properties": {
+            "vpc_id": {
+              "type": "string",
+              "pattern": "^vpc-[0-9a-f]{17}$"
+            },
+            "cidr": {
+              "type": "string",
+              "minLength": 1
+            },
+            "s3_endpoint_id": {
+              "type": "string",
+              "pattern": "^vpce-[0-9a-f]{17}$"
+            }
+          },
+          "required": [
+            "vpc_id",
+            "cidr",
+            "s3_endpoint_id"
+          ],
+          "additionalProperties": false
+        },
+        "encore2": {
+          "type": "object",
+          "properties": {
+            "vpc_id": {
+              "type": "string",
+              "pattern": "^vpc-[0-9a-f]{17}$"
+            },
+            "cidr": {
+              "type": "string",
+              "minLength": 1
+            },
+            "s3_endpoint_id": {
+              "type": "string",
+              "pattern": "^vpce-[0-9a-f]{17}$"
+            }
+          },
+          "required": [
+            "vpc_id",
+            "cidr",
+            "s3_endpoint_id"
+          ],
+          "additionalProperties": false
+        },
+        "encore3": {
+          "type": "object",
+          "properties": {
+            "vpc_id": {
+              "type": "string",
+              "pattern": "^vpc-[0-9a-f]{17}$"
+            },
+            "cidr": {
+              "type": "string",
+              "minLength": 1
+            },
+            "s3_endpoint_id": {
+              "type": "string",
+              "pattern": "^vpce-[0-9a-f]{17}$"
+            }
+          },
+          "required": [
+            "vpc_id",
+            "cidr",
+            "s3_endpoint_id"
+          ],
+          "additionalProperties": false
+        },
+        "encore4": {
+          "type": "object",
+          "properties": {
+            "vpc_id": {
+              "type": "string",
+              "pattern": "^vpc-[0-9a-f]{17}$"
+            },
+            "cidr": {
+              "type": "string",
+              "minLength": 1
+            },
+            "s3_endpoint_id": {
+              "type": "string",
+              "pattern": "^vpce-[0-9a-f]{17}$"
+            }
+          },
+          "required": [
+            "vpc_id",
+            "cidr",
+            "s3_endpoint_id"
+          ],
+          "additionalProperties": false
+        },
+        "encore5": {
+          "type": "object",
+          "properties": {
+            "vpc_id": {
+              "type": "string",
+              "pattern": "^vpc-[0-9a-f]{17}$"
+            },
+            "cidr": {
+              "type": "string",
+              "minLength": 1
+            },
+            "s3_endpoint_id": {
+              "type": "string",
+              "pattern": "^vpce-[0-9a-f]{17}$"
+            }
+          },
+          "required": [
+            "vpc_id",
+            "cidr",
+            "s3_endpoint_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "encore1",
+        "encore2",
+        "encore3",
+        "encore4",
+        "encore5"
+      ],
+      "additionalProperties": false
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]+$"
+          },
+          "role": {
+            "enum": [
+              "advertising",
+              "control",
+              "elasticsearch",
+              "gateway",
+              "kafka",
+              "mongodb",
+              "postgresql",
+              "spark"
+            ]
+          },
+          "account": {
+            "enum": [
+              "encore1",
+              "encore2",
+              "encore3",
+              "encore4",
+              "encore5"
+            ]
+          },
+          "az_slot": {
+            "enum": [
+              "a",
+              "b",
+              "c"
+            ]
+          },
+          "instance_type": {
+            "enum": [
+              "t3.small",
+              "t3.medium",
+              "t3.large"
+            ]
+          },
+          "subnet_kind": {
+            "enum": [
+              "private",
+              "public"
+            ]
+          },
+          "instance_id": {
+            "type": "string",
+            "pattern": "^i-[0-9a-f]{17}$"
+          },
+          "private_ip": {
+            "type": "string",
+            "format": "ipv4"
+          },
+          "az_id": {
+            "type": "string",
+            "pattern": "^apne2-az[0-9]+$"
+          },
+          "runtime_role_ref": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "name",
+          "role",
+          "account",
+          "az_slot",
+          "instance_type",
+          "subnet_kind",
+          "instance_id",
+          "private_ip",
+          "az_id",
+          "runtime_role_ref"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "peering_pairs": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 10,
+      "items": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "uniqueItems": true,
+        "items": {
+          "enum": [
+            "encore1",
+            "encore2",
+            "encore3",
+            "encore4",
+            "encore5"
+          ]
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "properties": {
+        "raw_bucket_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lake_bucket_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "backup_bucket_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state_bucket_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "transfer_bucket_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "raw_bucket_ref",
+        "lake_bucket_ref",
+        "backup_bucket_ref",
+        "state_bucket_ref",
+        "transfer_bucket_ref"
+      ],
+      "additionalProperties": false
+    },
+    "secret_refs": {
+      "type": "object",
+      "properties": {
+        "postgresql": {
+          "type": "string",
+          "pattern": "^runtime-secret:[a-z0-9_/-]+$"
+        },
+        "mongodb": {
+          "type": "string",
+          "pattern": "^runtime-secret:[a-z0-9_/-]+$"
+        },
+        "kafka": {
+          "type": "string",
+          "pattern": "^runtime-secret:[a-z0-9_/-]+$"
+        },
+        "elasticsearch": {
+          "type": "string",
+          "pattern": "^runtime-secret:[a-z0-9_/-]+$"
+        },
+        "zookeeper": {
+          "type": "string",
+          "pattern": "^runtime-secret:[a-z0-9_/-]+$"
+        },
+        "llm_service": {
+          "type": "string",
+          "pattern": "^runtime-secret:[a-z0-9_/-]+$"
+        },
+        "ghcr_read": {
+          "type": "string",
+          "pattern": "^runtime-secret:[a-z0-9_/-]+$"
+        }
+      },
+      "required": [
+        "postgresql",
+        "mongodb",
+        "kafka",
+        "elasticsearch",
+        "zookeeper",
+        "llm_service",
+        "ghcr_read"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "example_only",
+    "environment",
+    "generation",
+    "region",
+    "az_ids",
+    "accounts",
+    "nodes",
+    "peering_pairs",
+    "storage",
+    "secret_refs"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,260 @@
+{
+  "terraform": {
+    "required_version": "= 1.11.4",
+    "required_providers": {
+      "aws": {
+        "source": "hashicorp/aws",
+        "version": "= 5.94.1"
+      }
+    }
+  },
+  "variable": {
+    "inputs": {
+      "type": "any"
+    },
+    "origin_header": {
+      "type": "string",
+      "sensitive": true,
+      "validation": [
+        {
+          "condition": "${length(var.origin_header)>=32}",
+          "error_message": "Origin header minimum 32 characters."
+        }
+      ]
+    }
+  },
+  "data": {
+    "aws_ec2_managed_prefix_list": {
+      "cloudfront": {
+        "name": "com.amazonaws.global.cloudfront.origin-facing"
+      }
+    }
+  },
+  "resource": {
+    "aws_security_group": {
+      "alb": {
+        "vpc_id": "${var.inputs.vpc_id}",
+        "ingress": [
+          {
+            "protocol": "tcp",
+            "from_port": 80,
+            "to_port": 80,
+            "prefix_list_ids": "${[data.aws_ec2_managed_prefix_list.cloudfront.id]}",
+            "cidr_blocks": [],
+            "ipv6_cidr_blocks": [],
+            "security_groups": [],
+            "self": false,
+            "description": "CloudFront origin only"
+          }
+        ],
+        "egress": []
+      }
+    },
+    "aws_security_group_rule": {
+      "target_in": {
+        "count": "${length(var.inputs.control_sgs)}",
+        "type": "ingress",
+        "security_group_id": "${var.inputs.control_sgs[count.index]}",
+        "source_security_group_id": "${aws_security_group.alb.id}",
+        "protocol": "tcp",
+        "from_port": 8000,
+        "to_port": 8000
+      },
+      "target_out": {
+        "count": "${length(var.inputs.control_sgs)}",
+        "type": "egress",
+        "security_group_id": "${aws_security_group.alb.id}",
+        "source_security_group_id": "${var.inputs.control_sgs[count.index]}",
+        "protocol": "tcp",
+        "from_port": 8000,
+        "to_port": 8000
+      }
+    },
+    "aws_lb": {
+      "this": {
+        "name": "p4-control",
+        "internal": false,
+        "load_balancer_type": "application",
+        "security_groups": "${[aws_security_group.alb.id]}",
+        "subnets": "${var.inputs.subnets}",
+        "enable_deletion_protection": true
+      }
+    },
+    "aws_lb_target_group": {
+      "web": {
+        "name": "p4-control",
+        "port": 8000,
+        "protocol": "HTTP",
+        "vpc_id": "${var.inputs.vpc_id}",
+        "health_check": [
+          {
+            "path": "/health",
+            "port": "traffic-port",
+            "protocol": "HTTP",
+            "matcher": "200"
+          }
+        ]
+      }
+    },
+    "aws_lb_target_group_attachment": {
+      "web": {
+        "count": "${length(var.inputs.targets)}",
+        "target_group_arn": "${aws_lb_target_group.web.arn}",
+        "target_id": "${var.inputs.targets[count.index]}",
+        "port": 8000
+      }
+    },
+    "aws_lb_listener": {
+      "http": {
+        "load_balancer_arn": "${aws_lb.this.arn}",
+        "port": 80,
+        "protocol": "HTTP",
+        "default_action": [
+          {
+            "type": "fixed-response",
+            "fixed_response": [
+              {
+                "content_type": "text/plain",
+                "message_body": "Forbidden",
+                "status_code": "403"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "aws_lb_listener_rule": {
+      "origin": {
+        "listener_arn": "${aws_lb_listener.http.arn}",
+        "priority": 10,
+        "action": [
+          {
+            "type": "forward",
+            "target_group_arn": "${aws_lb_target_group.web.arn}"
+          }
+        ],
+        "condition": [
+          {
+            "http_header": [
+              {
+                "http_header_name": "X-P4-Origin",
+                "values": "${[var.origin_header]}"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "aws_cloudfront_cache_policy": {
+      "disabled": {
+        "name": "p4-api-no-cache",
+        "min_ttl": 0,
+        "default_ttl": 0,
+        "max_ttl": 0,
+        "parameters_in_cache_key_and_forwarded_to_origin": [
+          {
+            "cookies_config": [
+              {
+                "cookie_behavior": "none"
+              }
+            ],
+            "headers_config": [
+              {
+                "header_behavior": "none"
+              }
+            ],
+            "query_strings_config": [
+              {
+                "query_string_behavior": "none"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "aws_cloudfront_origin_request_policy": {
+      "api": {
+        "name": "p4-api-all-viewer",
+        "cookies_config": [
+          {
+            "cookie_behavior": "all"
+          }
+        ],
+        "headers_config": [
+          {
+            "header_behavior": "allViewer"
+          }
+        ],
+        "query_strings_config": [
+          {
+            "query_string_behavior": "all"
+          }
+        ]
+      }
+    },
+    "aws_cloudfront_distribution": {
+      "this": {
+        "enabled": true,
+        "is_ipv6_enabled": true,
+        "origin": [
+          {
+            "domain_name": "${aws_lb.this.dns_name}",
+            "origin_id": "control",
+            "custom_header": [
+              {
+                "name": "X-P4-Origin",
+                "value": "${var.origin_header}"
+              }
+            ],
+            "custom_origin_config": [
+              {
+                "http_port": 80,
+                "https_port": 443,
+                "origin_protocol_policy": "http-only",
+                "origin_ssl_protocols": [
+                  "TLSv1.2"
+                ]
+              }
+            ]
+          }
+        ],
+        "default_cache_behavior": [
+          {
+            "target_origin_id": "control",
+            "viewer_protocol_policy": "redirect-to-https",
+            "allowed_methods": [
+              "GET",
+              "HEAD",
+              "OPTIONS",
+              "PUT",
+              "POST",
+              "PATCH",
+              "DELETE"
+            ],
+            "cached_methods": [
+              "GET",
+              "HEAD"
+            ],
+            "cache_policy_id": "${aws_cloudfront_cache_policy.disabled.id}",
+            "origin_request_policy_id": "${aws_cloudfront_origin_request_policy.api.id}"
+          }
+        ],
+        "restrictions": [
+          {
+            "geo_restriction": [
+              {
+                "restriction_type": "none"
+              }
+            ]
+          }
+        ],
+        "viewer_certificate": [
+          {
+            "cloudfront_default_certificate": true
+          }
+        ],
+        "price_class": "PriceClass_200"
+      }
+    }
+  }
+}

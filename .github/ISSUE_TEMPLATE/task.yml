@@ -1,0 +1,24 @@
+name: "Task / 인프라"
+description: "작업·검증·문서화 Issue"
+title: "[Task] "
+labels: ["type:task"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: 작업 목적과 변경 범위
+    validations:
+      required: true
+  - type: textarea
+    id: boundary
+    attributes:
+      label: 비밀정보·배포·비용 영향
+      description: "인증자료, 실제 계정 ID, 개인 주소 등을 포함하지 마세요."
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 완료 조건 및 로컬 검증
+    validations:
+      required: true

@@ -1,0 +1,24 @@
+name: "Feature / 기능"
+description: "기능 추가·개선 작업"
+title: "[Feature] "
+labels: ["type:feature"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: 목표와 기대 결과
+      description: "개인정보·API 키·실제 계정 번호는 기재하지 마세요."
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 변경 범위·제외 범위
+    validations:
+      required: true
+  - type: textarea
+    id: test
+    attributes:
+      label: 완료 기준·합성 데이터 검증 명령
+    validations:
+      required: true

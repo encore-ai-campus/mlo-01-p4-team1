@@ -1,0 +1,37 @@
+name: Reviewed manual runtime
+on:
+  workflow_dispatch:
+    inputs:
+      review_sha256:
+        description: SHA256 of separately approved private review
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: mlo-infra-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  execute:
+    if: vars.RUNTIME_DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main' && github.event.repository.private == true
+    environment: infra-runtime
+    runs-on: [self-hosted, Linux, X64, mlo-runtime-locked]
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          clean: true
+          persist-credentials: false
+      - name: Validate separate review then execute fixed operation
+        env:
+          MLO_PURPOSE: runtime
+          MLO_REVIEW_SHA256: ${{ inputs.review_sha256 }}
+          MLO_APPROVAL_KEY_SHA256: ${{ vars.INFRA_APPROVAL_PUBLIC_KEY_SHA256 }}
+          MLO_REVIEW_ROOT: ${{ vars.INFRA_PRIVATE_REVIEW_ROOT }}
+          MLO_REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: aws-infra/runtime/.venv/bin/python scripts/run_reviewed_workflow.py

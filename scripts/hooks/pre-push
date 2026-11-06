@@ -1,0 +1,23 @@
+#!/bin/sh
+# The GitHub Private plan does not currently provide server-side branch rules.
+# This is a local safety guard only, and can be bypassed by other clients.
+set -eu
+if [ "${MLO_ALLOW_SHARED_BRANCH_PUSH:-0}" = 1 ]; then
+  echo "WARNING: administrator override for shared branch push; independent review required" >&2
+  exit 0
+fi
+
+denied=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/develop|refs/heads/feature/infra)
+      printf 'BLOCKED: direct push to shared branch %s; use an Issue-linked PR.\n' "$remote_ref" >&2
+      denied=1
+      ;;
+  esac
+done
+if [ "$denied" -ne 0 ]; then
+  echo "Emergency exception only: MLO_ALLOW_SHARED_BRANCH_PUSH=1 (not a substitute for GitHub protection)." >&2
+  exit 1
+fi
+exit 0

@@ -1,0 +1,81 @@
+{
+  "schema_version": "1.0.0",
+  "resolution": "exact file rule first; otherwise exactly one matching directory prefix; unknown paths are unassigned",
+  "owners": {
+    "common": {
+      "files": [
+        "AGENTS.md",
+        "README.md",
+        ".gitignore",
+        "Makefile",
+        "requirements-common.lock.txt",
+        "aws-infra/AGENTS.md",
+        "aws-infra/foundation/AGENTS.md",
+        "aws-infra/runtime/AGENTS.md",
+        ".github/workflows/preparation-check.yml",
+        ".github/workflows/integration-check.yml",
+        "docs/handoff/infra/SESSION-2026-10-29.md",
+        "docs/handoff/infra/BASELINE.md",
+        "docs/handoff/infra/OWNERSHIP.md",
+        "docs/handoff/infra/TESTING.md",
+        "docs/handoff/infra/ORCA-SETUP.md",
+        "docs/handoff/infra/PREPARATION-RESULTS.md",
+        "docs/handoff/infra/REVIEW-2026-10-30.md",
+        "docs/handoff/infra/REMEDIATION-2026-10-30.md",
+        "CONTRIBUTING.md",
+        "docs/handoff/infra/ORCA-WORKFLOW.md",
+        "aws-infra/lifecycle/AGENTS.md",
+        "docs/handoff/infra/PREDEPLOY-2026-10-31.md",
+        "docs/handoff/infra/PERMISSIONS-REVIEW-2026-11-01.md",
+        "docs/handoff/infra/GIT-INTEGRATION-2026-11-01.md",
+        "docs/handoff/infra/PREAUTH-2026-11-01.md",
+        "SECURITY.md",
+        ".github/pull_request_template.md",
+        ".github/workflows/public-source-safety.yml",
+        ".github/workflows/collaboration-check.yml"
+      ],
+      "prefixes": [
+        "aws-infra/contracts/",
+        "scripts/",
+        "tests/preparation/",
+        "tests/integration/",
+        "docs/architecture/",
+        "docs/handoff/infra/templates/",
+        ".github/ISSUE_TEMPLATE/",
+        "app/"
+      ]
+    },
+    "A": {
+      "files": [
+        ".github/workflows/infra-check.yml",
+        ".github/workflows/infra-plan.yml",
+        ".github/workflows/infra-apply.yml"
+      ],
+      "prefixes": [
+        "aws-infra/foundation/",
+        "docs/handoff/infra/agent-a/"
+      ]
+    },
+    "B": {
+      "files": [
+        ".github/workflows/runtime-check.yml",
+        ".github/workflows/image-build.yml",
+        ".github/workflows/app-deploy.yml"
+      ],
+      "prefixes": [
+        "aws-infra/runtime/",
+        "docs/handoff/infra/agent-b/"
+      ]
+    },
+    "C": {
+      "files": [
+        ".github/workflows/lifecycle-check.yml",
+        ".github/workflows/infra-destroy.yml"
+      ],
+      "prefixes": [
+        "aws-infra/lifecycle/",
+        "docs/handoff/infra/agent-c/"
+      ]
+    }
+  }
+}

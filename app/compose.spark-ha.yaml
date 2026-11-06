@@ -1,0 +1,270 @@
+# OPTIONAL LOCAL Spark master HA: three ZooKeeper nodes + two Spark masters.
+# Compose -f compose.yaml -f compose.integration.yaml -f compose.spark-ha.yaml
+# This is NOT an AWS multi-AZ availability test.
+x-zk-env: &zk-env
+  ZOO_SERVERS: "server.1=zookeeper-01:2888:3888;2181 server.2=zookeeper-02:2888:3888;2181 server.3=zookeeper-03:2888:3888;2181"
+  ZOO_STANDALONE_ENABLED: "false"
+  ZOO_4LW_COMMANDS_WHITELIST: "ruok,stat,mntr"
+  ZOO_INIT_LIMIT: "10"
+  ZOO_SYNC_LIMIT: "5"
+  JVMFLAGS: "-Xms96m -Xmx160m"
+x-zk-health: &zk-health
+  test: ["CMD", "bash", "-ec", "echo >/dev/tcp/127.0.0.1/2181"]
+  interval: 9s
+  timeout: 5s
+  retries: 25
+  start_period: 30s
+x-ha-master-env: &ha-env
+  SPARK_DAEMON_MEMORY: 384m
+  SPARK_DAEMON_JAVA_OPTS: "-Dspark.deploy.recoveryMode=ZOOKEEPER -Dspark.deploy.zookeeper.url=zookeeper-01:2181,zookeeper-02:2181,zookeeper-03:2181 -Dspark.deploy.zookeeper.dir=/mlo-spark-ha-local"
+
+services:
+  zookeeper-01:
+    profiles: [spark-ha]
+    image: zookeeper:3.9.4@sha256:dfa9ba46d14bd52bcb3c1dac3ba91f179cf4cebf7ee576e1c2df09c68fc1d30d
+    hostname: zookeeper-01
+    environment:
+      <<: *zk-env
+      ZOO_MY_ID: "1"
+    volumes:
+      - zookeeper_01_data:/data
+      - zookeeper_01_logs:/datalog
+    mem_limit: 340m
+    healthcheck: *zk-health
+    restart: unless-stopped
+    networks: [dev]
+  zookeeper-02:
+    profiles: [spark-ha]
+    image: zookeeper:3.9.4@sha256:dfa9ba46d14bd52bcb3c1dac3ba91f179cf4cebf7ee576e1c2df09c68fc1d30d
+    hostname: zookeeper-02
+    environment:
+      <<: *zk-env
+      ZOO_MY_ID: "2"
+    volumes:
+      - zookeeper_02_data:/data
+      - zookeeper_02_logs:/datalog
+    mem_limit: 340m
+    healthcheck: *zk-health
+    restart: unless-stopped
+    networks: [dev]
+  zookeeper-03:
+    profiles: [spark-ha]
+    image: zookeeper:3.9.4@sha256:dfa9ba46d14bd52bcb3c1dac3ba91f179cf4cebf7ee576e1c2df09c68fc1d30d
+    hostname: zookeeper-03
+    environment:
+      <<: *zk-env
+      ZOO_MY_ID: "3"
+    volumes:
+      - zookeeper_03_data:/data
+      - zookeeper_03_logs:/datalog
+    mem_limit: 340m
+    healthcheck: *zk-health
+    restart: unless-stopped
+    networks: [dev]
+
+  spark-master:
+    environment: *ha-env
+    depends_on:
+      zookeeper-01: {condition: service_healthy}
+      zookeeper-02: {condition: service_healthy}
+      zookeeper-03: {condition: service_healthy}
+
+  spark-master-standby:
+    profiles: [spark-ha]
+    image: apache/spark:4.1.3-java21-python3@sha256:bf9d035a7c32a8ca46aa58d6348182ffd7d2dff6409206ecfbb3915ff1fef211
+    hostname: spark-master-standby
+    entrypoint: ["/opt/spark/bin/spark-class"]
+    command: ["org.apache.spark.deploy.master.Master", "--host", "spark-master-standby", "--port", "7077", "--webui-port", "8080"]
+    environment: *ha-env
+    depends_on:
+      zookeeper-01: {condition: service_healthy}
+      zookeeper-02: {condition: service_healthy}
+      zookeeper-03: {condition: service_healthy}
+    mem_limit: 700m
+    ports: ["127.0.0.1:18081:8080"]
+    healthcheck:
+      test: ["CMD", "bash", "-ec", "echo >/dev/tcp/spark-master-standby/7077"]
+      interval: 10s
+      timeout: 4s
+      retries: 24
+      start_period: 40s
+    restart: unless-stopped
+    networks: [dev]
+
+  spark-worker-01:
+    command: ["org.apache.spark.deploy.worker.Worker", "--host", "spark-worker-01", "--webui-port", "8081", "--cores", "1", "--memory", "768m", "spark://spark-master:7077,spark-master-standby:7077"]
+  spark-worker-02:
+    command: ["org.apache.spark.deploy.worker.Worker", "--host", "spark-worker-02", "--webui-port", "8081", "--cores", "1", "--memory", "768m", "spark://spark-master:7077,spark-master-standby:7077"]
+
+  spark-stream-weather:
+    # Spark/ZooKeeper HA requires two masters even when one is STANDBY.
+    command:
+      - --master
+      - spark://spark-master:7077,spark-master-standby:7077
+      - --deploy-mode
+      - client
+      - --driver-memory
+      - 768m
+      - --packages
+      - org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.3
+      - --conf
+      - spark.jars.ivy=/opt/mlo/ivy
+      - --conf
+      - spark.driver.host=spark-stream-weather
+      - --conf
+      - spark.driver.bindAddress=0.0.0.0
+      - --conf
+      - spark.driver.port=37077
+      - --conf
+      - spark.blockManager.port=37078
+      - --conf
+      - spark.executor.memory=512m
+      - --conf
+      - spark.executor.cores=1
+      - --conf
+      - spark.cores.max=2
+      - --conf
+      - spark.sql.shuffle.partitions=2
+      - --conf
+      - spark.default.parallelism=2
+      - --conf
+      - spark.ui.enabled=false
+      - --py-files
+      - /opt/mlo/app/pipeline/weather/runtime/weather-code.zip
+      - /opt/mlo/app/pipeline/weather/spark_job.py
+
+  spark-ha-soak:
+    profiles: [soak]
+    image: mlo-p4-spark-weather:dev
+    build:
+      context: .
+      dockerfile: docker/spark.Dockerfile
+    hostname: spark-stream-weather
+    entrypoint: ["/opt/spark/bin/spark-submit"]
+    command:
+      - --master
+      - spark://spark-master:7077,spark-master-standby:7077
+      - --deploy-mode
+      - client
+      - --driver-memory
+      - 768m
+      - --packages
+      - org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.3
+      - --conf
+      - spark.jars.ivy=/opt/mlo/ivy
+      - --conf
+      - spark.driver.host=spark-stream-weather
+      - --conf
+      - spark.driver.bindAddress=0.0.0.0
+      - --conf
+      - spark.driver.port=37077
+      - --conf
+      - spark.blockManager.port=37078
+      - --conf
+      - spark.executor.memory=512m
+      - --conf
+      - spark.executor.cores=1
+      - --conf
+      - spark.cores.max=2
+      - --conf
+      - spark.sql.shuffle.partitions=2
+      - --conf
+      - spark.default.parallelism=2
+      - --conf
+      - spark.ui.enabled=false
+      - --py-files
+      - /opt/mlo/app/pipeline/weather/runtime/weather-code.zip
+      - /opt/mlo/app/pipeline/weather/spark_job.py
+    environment:
+      PYTHONPATH: /opt/mlo/app
+      PYSPARK_PYTHON: python3
+      KAFKA_BOOTSTRAP: "kafka-01:9092,kafka-02:9092,kafka-03:9092"
+      KAFKA_TOPIC: weather.ha.soak.v1.local
+      ES_URL: http://es-router:9200
+      WEATHER_INDEX: weather-ha-soak-v1-local
+      CHECKPOINT_PATH: /opt/mlo/checkpoints/weather-ha-soak
+      WEATHER_SPARK_MODE: microbatch
+      WEATHER_SPARK_INTERVAL: "3 seconds"
+    volumes:
+      - spark_checkpoint:/opt/mlo/checkpoints
+      - spark_ivy:/opt/mlo/ivy
+    mem_limit: 1450m
+    restart: "no"
+    networks:
+      dev:
+        aliases: [spark-stream-weather]
+
+  spark-feedback-stream:
+    profiles: [feedback-stream]
+    image: mlo-p4-spark-feedback:dev
+    build:
+      context: .
+      dockerfile: docker/spark-feedback.Dockerfile
+    hostname: spark-feedback-stream
+    entrypoint: ["/opt/spark/bin/spark-submit"]
+    command:
+      - --master
+      - spark://spark-master:7077,spark-master-standby:7077
+      - --deploy-mode
+      - client
+      - --driver-memory
+      - 768m
+      - --packages
+      - org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.3
+      - --conf
+      - spark.jars.ivy=/opt/mlo/ivy
+      - --conf
+      - spark.driver.host=spark-feedback-stream
+      - --conf
+      - spark.driver.bindAddress=0.0.0.0
+      - --conf
+      - spark.driver.port=38077
+      - --conf
+      - spark.blockManager.port=38078
+      - --conf
+      - spark.executor.memory=512m
+      - --conf
+      - spark.executor.cores=1
+      - --conf
+      - spark.cores.max=2
+      - --conf
+      - spark.sql.shuffle.partitions=2
+      - --conf
+      - spark.default.parallelism=2
+      - --conf
+      - spark.ui.enabled=false
+      - --py-files
+      - /opt/mlo/app/feedback-code.zip
+      - /opt/mlo/app/pipeline/feedback/spark_job.py
+    environment:
+      DJANGO_SETTINGS_MODULE: backend.cafe.settings_docker_local
+      MLO_LOCAL_DOCKER: "1"
+      C_LOCAL_DEMO: "0"
+      INTEGRATION_ENABLED: "1"
+      DJANGO_SECRET_KEY: ${MLO_DEV_API_SECRET_KEY:?Run python3 docker/init_dev_env.py}
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: muther_dev
+      PGUSER: muther_dev
+      PGPASSWORD: ${MLO_DEV_PG_PASSWORD:?Run python3 docker/init_dev_env.py}
+      PGSSLMODE: disable
+      PYTHONPATH: /opt/mlo/app
+      PYSPARK_PYTHON: /opt/mlo/venv/bin/python
+      PYSPARK_DRIVER_PYTHON: /opt/mlo/venv/bin/python
+      FEEDBACK_KAFKA_BOOTSTRAP: kafka-01:9092,kafka-02:9092,kafka-03:9092
+      FEEDBACK_KAFKA_TOPIC: feedback.v1.local
+      FEEDBACK_CHECKPOINT_PATH: /opt/mlo/checkpoints/feedback-spark-local
+    volumes:
+      - spark_checkpoint:/opt/mlo/checkpoints
+      - spark_ivy:/opt/mlo/ivy
+    mem_limit: 1450m
+    restart: "no"
+    networks: [dev]
+
+volumes:
+  zookeeper_01_data:
+  zookeeper_01_logs:
+  zookeeper_02_data:
+  zookeeper_02_logs:
+  zookeeper_03_data:
+  zookeeper_03_logs:

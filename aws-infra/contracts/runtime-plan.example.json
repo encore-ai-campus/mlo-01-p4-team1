@@ -1,0 +1,184 @@
+{
+  "schema_version": "1.0.0",
+  "example_only": true,
+  "environment": "dev",
+  "generation": "fixture-v1",
+  "ready_for_aws": false,
+  "node_plans": [
+    {
+      "node": "control-a",
+      "role": "control",
+      "services": [
+        "host_proxy",
+        "spark_application_pool",
+        "web"
+      ],
+      "destructive": false
+    },
+    {
+      "node": "control-b",
+      "role": "control",
+      "services": [
+        "host_proxy",
+        "kibana",
+        "log_ingest",
+        "spark_application_pool",
+        "web"
+      ],
+      "destructive": false
+    },
+    {
+      "node": "postgresql",
+      "role": "postgresql",
+      "services": [
+        "host_proxy",
+        "postgresql"
+      ],
+      "destructive": false
+    },
+    {
+      "node": "kafka-01",
+      "role": "kafka",
+      "services": [
+        "host_proxy",
+        "kafka_client",
+        "kafka_controller"
+      ],
+      "destructive": false
+    },
+    {
+      "node": "spark-01",
+      "role": "spark",
+      "services": [
+        "host_proxy",
+        "spark_application_pool",
+        "spark_master",
+        "spark_master_ui",
+        "spark_worker_rpc",
+        "spark_worker_ui",
+        "zookeeper_client",
+        "zookeeper_election",
+        "zookeeper_peer"
+      ],
+      "destructive": false
+    },
+    {
+      "node": "elasticsearch-01",
+      "role": "elasticsearch",
+      "services": [
+        "elasticsearch_http",
+        "elasticsearch_transport",
+        "host_proxy"
+      ],
+      "destructive": false
+    },
+    {
+      "node": "kafka-02",
+      "role": "kafka",
+      "services": [
+        "host_proxy",
+        "kafka_client",
+        "kafka_controller"
+      ],
+      "destructive": false
+    },
+    {
+      "node": "spark-02",
+      "role": "spark",
+      "services": [
+        "host_proxy",
+        "spark_application_pool",
+        "spark_master",
+        "spark_master_ui",
+        "spark_worker_rpc",
+        "spark_worker_ui",
+        "zookeeper_client",
+        "zookeeper_election",
+        "zookeeper_peer"
+      ],
+      "destructive": false
+    },
+    {
+      "node": "elasticsearch-02",
+      "role": "elasticsearch",
+      "services": [
+        "elasticsearch_http",
+        "elasticsearch_transport",
+        "host_proxy"
+      ],
+      "destructive": false
+    },
+    {
+      "node": "kafka-03",
+      "role": "kafka",
+      "services": [
+        "host_proxy",
+        "kafka_client",
+        "kafka_controller"
+      ],
+      "destructive": false
+    },
+    {
+      "node": "spark-03",
+      "role": "spark",
+      "services": [
+        "host_proxy",
+        "spark_application_pool",
+        "spark_master",
+        "spark_master_ui",
+        "spark_worker_rpc",
+        "spark_worker_ui",
+        "zookeeper_client",
+        "zookeeper_election",
+        "zookeeper_peer"
+      ],
+      "destructive": false
+    },
+    {
+      "node": "elasticsearch-03",
+      "role": "elasticsearch",
+      "services": [
+        "elasticsearch_http",
+        "elasticsearch_transport",
+        "host_proxy"
+      ],
+      "destructive": false
+    },
+    {
+      "node": "advertising",
+      "role": "advertising",
+      "services": [
+        "advertising_api",
+        "host_proxy"
+      ],
+      "destructive": false
+    },
+    {
+      "node": "mongodb",
+      "role": "mongodb",
+      "services": [
+        "host_proxy",
+        "mongodb"
+      ],
+      "destructive": false
+    },
+    {
+      "node": "gateway-a",
+      "role": "gateway",
+      "services": [
+        "forward_proxy",
+        "llm_relay"
+      ],
+      "destructive": false
+    },
+    {
+      "node": "gateway-b",
+      "role": "gateway",
+      "services": [
+        "forward_proxy",
+        "llm_relay"
+      ],
+      "destructive": false
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+---
+- name: Exercise the real runtime install role in a disposable Linux fixture
+  hosts: all
+  become: false
+  gather_facts: true
+  vars:
+    runtime_lab: true
+    runtime_generation: g1
+    runtime_environment: dev
+    runtime_manage_systemd: false
+    runtime_install_enabled: true
+    runtime_node:
+      name: advertising
+      role: advertising
+    runtime_payload_source: /seed/payload-v1
+    runtime_payload_remote: /var/lib/mlo/incoming/fixture-v1
+    runtime_host_binding_source: /seed/binding.json
+    runtime_host_binding: /tmp/mlo-installer-lab/binding.json
+  roles:
+    - role: runtime

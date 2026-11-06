@@ -1,0 +1,303 @@
+{
+  "terraform": {
+    "required_version": "= 1.11.4",
+    "required_providers": {
+      "aws": {
+        "source": "hashicorp/aws",
+        "version": "= 5.94.1"
+      }
+    },
+    "backend": {
+      "s3": {}
+    }
+  },
+  "variable": {
+    "binding": {
+      "type": "any",
+      "validation": [
+        {
+          "condition": "${var.binding.region==\"ap-northeast-2\" && length(distinct(values(var.binding.account_ids)))==5 && length(distinct(values(var.binding.az_ids)))==3}",
+          "error_message": "Seoul, five accounts and three physical AZs required."
+        }
+      ]
+    },
+    "accounts": {
+      "type": "any"
+    }
+  },
+  "provider": {
+    "aws": [
+      {
+        "alias": "encore1",
+        "region": "ap-northeast-2",
+        "allowed_account_ids": "${[var.binding.account_ids.encore1]}",
+        "profile": "encore1"
+      },
+      {
+        "alias": "encore2",
+        "region": "ap-northeast-2",
+        "allowed_account_ids": "${[var.binding.account_ids.encore2]}",
+        "profile": "encore2"
+      },
+      {
+        "alias": "encore3",
+        "region": "ap-northeast-2",
+        "allowed_account_ids": "${[var.binding.account_ids.encore3]}",
+        "profile": "encore3"
+      },
+      {
+        "alias": "encore4",
+        "region": "ap-northeast-2",
+        "allowed_account_ids": "${[var.binding.account_ids.encore4]}",
+        "profile": "encore4"
+      },
+      {
+        "alias": "encore5",
+        "region": "ap-northeast-2",
+        "allowed_account_ids": "${[var.binding.account_ids.encore5]}",
+        "profile": "encore5"
+      }
+    ]
+  },
+  "module": {
+    "encore1_encore2": {
+      "source": "../../../modules/pair",
+      "providers": {
+        "aws.requester": "aws.encore1",
+        "aws.acceptor": "aws.encore2"
+      },
+      "requester": "encore1",
+      "acceptor": "encore2",
+      "accounts": "${var.accounts}",
+      "account_ids": "${var.binding.account_ids}"
+    },
+    "encore1_encore3": {
+      "source": "../../../modules/pair",
+      "providers": {
+        "aws.requester": "aws.encore1",
+        "aws.acceptor": "aws.encore3"
+      },
+      "requester": "encore1",
+      "acceptor": "encore3",
+      "accounts": "${var.accounts}",
+      "account_ids": "${var.binding.account_ids}"
+    },
+    "encore1_encore4": {
+      "source": "../../../modules/pair",
+      "providers": {
+        "aws.requester": "aws.encore1",
+        "aws.acceptor": "aws.encore4"
+      },
+      "requester": "encore1",
+      "acceptor": "encore4",
+      "accounts": "${var.accounts}",
+      "account_ids": "${var.binding.account_ids}"
+    },
+    "encore1_encore5": {
+      "source": "../../../modules/pair",
+      "providers": {
+        "aws.requester": "aws.encore1",
+        "aws.acceptor": "aws.encore5"
+      },
+      "requester": "encore1",
+      "acceptor": "encore5",
+      "accounts": "${var.accounts}",
+      "account_ids": "${var.binding.account_ids}"
+    },
+    "encore2_encore3": {
+      "source": "../../../modules/pair",
+      "providers": {
+        "aws.requester": "aws.encore2",
+        "aws.acceptor": "aws.encore3"
+      },
+      "requester": "encore2",
+      "acceptor": "encore3",
+      "accounts": "${var.accounts}",
+      "account_ids": "${var.binding.account_ids}"
+    },
+    "encore2_encore4": {
+      "source": "../../../modules/pair",
+      "providers": {
+        "aws.requester": "aws.encore2",
+        "aws.acceptor": "aws.encore4"
+      },
+      "requester": "encore2",
+      "acceptor": "encore4",
+      "accounts": "${var.accounts}",
+      "account_ids": "${var.binding.account_ids}"
+    },
+    "encore2_encore5": {
+      "source": "../../../modules/pair",
+      "providers": {
+        "aws.requester": "aws.encore2",
+        "aws.acceptor": "aws.encore5"
+      },
+      "requester": "encore2",
+      "acceptor": "encore5",
+      "accounts": "${var.accounts}",
+      "account_ids": "${var.binding.account_ids}"
+    },
+    "encore3_encore4": {
+      "source": "../../../modules/pair",
+      "providers": {
+        "aws.requester": "aws.encore3",
+        "aws.acceptor": "aws.encore4"
+      },
+      "requester": "encore3",
+      "acceptor": "encore4",
+      "accounts": "${var.accounts}",
+      "account_ids": "${var.binding.account_ids}"
+    },
+    "encore3_encore5": {
+      "source": "../../../modules/pair",
+      "providers": {
+        "aws.requester": "aws.encore3",
+        "aws.acceptor": "aws.encore5"
+      },
+      "requester": "encore3",
+      "acceptor": "encore5",
+      "accounts": "${var.accounts}",
+      "account_ids": "${var.binding.account_ids}"
+    },
+    "encore4_encore5": {
+      "source": "../../../modules/pair",
+      "providers": {
+        "aws.requester": "aws.encore4",
+        "aws.acceptor": "aws.encore5"
+      },
+      "requester": "encore4",
+      "acceptor": "encore5",
+      "accounts": "${var.accounts}",
+      "account_ids": "${var.binding.account_ids}"
+    }
+  },
+  "resource": {
+    "aws_route53_vpc_association_authorization": {
+      "encore2": {
+        "provider": "aws.encore1",
+        "for_each": "${var.accounts.encore1.zones}",
+        "zone_id": "${each.value}",
+        "vpc_id": "${var.accounts.encore2.account.vpc_id}",
+        "vpc_region": "ap-northeast-2"
+      },
+      "encore3": {
+        "provider": "aws.encore1",
+        "for_each": "${var.accounts.encore1.zones}",
+        "zone_id": "${each.value}",
+        "vpc_id": "${var.accounts.encore3.account.vpc_id}",
+        "vpc_region": "ap-northeast-2"
+      },
+      "encore4": {
+        "provider": "aws.encore1",
+        "for_each": "${var.accounts.encore1.zones}",
+        "zone_id": "${each.value}",
+        "vpc_id": "${var.accounts.encore4.account.vpc_id}",
+        "vpc_region": "ap-northeast-2"
+      },
+      "encore5": {
+        "provider": "aws.encore1",
+        "for_each": "${var.accounts.encore1.zones}",
+        "zone_id": "${each.value}",
+        "vpc_id": "${var.accounts.encore5.account.vpc_id}",
+        "vpc_region": "ap-northeast-2"
+      }
+    },
+    "aws_route53_zone_association": {
+      "encore2": {
+        "provider": "aws.encore2",
+        "for_each": "${var.accounts.encore1.zones}",
+        "zone_id": "${each.value}",
+        "vpc_id": "${var.accounts.encore2.account.vpc_id}",
+        "vpc_region": "ap-northeast-2",
+        "depends_on": [
+          "aws_route53_vpc_association_authorization.encore2"
+        ]
+      },
+      "encore3": {
+        "provider": "aws.encore3",
+        "for_each": "${var.accounts.encore1.zones}",
+        "zone_id": "${each.value}",
+        "vpc_id": "${var.accounts.encore3.account.vpc_id}",
+        "vpc_region": "ap-northeast-2",
+        "depends_on": [
+          "aws_route53_vpc_association_authorization.encore3"
+        ]
+      },
+      "encore4": {
+        "provider": "aws.encore4",
+        "for_each": "${var.accounts.encore1.zones}",
+        "zone_id": "${each.value}",
+        "vpc_id": "${var.accounts.encore4.account.vpc_id}",
+        "vpc_region": "ap-northeast-2",
+        "depends_on": [
+          "aws_route53_vpc_association_authorization.encore4"
+        ]
+      },
+      "encore5": {
+        "provider": "aws.encore5",
+        "for_each": "${var.accounts.encore1.zones}",
+        "zone_id": "${each.value}",
+        "vpc_id": "${var.accounts.encore5.account.vpc_id}",
+        "vpc_region": "ap-northeast-2",
+        "depends_on": [
+          "aws_route53_vpc_association_authorization.encore5"
+        ]
+      }
+    }
+  },
+  "output": {
+    "foundation": {
+      "value": {
+        "environment": "${var.binding.environment}",
+        "generation": "${var.binding.generation}",
+        "example_only": "${var.binding.example_only}",
+        "az_ids": "${var.binding.az_ids}",
+        "schema_version": "1.0.0",
+        "region": "ap-northeast-2",
+        "component": "connectivity",
+        "peering_pairs": [
+          [
+            "encore1",
+            "encore2"
+          ],
+          [
+            "encore1",
+            "encore3"
+          ],
+          [
+            "encore1",
+            "encore4"
+          ],
+          [
+            "encore1",
+            "encore5"
+          ],
+          [
+            "encore2",
+            "encore3"
+          ],
+          [
+            "encore2",
+            "encore4"
+          ],
+          [
+            "encore2",
+            "encore5"
+          ],
+          [
+            "encore3",
+            "encore4"
+          ],
+          [
+            "encore3",
+            "encore5"
+          ],
+          [
+            "encore4",
+            "encore5"
+          ]
+        ]
+      }
+    }
+  }
+}

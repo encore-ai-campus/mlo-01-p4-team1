@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""Manual protected-runner entrypoint. No authentication before signed input checks."""
+
+import os
+import hashlib
+from pathlib import Path
+import platform
+import re
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path[:0] = [str(ROOT / "scripts"), str(ROOT / "aws-infra/contracts")]
+from infra_common.coordination import require
+from infra_common.preauth_execution import ExecutionGate, sha, private_file
+from infra_common.oidc import write_config
+from infra_control import execute
+
+
+def target(review, purpose):
+    stages = {
+        "plan": {"preflight", "plan", "connectivity-plan"},
+        "apply": {"apply", "connectivity-apply", "export", "verify"},
+    }
+    if purpose in stages:
+        require(
+            review["operation"] == "foundation"
+            and review["payload"]["stage"] in stages[purpose],
+            "workflow foundation stage mismatch",
+        )
+    else:
+        require(
+            purpose in {"runtime", "destroy"} and review["operation"] == purpose,
+            "workflow operation mismatch",
+        )
+
+
+def authority_key(path, expected):
+    require(
+        isinstance(expected, str) and re.fullmatch(r"[a-f0-9]{64}", expected),
+        "separately pinned authority fingerprint required",
+    )
+    path = private_file(path)
+    require(
+        hashlib.sha256(path.read_bytes()).hexdigest() == expected,
+        "approval authority key mismatch",
+    )
+    return path
+
+
+def main():
+    try:
+        purpose = os.environ.get("MLO_PURPOSE")
+        review_id = os.environ.get("MLO_REVIEW_SHA256", "")
+        require(
+            re.fullmatch(r"[a-f0-9]{64}", review_id), "exact reviewed digest required"
+        )
+        require(
+            os.environ.get("GITHUB_ACTIONS") == "true"
+            and os.environ.get("GITHUB_REF") == "refs/heads/main"
+            and os.environ.get("MLO_REPOSITORY_PRIVATE") == "true",
+            "private main workflow required",
+        )
+        require(
+            platform.system() == "Linux"
+            and platform.machine() == "x86_64"
+            and sys.version_info[:3] == (3, 14, 8),
+            "prepared Linux X64 Python runner required",
+        )
+        folder = Path(os.environ["MLO_REVIEW_ROOT"]).absolute()
+        require(
+            ".private" in folder.parts
+            and not folder.is_symlink()
+            and not folder.resolve().is_relative_to(ROOT)
+            and folder.is_dir(),
+            "external protected review root required",
+        )
+        folder = folder / review_id
+        require(
+            not folder.is_symlink()
+            and folder.is_dir()
+            and not folder.stat().st_mode & 0o077,
+            "protected review folder required",
+        )
+        key = authority_key(
+            folder / "authority-public.key", os.environ.get("MLO_APPROVAL_KEY_SHA256")
+        )
+        gate = ExecutionGate(
+            folder / "review.json",
+            folder / "approval.json",
+            key,
+            enabled=True,
+        )
+        review = gate.check()
+        require(sha(review) == review_id, "review directory/digest mismatch")
+        target(review, purpose)
+        # Config holds commands only; web identity and session keys remain in
+        # credential_process memory. GitHub Environment approval is separate.
+        credential_purpose = "apply" if purpose == "destroy" else purpose
+        config = write_config(
+            folder / "oidc-config",
+            review["account_ids"],
+            credential_purpose,
+            os.environ["GITHUB_REPOSITORY"],
+            "infra-" + credential_purpose,
+        )
+        for name in list(os.environ):
+            if name.startswith("AWS_"):
+                del os.environ[name]
+        os.environ.update(
+            AWS_CONFIG_FILE=str(config),
+            AWS_SHARED_CREDENTIALS_FILE=os.devnull,
+            AWS_EC2_METADATA_DISABLED="true",
+            AWS_PAGER="",
+            AWS_CLI_AUTO_PROMPT="off",
+            AWS_STS_REGIONAL_ENDPOINTS="regional",
+        )
+        execute(gate, folder / "execution-receipt.json")
+        print("PASS: reviewed manual operation completed; inspect private receipt")
+        return 0
+    except Exception:
+        print(
+            "FAIL: manual workflow refused/failed; inspect protected inputs and receipt",
+            file=sys.stderr,
+        )
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

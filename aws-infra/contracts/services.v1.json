@@ -1,0 +1,372 @@
+{
+  "schema_version": "1.0.0",
+  "status": "development-defaults",
+  "services": {
+    "web": {
+      "roles": [
+        "control"
+      ],
+      "protocol": "tcp",
+      "port": 8000,
+      "transport": "http",
+      "exposure": "private"
+    },
+    "postgresql": {
+      "roles": [
+        "postgresql"
+      ],
+      "protocol": "tcp",
+      "port": 5432,
+      "transport": "tls",
+      "exposure": "private"
+    },
+    "mongodb": {
+      "roles": [
+        "mongodb"
+      ],
+      "protocol": "tcp",
+      "port": 27017,
+      "transport": "tls",
+      "exposure": "private"
+    },
+    "kafka_client": {
+      "roles": [
+        "kafka"
+      ],
+      "protocol": "tcp",
+      "port": 9093,
+      "transport": "tls",
+      "exposure": "private"
+    },
+    "kafka_controller": {
+      "roles": [
+        "kafka"
+      ],
+      "protocol": "tcp",
+      "port": 9094,
+      "transport": "tls",
+      "exposure": "private"
+    },
+    "spark_master": {
+      "roles": [
+        "spark"
+      ],
+      "protocol": "tcp",
+      "port": 7077,
+      "transport": "authenticated",
+      "exposure": "private"
+    },
+    "spark_worker_rpc": {
+      "roles": [
+        "spark"
+      ],
+      "protocol": "tcp",
+      "port": 7078,
+      "transport": "authenticated",
+      "exposure": "private"
+    },
+    "spark_master_ui": {
+      "roles": [
+        "spark"
+      ],
+      "protocol": "tcp",
+      "port": 8080,
+      "transport": "private-admin",
+      "exposure": "private"
+    },
+    "spark_worker_ui": {
+      "roles": [
+        "spark"
+      ],
+      "protocol": "tcp",
+      "port": 8081,
+      "transport": "private-admin",
+      "exposure": "private"
+    },
+    "spark_application_pool": {
+      "roles": [
+        "control",
+        "spark"
+      ],
+      "protocol": "tcp",
+      "port_range": [
+        19000,
+        19099
+      ],
+      "transport": "authenticated",
+      "exposure": "private"
+    },
+    "zookeeper_client": {
+      "roles": [
+        "spark"
+      ],
+      "protocol": "tcp",
+      "port": 2182,
+      "transport": "tls",
+      "exposure": "private"
+    },
+    "zookeeper_peer": {
+      "roles": [
+        "spark"
+      ],
+      "protocol": "tcp",
+      "port": 2888,
+      "transport": "tls",
+      "exposure": "private"
+    },
+    "zookeeper_election": {
+      "roles": [
+        "spark"
+      ],
+      "protocol": "tcp",
+      "port": 3888,
+      "transport": "tls",
+      "exposure": "private"
+    },
+    "elasticsearch_http": {
+      "roles": [
+        "elasticsearch"
+      ],
+      "protocol": "tcp",
+      "port": 9200,
+      "transport": "tls",
+      "exposure": "private"
+    },
+    "elasticsearch_transport": {
+      "roles": [
+        "elasticsearch"
+      ],
+      "protocol": "tcp",
+      "port": 9300,
+      "transport": "tls",
+      "exposure": "private"
+    },
+    "forward_proxy": {
+      "roles": [
+        "gateway"
+      ],
+      "protocol": "tcp",
+      "port": 3128,
+      "transport": "http-connect",
+      "exposure": "private"
+    },
+    "host_proxy": {
+      "roles": [
+        "control",
+        "postgresql",
+        "kafka",
+        "spark",
+        "elasticsearch",
+        "advertising",
+        "mongodb"
+      ],
+      "protocol": "tcp",
+      "port": 3129,
+      "transport": "http-connect",
+      "exposure": "host-and-container-bridge"
+    },
+    "llm_relay": {
+      "roles": [
+        "gateway"
+      ],
+      "protocol": "tcp",
+      "port": 8088,
+      "transport": "service-auth",
+      "exposure": "private"
+    },
+    "advertising_api": {
+      "roles": [
+        "advertising"
+      ],
+      "protocol": "tcp",
+      "port": 8001,
+      "transport": "service-auth",
+      "exposure": "private"
+    },
+    "log_ingest": {
+      "roles": [
+        "control"
+      ],
+      "nodes": [
+        "control-b"
+      ],
+      "protocol": "tcp",
+      "port": 5044,
+      "transport": "tls",
+      "exposure": "private"
+    },
+    "kibana": {
+      "roles": [
+        "control"
+      ],
+      "nodes": [
+        "control-b"
+      ],
+      "protocol": "tcp",
+      "port": 5601,
+      "transport": "separate-admin-auth",
+      "exposure": "private"
+    }
+  },
+  "flows": [
+    {
+      "source_roles": [
+        "alb"
+      ],
+      "destination_service": "web"
+    },
+    {
+      "source_roles": [
+        "control",
+        "spark",
+        "gateway"
+      ],
+      "destination_service": "postgresql"
+    },
+    {
+      "source_roles": [
+        "control",
+        "spark",
+        "advertising"
+      ],
+      "destination_service": "mongodb"
+    },
+    {
+      "source_roles": [
+        "control",
+        "spark",
+        "gateway"
+      ],
+      "destination_service": "kafka_client"
+    },
+    {
+      "source_roles": [
+        "kafka"
+      ],
+      "destination_service": "kafka_controller"
+    },
+    {
+      "source_roles": [
+        "control",
+        "spark"
+      ],
+      "destination_service": "spark_master"
+    },
+    {
+      "source_roles": [
+        "control",
+        "spark"
+      ],
+      "destination_service": "spark_worker_rpc"
+    },
+    {
+      "source_roles": [
+        "control",
+        "spark"
+      ],
+      "destination_service": "spark_application_pool"
+    },
+    {
+      "source_roles": [
+        "control",
+        "spark"
+      ],
+      "destination_service": "zookeeper_client"
+    },
+    {
+      "source_roles": [
+        "spark"
+      ],
+      "destination_service": "zookeeper_peer"
+    },
+    {
+      "source_roles": [
+        "spark"
+      ],
+      "destination_service": "zookeeper_election"
+    },
+    {
+      "source_roles": [
+        "elasticsearch"
+      ],
+      "destination_service": "elasticsearch_transport"
+    },
+    {
+      "source_roles": [
+        "control",
+        "spark"
+      ],
+      "destination_service": "elasticsearch_http"
+    },
+    {
+      "source_roles": [
+        "control",
+        "postgresql",
+        "kafka",
+        "spark",
+        "elasticsearch",
+        "advertising",
+        "mongodb"
+      ],
+      "destination_service": "forward_proxy"
+    },
+    {
+      "source_roles": [
+        "control"
+      ],
+      "destination_service": "llm_relay"
+    },
+    {
+      "source_roles": [
+        "control"
+      ],
+      "destination_service": "advertising_api"
+    },
+    {
+      "source_roles": [
+        "advertising",
+        "control",
+        "elasticsearch",
+        "gateway",
+        "kafka",
+        "mongodb",
+        "postgresql",
+        "spark"
+      ],
+      "destination_service": "log_ingest"
+    },
+    {
+      "source_roles": [
+        "control"
+      ],
+      "destination_service": "kibana"
+    },
+    {
+      "source_roles": [
+        "control"
+      ],
+      "destination_service": "spark_master_ui"
+    },
+    {
+      "source_roles": [
+        "control"
+      ],
+      "destination_service": "spark_worker_ui"
+    }
+  ],
+  "s3_paths": {
+    "raw": "raw/weather/",
+    "bronze": "lake/feedback/bronze/v1/",
+    "silver": "lake/feedback/silver/v1/",
+    "gold": "lake/feedback/gold/v1/",
+    "checkpoint": "aws/{environment}/{generation}/{query}/checkpoint/",
+    "backup": "backups/{environment}/{generation}/"
+  },
+  "notes": [
+    "All values are development interface defaults, not verified deployed endpoints.",
+    "Host proxy listens only on required host/container-bridge interfaces; it is not a public endpoint.",
+    "Allocate per-application Spark ports within the pool; prohibit simultaneous same-host bind collisions.",
+    "SSM/S3/IMDS/DB/cluster/model-tailnet traffic bypasses the forward proxy.",
+    "Tailscale egress and AWS API egress must be specified separately; an HTTP proxy is not a general NAT."
+  ]
+}

@@ -1,0 +1,10 @@
+#!/bin/sh
+# Shared local commit gate; install with: bash scripts/setup-git-hooks.sh
+set -eu
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+python3 scripts/check_public_release.py --staged
+if git diff --cached --name-only -- app | grep -q .; then
+  python3 app/docker/check_git_candidates.py --staged
+fi
+git diff --cached --check

@@ -1,0 +1,54 @@
+.DS_Store
+.venv/
+**/.venv/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+**/.pytest_cache/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+!*.example.tfvars
+!*.example.tfvars.json
+.env
+.env.*
+!.env.example
+**/.private/
+**/.state/
+**/.artifacts/
+**/test-results/
+**/.cache/
+*.pem
+*.key
+*.p12
+*.pfx
+.aws/
+**/.aws/
+
+# Published source must not include internal investigations, identity/privacy audits,
+# raw experiment results, or per-agent working notes. Git history will be restarted.
+# Note: .gitignore does not untrack files in the old existing initial commit.
+/.local/
+/docs/internal/
+/docs/handoff/infra/*
+!/docs/handoff/infra/BASELINE.md
+!/docs/handoff/infra/OWNERSHIP.md
+!/docs/handoff/infra/TESTING.md
+/app/docs/docker-migration/
+/app/docs/internal/
+/app/docs/acceptance/
+/app/docs/development/
+/app/docs/handoff/
+/app/docs/runbook/
+/app/docs/fixtures/
+/app/docs/backend-routing/
+/app/docs/admin-sso-routing/
+/app/docs/integration-routing/
+/app/docs/music-playback-routing/
+/app/docs/recommendation-dispatch-routing/
+/app/analysis/
+
+# .terraform.lock.hcl, requirements locks and selected public technical contracts are tracked.

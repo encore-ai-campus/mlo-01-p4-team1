@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0.0",
+  "spark": "4.1.3",
+  "scala": "2.13",
+  "hadoop_required": "3.4.2",
+  "delta": "4.3.1",
+  "jars": [
+    {
+      "artifact": "delta-kernel-api-4.3.1.jar",
+      "version": "4.3.1",
+      "sha256": "b081b818d6f5686c7d6406588af72c9f8baf6765a41ada8197364aef90a260e8",
+      "source": "https://repo.maven.apache.org/maven2/io/delta/delta-kernel-api/4.3.1/delta-kernel-api-4.3.1.jar"
+    },
+    {
+      "artifact": "delta-kernel-defaults-4.3.1.jar",
+      "version": "4.3.1",
+      "sha256": "27471cca7dd7a36289af2c8d52d2babb37e9e5a13cdaaea76730120f4c72e62f",
+      "source": "https://repo.maven.apache.org/maven2/io/delta/delta-kernel-defaults/4.3.1/delta-kernel-defaults-4.3.1.jar"
+    },
+    {
+      "artifact": "delta-kernel-unitycatalog-4.3.1.jar",
+      "version": "4.3.1",
+      "sha256": "a288342b7e53da34a608a1a227c8109aa4681fcb582da499ed19347f2193362b",
+      "source": "https://repo.maven.apache.org/maven2/io/delta/delta-kernel-unitycatalog/4.3.1/delta-kernel-unitycatalog-4.3.1.jar"
+    },
+    {
+      "artifact": "delta-spark_2.13-4.3.1.jar",
+      "version": "4.3.1",
+      "sha256": "ebf35a4383f0a653c3ee3c7882c0edcac2f846be31ac61af4b96ccfaaf36c171",
+      "source": "https://repo.maven.apache.org/maven2/io/delta/delta-spark_2.13/4.3.1/delta-spark_2.13-4.3.1.jar"
+    },
+    {
+      "artifact": "delta-storage-4.3.1.jar",
+      "version": "4.3.1",
+      "sha256": "577c12c7e371be4c041714fb48e88ad86e3c3512beea2bdaffbe7a4debf79718",
+      "source": "https://repo.maven.apache.org/maven2/io/delta/delta-storage/4.3.1/delta-storage-4.3.1.jar"
+    }
+  ],
+  "unresolved": [
+    "S3A hadoop-aws 3.4.2 + exact SDK v2 bundle hash",
+    "Spark Kafka 4.1.3 connector dependency closure",
+    "PostgreSQL JDBC source lock; ES uses REST/Bulk, no Spark 3 connector"
+  ],
+  "verification": "Actual Spark/Delta local filesystem partial-sink retry and checkpoint restart passed; S3A/Kafka/JDBC and distributed cluster acceptance remain separate."
+}

@@ -1,0 +1,35 @@
+{
+  "schema_version": "operation-policy-actions-v1",
+  "generator": "iam-policy-autopilot 0.4.0",
+  "candidate_sha256": "9778a7e4baeb3306f91b6ec6da1eeac29e4c1aa79b152c2866fe9d4676ddfd14",
+  "actions": [
+    "s3:GetObject",
+    "s3:PutObject"
+  ],
+  "rejected_candidate_actions": [
+    "iam:PassRole",
+    "kms:Decrypt",
+    "kms:GenerateDataKey",
+    "s3-object-lambda:GetObject",
+    "s3-object-lambda:ListMultipartUploadParts",
+    "s3-object-lambda:PutObject",
+    "s3:GetObjectLegalHold",
+    "s3:GetObjectRetention",
+    "s3:GetObjectTagging",
+    "s3:GetObjectVersion",
+    "s3:ListMultipartUploadParts",
+    "s3:PutObjectAcl",
+    "s3:PutObjectLegalHold",
+    "s3:PutObjectRetention",
+    "s3:PutObjectTagging",
+    "ssm:DescribeDocument",
+    "ssm:GetCommandInvocation",
+    "ssm:GetDocument",
+    "ssm:SendCommand",
+    "sts:AssumeRoleWithWebIdentity",
+    "sts:GetCallerIdentity"
+  ],
+  "scope": "exact operations/<physical-scope-sha256>.json; no list/delete/state/data access",
+  "applied_to_aws": false,
+  "source_scope": "factory, coordination, database_stop, preauth_execution, transport, oidc and Terraform directory; no account discovery"
+}

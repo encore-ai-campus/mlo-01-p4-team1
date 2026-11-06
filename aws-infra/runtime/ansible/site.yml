@@ -1,0 +1,18 @@
+---
+- name: Configure explicitly accepted runtime hosts
+  hosts: all
+  become: true
+  gather_facts: true
+  serial: 1
+  pre_tasks:
+    - name: Require real target and explicit execution enablement
+      ansible.builtin.assert:
+        that:
+          - not (runtime_example_only | default(true) | bool)
+          - runtime_deploy_enabled | default(false) | bool
+          - runtime_generation is defined
+          - runtime_install_enabled | default(false) | bool
+          - runtime_payload_source | default('') | length > 0
+        fail_msg: Fixture rendering is offline; actual SSM execution requires target acceptance.
+  roles:
+    - role: runtime

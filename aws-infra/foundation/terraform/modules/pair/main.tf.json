@@ -1,0 +1,64 @@
+{
+  "terraform": {
+    "required_version": "= 1.11.4",
+    "required_providers": {
+      "aws": {
+        "source": "hashicorp/aws",
+        "version": "= 5.94.1",
+        "configuration_aliases": [
+          "aws.requester",
+          "aws.acceptor"
+        ]
+      }
+    }
+  },
+  "variable": {
+    "requester": {
+      "type": "string"
+    },
+    "acceptor": {
+      "type": "string"
+    },
+    "accounts": {
+      "type": "any"
+    },
+    "account_ids": {
+      "type": "map(string)"
+    }
+  },
+  "resource": {
+    "aws_vpc_peering_connection": {
+      "this": {
+        "provider": "aws.requester",
+        "vpc_id": "${var.accounts[var.requester].account.vpc_id}",
+        "peer_vpc_id": "${var.accounts[var.acceptor].account.vpc_id}",
+        "peer_owner_id": "${var.account_ids[var.acceptor]}",
+        "peer_region": "ap-northeast-2",
+        "auto_accept": false
+      }
+    },
+    "aws_vpc_peering_connection_accepter": {
+      "this": {
+        "provider": "aws.acceptor",
+        "vpc_peering_connection_id": "${aws_vpc_peering_connection.this.id}",
+        "auto_accept": true
+      }
+    },
+    "aws_route": {
+      "requester": {
+        "for_each": "${var.accounts[var.requester].route_tables}",
+        "provider": "aws.requester",
+        "route_table_id": "${each.value}",
+        "destination_cidr_block": "${var.accounts[var.acceptor].account.cidr}",
+        "vpc_peering_connection_id": "${aws_vpc_peering_connection_accepter.this.id}"
+      },
+      "acceptor": {
+        "for_each": "${var.accounts[var.acceptor].route_tables}",
+        "provider": "aws.acceptor",
+        "route_table_id": "${each.value}",
+        "destination_cidr_block": "${var.accounts[var.requester].account.cidr}",
+        "vpc_peering_connection_id": "${aws_vpc_peering_connection_accepter.this.id}"
+      }
+    }
+  }
+}

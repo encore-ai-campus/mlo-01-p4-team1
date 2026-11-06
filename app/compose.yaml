@@ -1,0 +1,282 @@
+name: mlo-p4-app-local
+
+# Local-only Compose: no AWS resources, external databases or production credentials.
+# Typical: docker compose up -d --build
+# Ads integration: docker compose --profile ads up -d --build
+# Workers: docker compose --profile workers up -d
+x-api-environment: &api-env
+  DJANGO_SETTINGS_MODULE: backend.cafe.settings_docker_local
+  MLO_LOCAL_DOCKER: "1"
+  DJANGO_SECRET_KEY: ${MLO_DEV_API_SECRET_KEY:?Run python3 docker/init_dev_env.py}
+  DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,api,testserver"
+  DJANGO_CSRF_TRUSTED_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173"
+  C_LOCAL_DEMO: "0"
+  INTEGRATION_ENABLED: "1"
+  PGHOST: postgres
+  PGPORT: "5432"
+  PGDATABASE: muther_dev
+  PGUSER: muther_dev
+  PGPASSWORD: ${MLO_DEV_PG_PASSWORD:?Run python3 docker/init_dev_env.py}
+  PGSSLMODE: disable
+  GUEST_TTL_SECONDS: "86400"
+  ADMIN_SESSION_SECONDS: "28800"
+  ADMIN_SSO_ENABLED: "0"
+  ADMIN_LOCAL_LOGIN_ENABLED: "1"
+  ADS_INTERNAL_SECRET: ${MLO_DEV_ADS_INTERNAL_SECRET:?Run python3 docker/init_dev_env.py}
+  MUSIC_RAW_DIRECTORY: /workspace/app/.local/music-raw
+  GEMINI_ENABLED: "0"
+  YOUTUBE_PLAYBACK_MODE: KEYLESS
+
+x-ads-environment: &ads-env
+  DJANGO_DEBUG: "1"
+  DJANGO_SECRET_KEY: ${MLO_DEV_ADS_SECRET_KEY:?Run python3 docker/init_dev_env.py}
+  DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,ads"
+  DJANGO_CSRF_TRUSTED_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173"
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: cafe_ads_dev
+  POSTGRES_USER: muther_dev
+  POSTGRES_PASSWORD: ${MLO_DEV_PG_PASSWORD:?Run python3 docker/init_dev_env.py}
+  ADS_IS_TEST: "1"
+  ADS_MONGODB_URI: "mongodb://mongo:27017/?replicaSet=ads-rs"
+  ADS_MONGODB_DATABASE: advertising_dev
+  ADS_COMMON_API_URL: "http://api:8001"
+  ADS_INTERNAL_SECRET: ${MLO_DEV_ADS_INTERNAL_SECRET:?Run python3 docker/init_dev_env.py}
+  ADS_DELIVERY_SIGNING_KEY: ${MLO_DEV_ADS_SIGNING_KEY:?Run python3 docker/init_dev_env.py}
+
+services:
+  postgres:
+    image: postgres:16.11@sha256:468e1f126ca5af849799cda06ac9b03d8090aae9fa5163408b3e8da44fad0702
+    environment:
+      POSTGRES_DB: muther_dev
+      POSTGRES_USER: muther_dev
+      POSTGRES_PASSWORD: ${MLO_DEV_PG_PASSWORD:?Run python3 docker/init_dev_env.py}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 25
+    restart: unless-stopped
+    networks: [dev]
+
+  api:
+    image: mlo-p4-api:dev
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment: *api-env
+    volumes:
+      - .:/workspace/app:ro
+      - common_local_data:/workspace/app/.local
+      - youtube_review_data:/workspace/app/.local-preview-logs
+    command: ["python", "-m", "backend.manage", "runserver", "0.0.0.0:8001"]
+    ports:
+      - "127.0.0.1:8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health/',timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    restart: unless-stopped
+    networks: [dev]
+
+  recommendation-worker:
+    profiles: [workers]
+    image: mlo-p4-api:dev
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment: *api-env
+    volumes:
+      - .:/workspace/app:ro
+      - common_local_data:/workspace/app/.local
+      - youtube_review_data:/workspace/app/.local-preview-logs
+    command: ["python", "-m", "backend.manage", "run_recommendations", "--queue", "rule"]
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [dev]
+
+  frontend:
+    image: mlo-p4-frontend:dev
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    environment:
+      VITE_C_DEMO: "0"
+      VITE_RECOMMENDATION_API_TARGET: "http://api:8001"
+      VITE_ADS_API_TARGET: "http://ads:8000"
+      VITE_WEATHER_POLL_MS: "30000"
+    volumes:
+      - ./frontend/src:/workspace/app/frontend/src:ro
+      - ./frontend/public:/workspace/app/frontend/public:ro
+      - ./frontend/index.html:/workspace/app/frontend/index.html:ro
+      - ./frontend/vite.config.ts:/workspace/app/frontend/vite.config.ts:ro
+    ports:
+      - "127.0.0.1:5173:5173"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+    restart: unless-stopped
+    networks: [dev]
+
+  mailpit:
+    image: axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
+    environment:
+      MP_MAX_MESSAGES: "1000"
+    ports:
+      - "127.0.0.1:8025:8025"
+    restart: unless-stopped
+    networks: [dev]
+
+  mongo:
+    profiles: [ads]
+    image: mongo:8.0.17@sha256:9814652e33f0cf8b9fddea8b46dfc9d8e19b130dcfdd7b510ca58bb0d40c8b71
+    command: ["mongod", "--replSet", "ads-rs", "--bind_ip_all"]
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh 'mongodb://127.0.0.1:27017/admin?directConnection=true' --quiet --eval 'quit(db.runCommand({ping:1}).ok?0:1)'"]
+      interval: 8s
+      timeout: 5s
+      retries: 25
+      start_period: 25s
+    restart: unless-stopped
+    networks: [dev]
+
+  mongo-init:
+    profiles: [ads]
+    image: mongo:8.0.17@sha256:9814652e33f0cf8b9fddea8b46dfc9d8e19b130dcfdd7b510ca58bb0d40c8b71
+    depends_on:
+      mongo:
+        condition: service_healthy
+    volumes:
+      - ./docker/mongo/init-replica-set.js:/scripts/init-replica-set.js:ro
+    entrypoint:
+      - mongosh
+      - "mongodb://mongo:27017/admin?directConnection=true&serverSelectionTimeoutMS=90000"
+      - --quiet
+      - --file
+      - /scripts/init-replica-set.js
+    restart: "no"
+    networks: [dev]
+
+  ads:
+    profiles: [ads]
+    image: mlo-p4-ads:dev
+    build:
+      context: .
+      dockerfile: docker/ads.Dockerfile
+    environment: *ads-env
+    volumes:
+      - .:/workspace/app:ro
+    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health',timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    restart: unless-stopped
+    networks: [dev]
+
+  ads-worker:
+    profiles: [ads-workers]
+    image: mlo-p4-ads:dev
+    build:
+      context: .
+      dockerfile: docker/ads.Dockerfile
+    environment: *ads-env
+    volumes:
+      - .:/workspace/app:ro
+    command: ["python", "manage.py", "run_ads_workers", "--watch"]
+    depends_on:
+      ads:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [dev]
+
+  api-test:
+    profiles: [tests]
+    image: mlo-p4-api:dev
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment:
+      DJANGO_SETTINGS_MODULE: backend.cafe.settings
+      DJANGO_SECRET_KEY: ${MLO_DEV_API_SECRET_KEY:?Run python3 docker/init_dev_env.py}
+      C_LOCAL_DEMO: "1"
+      INTEGRATION_ENABLED: "0"
+      GEMINI_ENABLED: "0"
+      GUEST_TTL_SECONDS: "86400"
+      ADMIN_SESSION_SECONDS: "28800"
+    command: ["python", "-m", "backend.manage", "test", "backend.common", "backend.music", "backend.recommendation.tests", "--noinput", "--verbosity", "0"]
+    restart: "no"
+    networks: [dev]
+
+  api-pg-test:
+    profiles: [tests]
+    image: mlo-p4-api:dev
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment: *api-env
+    # Uses Django's automatically created and deleted *test* PostgreSQL DB.
+    # Source is embedded in the image, not bind-mounted read-only.
+    command: ["python", "-m", "backend.manage", "test", "backend.music", "backend.recommendation.tests", "--noinput", "--verbosity", "1"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks: [dev]
+
+  ads-test:
+    profiles: [ads-tests]
+    image: mlo-p4-ads:dev
+    build:
+      context: .
+      dockerfile: docker/ads.Dockerfile
+    environment:
+      <<: *ads-env
+      ADS_RUN_MONGO_TESTS: "0"
+    command: ["python", "manage.py", "test", "tests", "--noinput", "--verbosity", "0"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+    restart: "no"
+    networks: [dev]
+
+networks:
+  dev:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mongo_data:
+  common_local_data:
+  youtube_review_data:

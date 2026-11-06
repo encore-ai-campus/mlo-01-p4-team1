@@ -1,0 +1,307 @@
+# 3rd-stage Docker-only distributed integration overlay.
+# Combine: docker compose -f compose.yaml -f compose.integration.yaml ...
+# Kafka PLAINTEXT and Elasticsearch security-off are strictly LOCAL TEST ONLY.
+x-kafka-common: &kafka-common
+  CLUSTER_ID: iD9hDWYZQz-fOb0sSfyRPQ
+  KAFKA_PROCESS_ROLES: broker,controller
+  KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-01:9093,2@kafka-02:9093,3@kafka-03:9093"
+  KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+  KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
+  KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+  KAFKA_LOG_DIRS: /var/lib/kafka/data
+  KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "3"
+  KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "3"
+  KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "2"
+  KAFKA_MIN_INSYNC_REPLICAS: "2"
+  KAFKA_NUM_PARTITIONS: "3"
+  KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+  KAFKA_HEAP_OPTS: "-Xms256m -Xmx384m"
+  KAFKA_LOG_RETENTION_HOURS: "48"
+x-es-common: &es-common
+  cluster.name: mlo-p4-weather-local
+  discovery.seed_hosts: "es-01,es-02,es-03"
+  cluster.initial_master_nodes: "es-01,es-02,es-03"
+  xpack.security.enabled: "false"
+  xpack.security.autoconfiguration.enabled: "false"
+  xpack.ml.enabled: "false"
+  xpack.watcher.enabled: "false"
+  ES_JAVA_OPTS: "-Xms384m -Xmx384m"
+x-kafka-health: &kafka-health
+  test: ["CMD", "bash", "-ec", "echo >/dev/tcp/127.0.0.1/9092"]
+  interval: 12s
+  timeout: 4s
+  retries: 25
+  start_period: 50s
+x-es-health: &es-health
+  test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9200/_cluster/health >/dev/null"]
+  interval: 12s
+  timeout: 6s
+  retries: 35
+  start_period: 65s
+
+services:
+  kafka-01:
+    profiles: [integration]
+    image: apache/kafka:4.1.2@sha256:5cc2a2fd93fa2687b44015eee04fb2c3edd9e526bd64bf8bec5ff1e268772e0e
+    hostname: kafka-01
+    environment:
+      <<: *kafka-common
+      KAFKA_NODE_ID: "1"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-01:9092"
+    volumes: [kafka_01_data:/var/lib/kafka/data]
+    healthcheck: *kafka-health
+    mem_limit: 800m
+    restart: unless-stopped
+    networks: [dev]
+  kafka-02:
+    profiles: [integration]
+    image: apache/kafka:4.1.2@sha256:5cc2a2fd93fa2687b44015eee04fb2c3edd9e526bd64bf8bec5ff1e268772e0e
+    hostname: kafka-02
+    environment:
+      <<: *kafka-common
+      KAFKA_NODE_ID: "2"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-02:9092"
+    volumes: [kafka_02_data:/var/lib/kafka/data]
+    healthcheck: *kafka-health
+    mem_limit: 800m
+    restart: unless-stopped
+    networks: [dev]
+  kafka-03:
+    profiles: [integration]
+    image: apache/kafka:4.1.2@sha256:5cc2a2fd93fa2687b44015eee04fb2c3edd9e526bd64bf8bec5ff1e268772e0e
+    hostname: kafka-03
+    environment:
+      <<: *kafka-common
+      KAFKA_NODE_ID: "3"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-03:9092"
+    volumes: [kafka_03_data:/var/lib/kafka/data]
+    healthcheck: *kafka-health
+    mem_limit: 800m
+    restart: unless-stopped
+    networks: [dev]
+
+  es-router:
+    profiles: [integration]
+    image: haproxy:3.2.6-alpine@sha256:3a819392f5a6af2a9203d1c63ff0feba74f0c940623a558511be06d7d85e361c
+    volumes:
+      - ./docker/integration/haproxy-es.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    mem_limit: 100m
+    healthcheck:
+      test: ["CMD", "sh", "-ec", "wget -q -O /dev/null http://127.0.0.1:9200/"]
+      interval: 6s
+      timeout: 3s
+      retries: 15
+      start_period: 10s
+    restart: unless-stopped
+    networks: [dev]
+
+  es-01:
+    profiles: [integration]
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.23@sha256:4d0724bb8d78d7a2330693623e26ca4d621079d062ecc8a30b3e1fc180ec14c1
+    environment:
+      <<: *es-common
+      node.name: es-01
+    volumes: [es_01_data:/usr/share/elasticsearch/data]
+    ports: ["127.0.0.1:19200:9200"]
+    mem_limit: 950m
+    healthcheck: *es-health
+    restart: unless-stopped
+    networks: [dev]
+  es-02:
+    profiles: [integration]
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.23@sha256:4d0724bb8d78d7a2330693623e26ca4d621079d062ecc8a30b3e1fc180ec14c1
+    environment:
+      <<: *es-common
+      node.name: es-02
+    volumes: [es_02_data:/usr/share/elasticsearch/data]
+    mem_limit: 950m
+    healthcheck: *es-health
+    restart: unless-stopped
+    networks: [dev]
+  es-03:
+    profiles: [integration]
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.23@sha256:4d0724bb8d78d7a2330693623e26ca4d621079d062ecc8a30b3e1fc180ec14c1
+    environment:
+      <<: *es-common
+      node.name: es-03
+    volumes: [es_03_data:/usr/share/elasticsearch/data]
+    mem_limit: 950m
+    healthcheck: *es-health
+    restart: unless-stopped
+    networks: [dev]
+
+  spark-master:
+    profiles: [integration]
+    image: apache/spark:4.1.3-java21-python3@sha256:bf9d035a7c32a8ca46aa58d6348182ffd7d2dff6409206ecfbb3915ff1fef211
+    hostname: spark-master
+    entrypoint: ["/opt/spark/bin/spark-class"]
+    command: ["org.apache.spark.deploy.master.Master", "--host", "spark-master", "--port", "7077", "--webui-port", "8080"]
+    environment:
+      SPARK_DAEMON_MEMORY: 384m
+    ports: ["127.0.0.1:18080:8080"]
+    mem_limit: 700m
+    healthcheck:
+      test: ["CMD", "bash", "-ec", "echo >/dev/tcp/spark-master/7077"]
+      interval: 10s
+      timeout: 4s
+      retries: 24
+      start_period: 35s
+    restart: unless-stopped
+    networks: [dev]
+  spark-worker-01:
+    profiles: [integration]
+    image: apache/spark:4.1.3-java21-python3@sha256:bf9d035a7c32a8ca46aa58d6348182ffd7d2dff6409206ecfbb3915ff1fef211
+    hostname: spark-worker-01
+    entrypoint: ["/opt/spark/bin/spark-class"]
+    command: ["org.apache.spark.deploy.worker.Worker", "--host", "spark-worker-01", "--webui-port", "8081", "--cores", "1", "--memory", "768m", "spark://spark-master:7077"]
+    depends_on:
+      spark-master: {condition: service_healthy}
+    mem_limit: 1100m
+    healthcheck:
+      test: ["CMD", "bash", "-ec", "echo >/dev/tcp/127.0.0.1/8081"]
+      interval: 12s
+      timeout: 4s
+      retries: 24
+      start_period: 30s
+    restart: unless-stopped
+    networks: [dev]
+  spark-worker-02:
+    profiles: [integration]
+    image: apache/spark:4.1.3-java21-python3@sha256:bf9d035a7c32a8ca46aa58d6348182ffd7d2dff6409206ecfbb3915ff1fef211
+    hostname: spark-worker-02
+    entrypoint: ["/opt/spark/bin/spark-class"]
+    command: ["org.apache.spark.deploy.worker.Worker", "--host", "spark-worker-02", "--webui-port", "8081", "--cores", "1", "--memory", "768m", "spark://spark-master:7077"]
+    depends_on:
+      spark-master: {condition: service_healthy}
+    mem_limit: 1100m
+    healthcheck:
+      test: ["CMD", "bash", "-ec", "echo >/dev/tcp/127.0.0.1/8081"]
+      interval: 12s
+      timeout: 4s
+      retries: 24
+      start_period: 30s
+    restart: unless-stopped
+    networks: [dev]
+
+  integration-tool:
+    profiles: [tools]
+    image: mlo-p4-api:dev
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    working_dir: /workspace/app
+    environment:
+      KAFKA_BOOTSTRAP: "kafka-01:9092,kafka-02:9092,kafka-03:9092"
+      KAFKA_TOPIC: weather.v1.local
+      KAFKA_TOPIC_PARTITIONS: "3"
+      KAFKA_REPLICATION_FACTOR: "3"
+      FEEDBACK_KAFKA_BOOTSTRAP: "kafka-01:9092,kafka-02:9092,kafka-03:9092"
+      FEEDBACK_KAFKA_TOPIC: feedback.v1.local
+      FEEDBACK_KAFKA_TOPIC_PARTITIONS: "3"
+      FEEDBACK_KAFKA_REPLICATION_FACTOR: "3"
+      ES_URL: http://es-router:9200
+      WEATHER_INDEX: weather-stream-current-v1-local
+      MLO_LOCAL_INTEGRATION: "1"
+    volumes:
+      - .:/workspace/app:ro
+      - spark_checkpoint:/opt/mlo/checkpoints:ro
+    command: ["python", "docker/integration/smoke_stream.py", "verify"]
+    restart: "no"
+    networks: [dev]
+
+  spark-stream-weather:
+    profiles: [stream]
+    image: mlo-p4-spark-weather:dev
+    build:
+      context: .
+      dockerfile: docker/spark.Dockerfile
+    hostname: spark-stream-weather
+    entrypoint: ["/opt/spark/bin/spark-submit"]
+    command:
+      - --master
+      - spark://spark-master:7077
+      - --deploy-mode
+      - client
+      - --driver-memory
+      - 768m
+      - --packages
+      - org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.3
+      - --conf
+      - spark.jars.ivy=/opt/mlo/ivy
+      - --conf
+      - spark.driver.host=spark-stream-weather
+      - --conf
+      - spark.driver.bindAddress=0.0.0.0
+      - --conf
+      - spark.driver.port=37077
+      - --conf
+      - spark.blockManager.port=37078
+      - --conf
+      - spark.executor.memory=512m
+      - --conf
+      - spark.executor.cores=1
+      - --conf
+      - spark.cores.max=2
+      - --conf
+      - spark.sql.shuffle.partitions=2
+      - --conf
+      - spark.default.parallelism=2
+      - --conf
+      - spark.ui.enabled=false
+      - --py-files
+      - /opt/mlo/app/pipeline/weather/runtime/weather-code.zip
+      - /opt/mlo/app/pipeline/weather/spark_job.py
+    environment:
+      PYTHONPATH: /opt/mlo/app
+      PYSPARK_PYTHON: python3
+      KAFKA_BOOTSTRAP: "kafka-01:9092,kafka-02:9092,kafka-03:9092"
+      KAFKA_TOPIC: weather.v1.local
+      ES_URL: http://es-router:9200
+      WEATHER_INDEX: weather-stream-current-v1-local
+      CHECKPOINT_PATH: /opt/mlo/checkpoints/weather-local
+      WEATHER_SPARK_MODE: available_now
+    volumes:
+      - spark_checkpoint:/opt/mlo/checkpoints
+      - spark_ivy:/opt/mlo/ivy
+    mem_limit: 1450m
+    restart: "no"
+    networks: [dev]
+
+  weather-collector:
+    profiles: [live-kma]
+    image: mlo-p4-api:dev
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    working_dir: /workspace/app
+    environment:
+      KMA_API_KEY: ""
+      KAFKA_BOOTSTRAP: "kafka-01:9092,kafka-02:9092,kafka-03:9092"
+      KAFKA_TOPIC: weather.v1.local
+      WEATHER_STATE_DIR: /workspace/app/.local/weather-collector
+    volumes:
+      - .:/workspace/app:ro
+      - weather_collector_state:/workspace/app/.local
+    command: ["python", "-m", "pipeline.weather.run_collector"]
+    restart: "no"
+    networks: [dev]
+
+  api:
+    environment:
+      KAFKA_BOOTSTRAP: "kafka-01:9092,kafka-02:9092,kafka-03:9092"
+      FEEDBACK_KAFKA_BOOTSTRAP: "kafka-01:9092,kafka-02:9092,kafka-03:9092"
+      FEEDBACK_KAFKA_TOPIC: feedback.v1.local
+      ES_URL: http://es-router:9200
+      WEATHER_INDEX: weather-stream-current-v1-local
+
+volumes:
+  kafka_01_data:
+  kafka_02_data:
+  kafka_03_data:
+  es_01_data:
+  es_02_data:
+  es_03_data:
+  spark_checkpoint:
+  spark_ivy:
+  weather_collector_state:

@@ -1,0 +1,291 @@
+{
+  "schema_version": "1.0.0",
+  "example_only": true,
+  "environment": "dev",
+  "generation": "fixture-v1",
+  "region": "ap-northeast-2",
+  "az_ids": {
+    "a": "apne2-az1",
+    "b": "apne2-az2",
+    "c": "apne2-az3"
+  },
+  "accounts": {
+    "encore1": {
+      "vpc_id": "vpc-00000000000000001",
+      "cidr": "10.200.0.0/16",
+      "s3_endpoint_id": "vpce-00000000000000001"
+    },
+    "encore2": {
+      "vpc_id": "vpc-00000000000000002",
+      "cidr": "10.201.0.0/16",
+      "s3_endpoint_id": "vpce-00000000000000002"
+    },
+    "encore3": {
+      "vpc_id": "vpc-00000000000000003",
+      "cidr": "10.202.0.0/16",
+      "s3_endpoint_id": "vpce-00000000000000003"
+    },
+    "encore4": {
+      "vpc_id": "vpc-00000000000000004",
+      "cidr": "10.203.0.0/16",
+      "s3_endpoint_id": "vpce-00000000000000004"
+    },
+    "encore5": {
+      "vpc_id": "vpc-00000000000000005",
+      "cidr": "10.204.0.0/16",
+      "s3_endpoint_id": "vpce-00000000000000005"
+    }
+  },
+  "nodes": [
+    {
+      "name": "control-a",
+      "role": "control",
+      "account": "encore1",
+      "az_slot": "a",
+      "instance_type": "t3.large",
+      "subnet_kind": "private",
+      "instance_id": "i-00000000000000001",
+      "private_ip": "10.200.1.11",
+      "az_id": "apne2-az1",
+      "runtime_role_ref": "role-ref:control-a"
+    },
+    {
+      "name": "control-b",
+      "role": "control",
+      "account": "encore1",
+      "az_slot": "b",
+      "instance_type": "t3.large",
+      "subnet_kind": "private",
+      "instance_id": "i-00000000000000002",
+      "private_ip": "10.200.2.12",
+      "az_id": "apne2-az2",
+      "runtime_role_ref": "role-ref:control-b"
+    },
+    {
+      "name": "postgresql",
+      "role": "postgresql",
+      "account": "encore1",
+      "az_slot": "a",
+      "instance_type": "t3.large",
+      "subnet_kind": "private",
+      "instance_id": "i-00000000000000003",
+      "private_ip": "10.200.1.13",
+      "az_id": "apne2-az1",
+      "runtime_role_ref": "role-ref:postgresql"
+    },
+    {
+      "name": "kafka-01",
+      "role": "kafka",
+      "account": "encore2",
+      "az_slot": "a",
+      "instance_type": "t3.medium",
+      "subnet_kind": "private",
+      "instance_id": "i-00000000000000004",
+      "private_ip": "10.201.1.14",
+      "az_id": "apne2-az1",
+      "runtime_role_ref": "role-ref:kafka-01"
+    },
+    {
+      "name": "spark-01",
+      "role": "spark",
+      "account": "encore2",
+      "az_slot": "a",
+      "instance_type": "t3.large",
+      "subnet_kind": "private",
+      "instance_id": "i-00000000000000005",
+      "private_ip": "10.201.1.15",
+      "az_id": "apne2-az1",
+      "runtime_role_ref": "role-ref:spark-01"
+    },
+    {
+      "name": "elasticsearch-01",
+      "role": "elasticsearch",
+      "account": "encore2",
+      "az_slot": "a",
+      "instance_type": "t3.large",
+      "subnet_kind": "private",
+      "instance_id": "i-00000000000000006",
+      "private_ip": "10.201.1.16",
+      "az_id": "apne2-az1",
+      "runtime_role_ref": "role-ref:elasticsearch-01"
+    },
+    {
+      "name": "kafka-02",
+      "role": "kafka",
+      "account": "encore3",
+      "az_slot": "b",
+      "instance_type": "t3.medium",
+      "subnet_kind": "private",
+      "instance_id": "i-00000000000000007",
+      "private_ip": "10.202.2.17",
+      "az_id": "apne2-az2",
+      "runtime_role_ref": "role-ref:kafka-02"
+    },
+    {
+      "name": "spark-02",
+      "role": "spark",
+      "account": "encore3",
+      "az_slot": "b",
+      "instance_type": "t3.large",
+      "subnet_kind": "private",
+      "instance_id": "i-00000000000000008",
+      "private_ip": "10.202.2.18",
+      "az_id": "apne2-az2",
+      "runtime_role_ref": "role-ref:spark-02"
+    },
+    {
+      "name": "elasticsearch-02",
+      "role": "elasticsearch",
+      "account": "encore3",
+      "az_slot": "b",
+      "instance_type": "t3.large",
+      "subnet_kind": "private",
+      "instance_id": "i-00000000000000009",
+      "private_ip": "10.202.2.19",
+      "az_id": "apne2-az2",
+      "runtime_role_ref": "role-ref:elasticsearch-02"
+    },
+    {
+      "name": "kafka-03",
+      "role": "kafka",
+      "account": "encore4",
+      "az_slot": "c",
+      "instance_type": "t3.medium",
+      "subnet_kind": "private",
+      "instance_id": "i-0000000000000000a",
+      "private_ip": "10.203.3.20",
+      "az_id": "apne2-az3",
+      "runtime_role_ref": "role-ref:kafka-03"
+    },
+    {
+      "name": "spark-03",
+      "role": "spark",
+      "account": "encore4",
+      "az_slot": "c",
+      "instance_type": "t3.large",
+      "subnet_kind": "private",
+      "instance_id": "i-0000000000000000b",
+      "private_ip": "10.203.3.21",
+      "az_id": "apne2-az3",
+      "runtime_role_ref": "role-ref:spark-03"
+    },
+    {
+      "name": "elasticsearch-03",
+      "role": "elasticsearch",
+      "account": "encore4",
+      "az_slot": "c",
+      "instance_type": "t3.large",
+      "subnet_kind": "private",
+      "instance_id": "i-0000000000000000c",
+      "private_ip": "10.203.3.22",
+      "az_id": "apne2-az3",
+      "runtime_role_ref": "role-ref:elasticsearch-03"
+    },
+    {
+      "name": "advertising",
+      "role": "advertising",
+      "account": "encore5",
+      "az_slot": "a",
+      "instance_type": "t3.small",
+      "subnet_kind": "private",
+      "instance_id": "i-0000000000000000d",
+      "private_ip": "10.204.1.23",
+      "az_id": "apne2-az1",
+      "runtime_role_ref": "role-ref:advertising"
+    },
+    {
+      "name": "mongodb",
+      "role": "mongodb",
+      "account": "encore5",
+      "az_slot": "a",
+      "instance_type": "t3.medium",
+      "subnet_kind": "private",
+      "instance_id": "i-0000000000000000e",
+      "private_ip": "10.204.1.24",
+      "az_id": "apne2-az1",
+      "runtime_role_ref": "role-ref:mongodb"
+    },
+    {
+      "name": "gateway-a",
+      "role": "gateway",
+      "account": "encore5",
+      "az_slot": "a",
+      "instance_type": "t3.small",
+      "subnet_kind": "public",
+      "instance_id": "i-0000000000000000f",
+      "private_ip": "10.204.1.25",
+      "az_id": "apne2-az1",
+      "runtime_role_ref": "role-ref:gateway-a"
+    },
+    {
+      "name": "gateway-b",
+      "role": "gateway",
+      "account": "encore5",
+      "az_slot": "b",
+      "instance_type": "t3.small",
+      "subnet_kind": "public",
+      "instance_id": "i-00000000000000010",
+      "private_ip": "10.204.2.26",
+      "az_id": "apne2-az2",
+      "runtime_role_ref": "role-ref:gateway-b"
+    }
+  ],
+  "peering_pairs": [
+    [
+      "encore1",
+      "encore2"
+    ],
+    [
+      "encore1",
+      "encore3"
+    ],
+    [
+      "encore1",
+      "encore4"
+    ],
+    [
+      "encore1",
+      "encore5"
+    ],
+    [
+      "encore2",
+      "encore3"
+    ],
+    [
+      "encore2",
+      "encore4"
+    ],
+    [
+      "encore2",
+      "encore5"
+    ],
+    [
+      "encore3",
+      "encore4"
+    ],
+    [
+      "encore3",
+      "encore5"
+    ],
+    [
+      "encore4",
+      "encore5"
+    ]
+  ],
+  "storage": {
+    "raw_bucket_ref": "example-only-p4-raw",
+    "lake_bucket_ref": "example-only-p4-lake",
+    "backup_bucket_ref": "example-only-p4-backup",
+    "state_bucket_ref": "example-only-p4-state",
+    "transfer_bucket_ref": "example-only-p4-transfer"
+  },
+  "secret_refs": {
+    "postgresql": "runtime-secret:postgresql",
+    "mongodb": "runtime-secret:mongodb",
+    "kafka": "runtime-secret:kafka",
+    "elasticsearch": "runtime-secret:elasticsearch",
+    "zookeeper": "runtime-secret:zookeeper",
+    "llm_service": "runtime-secret:llm_service",
+    "ghcr_read": "runtime-secret:ghcr_read"
+  }
+}

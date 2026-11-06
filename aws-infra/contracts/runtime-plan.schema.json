@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mlo-p4/runtime-plan-v1.schema.json",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "example_only": {
+      "type": "boolean"
+    },
+    "environment": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ready_for_aws": {
+      "const": false
+    },
+    "node_plans": {
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "enum": [
+              "advertising",
+              "control",
+              "elasticsearch",
+              "gateway",
+              "kafka",
+              "mongodb",
+              "postgresql",
+              "spark"
+            ]
+          },
+          "services": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "web",
+                "postgresql",
+                "mongodb",
+                "kafka_client",
+                "kafka_controller",
+                "spark_master",
+                "spark_worker_rpc",
+                "spark_master_ui",
+                "spark_worker_ui",
+                "spark_application_pool",
+                "zookeeper_client",
+                "zookeeper_peer",
+                "zookeeper_election",
+                "elasticsearch_http",
+                "elasticsearch_transport",
+                "forward_proxy",
+                "host_proxy",
+                "llm_relay",
+                "advertising_api",
+                "log_ingest",
+                "kibana"
+              ]
+            }
+          },
+          "destructive": {
+            "const": false
+          }
+        },
+        "required": [
+          "node",
+          "role",
+          "services",
+          "destructive"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "example_only",
+    "environment",
+    "generation",
+    "ready_for_aws",
+    "node_plans"
+  ],
+  "additionalProperties": false
+}

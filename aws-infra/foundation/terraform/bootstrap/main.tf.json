@@ -1,0 +1,121 @@
+{
+  "terraform": {
+    "required_version": "= 1.11.4",
+    "required_providers": {
+      "aws": {
+        "source": "hashicorp/aws",
+        "version": "= 5.94.1"
+      }
+    },
+    "backend": {
+      "local": {
+        "path": "../../.private/bootstrap.tfstate"
+      }
+    }
+  },
+  "variable": {
+    "binding": {
+      "type": "any",
+      "validation": [
+        {
+          "condition": "${var.binding.region==\"ap-northeast-2\" && length(distinct(values(var.binding.account_ids)))==5 && length(distinct(values(var.binding.az_ids)))==3}",
+          "error_message": "Seoul, five accounts and three physical AZs required."
+        }
+      ]
+    }
+  },
+  "provider": {
+    "aws": {
+      "region": "ap-northeast-2",
+      "allowed_account_ids": "${[var.binding.account_ids.encore1]}",
+      "profile": "encore1"
+    }
+  },
+  "module": {
+    "state": {
+      "source": "../modules/bucket",
+      "name": "${var.binding.state_bucket}",
+      "statements": "${[{Effect=\"Allow\",Principal={AWS=[for id in values(var.binding.account_ids):\"arn:aws:iam::${id}:root\"]},Action=[\"s3:GetObject\", \"s3:PutObject\"],Resource=[local.operation_arn],Condition={ArnEquals={\"aws:PrincipalArn\"=concat(local.operation_runtime_arns,[local.operation_controller_arn])}}},{Effect=\"Deny\",Principal=\"*\",Action=[\"s3:DeleteObject\",\"s3:DeleteObjectVersion\"],Resource=[local.operation_arn]},{Effect=\"Deny\",Principal=\"*\",Action=[\"s3:PutObject\"],Resource=[local.operation_arn],Condition={Null={\"s3:if-match\"=\"true\",\"s3:if-none-match\"=\"true\"}}}]}"
+    }
+  },
+  "resource": {
+    "aws_iam_role": {
+      "operation": {
+        "name": "p4-operation-controller",
+        "assume_role_policy": "${jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=\"sts:AssumeRole\",Principal={AWS=\"arn:aws:iam::${var.binding.account_ids.encore1}:root\"},Condition={ArnEquals={\"aws:PrincipalArn\"=concat([var.binding.provisioner_arns.encore1],[for purpose in keys(var.binding.oidc_subjects):\"arn:aws:iam::${var.binding.account_ids.encore1}:role/p4-ci-${purpose}\"])}}}]})}"
+      },
+      "encore1": {
+        "name": "p4-state-encore1",
+        "assume_role_policy": "${jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=\"sts:AssumeRole\",Principal={AWS=\"arn:aws:iam::${var.binding.account_ids.encore1}:root\"},Condition={ArnEquals={\"aws:PrincipalArn\"=concat([var.binding.provisioner_arns.encore1],[for purpose in keys(var.binding.oidc_subjects):\"arn:aws:iam::${var.binding.account_ids.encore1}:role/p4-ci-${purpose}\" if contains([\"plan\",\"apply\"],purpose)])}}}]})}"
+      },
+      "encore2": {
+        "name": "p4-state-encore2",
+        "assume_role_policy": "${jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=\"sts:AssumeRole\",Principal={AWS=\"arn:aws:iam::${var.binding.account_ids.encore2}:root\"},Condition={ArnEquals={\"aws:PrincipalArn\"=concat([var.binding.provisioner_arns.encore2],[for purpose in keys(var.binding.oidc_subjects):\"arn:aws:iam::${var.binding.account_ids.encore2}:role/p4-ci-${purpose}\" if contains([\"plan\",\"apply\"],purpose)])}}}]})}"
+      },
+      "encore3": {
+        "name": "p4-state-encore3",
+        "assume_role_policy": "${jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=\"sts:AssumeRole\",Principal={AWS=\"arn:aws:iam::${var.binding.account_ids.encore3}:root\"},Condition={ArnEquals={\"aws:PrincipalArn\"=concat([var.binding.provisioner_arns.encore3],[for purpose in keys(var.binding.oidc_subjects):\"arn:aws:iam::${var.binding.account_ids.encore3}:role/p4-ci-${purpose}\" if contains([\"plan\",\"apply\"],purpose)])}}}]})}"
+      },
+      "encore4": {
+        "name": "p4-state-encore4",
+        "assume_role_policy": "${jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=\"sts:AssumeRole\",Principal={AWS=\"arn:aws:iam::${var.binding.account_ids.encore4}:root\"},Condition={ArnEquals={\"aws:PrincipalArn\"=concat([var.binding.provisioner_arns.encore4],[for purpose in keys(var.binding.oidc_subjects):\"arn:aws:iam::${var.binding.account_ids.encore4}:role/p4-ci-${purpose}\" if contains([\"plan\",\"apply\"],purpose)])}}}]})}"
+      },
+      "encore5": {
+        "name": "p4-state-encore5",
+        "assume_role_policy": "${jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=\"sts:AssumeRole\",Principal={AWS=\"arn:aws:iam::${var.binding.account_ids.encore5}:root\"},Condition={ArnEquals={\"aws:PrincipalArn\"=concat([var.binding.provisioner_arns.encore5],[for purpose in keys(var.binding.oidc_subjects):\"arn:aws:iam::${var.binding.account_ids.encore5}:role/p4-ci-${purpose}\" if contains([\"plan\",\"apply\"],purpose)])}}}]})}"
+      },
+      "connectivity": {
+        "name": "p4-state-connectivity",
+        "assume_role_policy": "${jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=\"sts:AssumeRole\",Principal={AWS=\"arn:aws:iam::${var.binding.account_ids.encore1}:root\"},Condition={ArnEquals={\"aws:PrincipalArn\"=concat([var.binding.provisioner_arns.encore1],[for purpose in keys(var.binding.oidc_subjects):\"arn:aws:iam::${var.binding.account_ids.encore1}:role/p4-ci-${purpose}\" if contains([\"plan\",\"apply\"],purpose)])}}}]})}"
+      }
+    },
+    "aws_iam_role_policy": {
+      "operation": {
+        "role": "${aws_iam_role.operation.id}",
+        "policy": "${jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=[\"s3:GetObject\", \"s3:PutObject\"],Resource=[local.operation_arn]}]})}"
+      },
+      "encore1": {
+        "role": "${aws_iam_role.encore1.id}",
+        "policy": "${jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=[\"s3:ListBucket\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}\"],Condition={StringEquals={\"s3:prefix\"=[\"dev/encore1/terraform.tfstate\",\"dev/encore1/terraform.tfstate.tflock\"]}}},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:PutObject\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}/dev/encore1/terraform.tfstate\"]},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:PutObject\",\"s3:DeleteObject\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}/dev/encore1/terraform.tfstate.tflock\"]}]})}"
+      },
+      "encore2": {
+        "role": "${aws_iam_role.encore2.id}",
+        "policy": "${jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=[\"s3:ListBucket\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}\"],Condition={StringEquals={\"s3:prefix\"=[\"dev/encore2/terraform.tfstate\",\"dev/encore2/terraform.tfstate.tflock\"]}}},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:PutObject\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}/dev/encore2/terraform.tfstate\"]},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:PutObject\",\"s3:DeleteObject\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}/dev/encore2/terraform.tfstate.tflock\"]}]})}"
+      },
+      "encore3": {
+        "role": "${aws_iam_role.encore3.id}",
+        "policy": "${jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=[\"s3:ListBucket\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}\"],Condition={StringEquals={\"s3:prefix\"=[\"dev/encore3/terraform.tfstate\",\"dev/encore3/terraform.tfstate.tflock\"]}}},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:PutObject\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}/dev/encore3/terraform.tfstate\"]},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:PutObject\",\"s3:DeleteObject\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}/dev/encore3/terraform.tfstate.tflock\"]}]})}"
+      },
+      "encore4": {
+        "role": "${aws_iam_role.encore4.id}",
+        "policy": "${jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=[\"s3:ListBucket\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}\"],Condition={StringEquals={\"s3:prefix\"=[\"dev/encore4/terraform.tfstate\",\"dev/encore4/terraform.tfstate.tflock\"]}}},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:PutObject\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}/dev/encore4/terraform.tfstate\"]},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:PutObject\",\"s3:DeleteObject\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}/dev/encore4/terraform.tfstate.tflock\"]}]})}"
+      },
+      "encore5": {
+        "role": "${aws_iam_role.encore5.id}",
+        "policy": "${jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=[\"s3:ListBucket\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}\"],Condition={StringEquals={\"s3:prefix\"=[\"dev/encore5/terraform.tfstate\",\"dev/encore5/terraform.tfstate.tflock\"]}}},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:PutObject\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}/dev/encore5/terraform.tfstate\"]},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:PutObject\",\"s3:DeleteObject\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}/dev/encore5/terraform.tfstate.tflock\"]}]})}"
+      },
+      "connectivity": {
+        "role": "${aws_iam_role.connectivity.id}",
+        "policy": "${jsonencode({Version=\"2012-10-17\",Statement=[{Effect=\"Allow\",Action=[\"s3:ListBucket\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}\"],Condition={StringEquals={\"s3:prefix\"=[\"dev/connectivity/terraform.tfstate\",\"dev/connectivity/terraform.tfstate.tflock\"]}}},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:PutObject\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}/dev/connectivity/terraform.tfstate\"]},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:PutObject\",\"s3:DeleteObject\"],Resource=[\"arn:aws:s3:::${var.binding.state_bucket}/dev/connectivity/terraform.tfstate.tflock\"]}]})}"
+      }
+    }
+  },
+  "output": {
+    "state_bucket": {
+      "value": "${module.state.name}"
+    },
+    "operation_boundary": {
+      "value": {
+        "bucket": "${var.binding.state_bucket}",
+        "key": "${local.operation_key}",
+        "controller_role_arn": "${local.operation_controller_arn}"
+      }
+    }
+  },
+  "locals": {
+    "operation_key": "${\"operations/${sha256(jsonencode({project=\"mlo-p4\",environment=var.binding.environment,account_ids=var.binding.account_ids,state_keys={for k in [\"bootstrap\",\"connectivity\",\"encore1\",\"encore2\",\"encore3\",\"encore4\",\"encore5\"]:k=>\"dev/${k}/terraform.tfstate\"}}))}.json\"}",
+    "operation_arn": "${\"arn:aws:s3:::${var.binding.state_bucket}/${local.operation_key}\"}",
+    "operation_controller_arn": "${\"arn:aws:iam::${var.binding.account_ids.encore1}:role/p4-operation-controller\"}",
+    "operation_runtime_arns": "${[for name,n in {\"control-a\": {\"name\": \"control-a\", \"role\": \"control\", \"account\": \"encore1\", \"az_slot\": \"a\", \"instance_type\": \"t3.large\", \"subnet_kind\": \"private\"}, \"control-b\": {\"name\": \"control-b\", \"role\": \"control\", \"account\": \"encore1\", \"az_slot\": \"b\", \"instance_type\": \"t3.large\", \"subnet_kind\": \"private\"}, \"postgresql\": {\"name\": \"postgresql\", \"role\": \"postgresql\", \"account\": \"encore1\", \"az_slot\": \"a\", \"instance_type\": \"t3.large\", \"subnet_kind\": \"private\"}, \"kafka-01\": {\"name\": \"kafka-01\", \"role\": \"kafka\", \"account\": \"encore2\", \"az_slot\": \"a\", \"instance_type\": \"t3.medium\", \"subnet_kind\": \"private\"}, \"spark-01\": {\"name\": \"spark-01\", \"role\": \"spark\", \"account\": \"encore2\", \"az_slot\": \"a\", \"instance_type\": \"t3.large\", \"subnet_kind\": \"private\"}, \"elasticsearch-01\": {\"name\": \"elasticsearch-01\", \"role\": \"elasticsearch\", \"account\": \"encore2\", \"az_slot\": \"a\", \"instance_type\": \"t3.large\", \"subnet_kind\": \"private\"}, \"kafka-02\": {\"name\": \"kafka-02\", \"role\": \"kafka\", \"account\": \"encore3\", \"az_slot\": \"b\", \"instance_type\": \"t3.medium\", \"subnet_kind\": \"private\"}, \"spark-02\": {\"name\": \"spark-02\", \"role\": \"spark\", \"account\": \"encore3\", \"az_slot\": \"b\", \"instance_type\": \"t3.large\", \"subnet_kind\": \"private\"}, \"elasticsearch-02\": {\"name\": \"elasticsearch-02\", \"role\": \"elasticsearch\", \"account\": \"encore3\", \"az_slot\": \"b\", \"instance_type\": \"t3.large\", \"subnet_kind\": \"private\"}, \"kafka-03\": {\"name\": \"kafka-03\", \"role\": \"kafka\", \"account\": \"encore4\", \"az_slot\": \"c\", \"instance_type\": \"t3.medium\", \"subnet_kind\": \"private\"}, \"spark-03\": {\"name\": \"spark-03\", \"role\": \"spark\", \"account\": \"encore4\", \"az_slot\": \"c\", \"instance_type\": \"t3.large\", \"subnet_kind\": \"private\"}, \"elasticsearch-03\": {\"name\": \"elasticsearch-03\", \"role\": \"elasticsearch\", \"account\": \"encore4\", \"az_slot\": \"c\", \"instance_type\": \"t3.large\", \"subnet_kind\": \"private\"}, \"advertising\": {\"name\": \"advertising\", \"role\": \"advertising\", \"account\": \"encore5\", \"az_slot\": \"a\", \"instance_type\": \"t3.small\", \"subnet_kind\": \"private\"}, \"mongodb\": {\"name\": \"mongodb\", \"role\": \"mongodb\", \"account\": \"encore5\", \"az_slot\": \"a\", \"instance_type\": \"t3.medium\", \"subnet_kind\": \"private\"}, \"gateway-a\": {\"name\": \"gateway-a\", \"role\": \"gateway\", \"account\": \"encore5\", \"az_slot\": \"a\", \"instance_type\": \"t3.small\", \"subnet_kind\": \"public\"}, \"gateway-b\": {\"name\": \"gateway-b\", \"role\": \"gateway\", \"account\": \"encore5\", \"az_slot\": \"b\", \"instance_type\": \"t3.small\", \"subnet_kind\": \"public\"}}:\"arn:aws:iam::${var.binding.account_ids[n.account]}:role/p4-runtime-${name}\"]}"
+  }
+}

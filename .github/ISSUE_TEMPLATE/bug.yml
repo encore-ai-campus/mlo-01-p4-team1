@@ -1,0 +1,24 @@
+name: "Bug / 오류"
+description: "재현 가능한 결함 보고"
+title: "[Bug] "
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: issue
+    attributes:
+      label: 문제와 기대 결과
+      description: "비밀정보 없는 합성 데이터만 기술하세요."
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 재현 단계
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: 완료 기준
+    validations:
+      required: true

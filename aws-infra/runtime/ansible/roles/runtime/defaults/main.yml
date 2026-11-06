@@ -1,0 +1,14 @@
+---
+runtime_lab: false
+runtime_data_root: /srv/mlo
+runtime_generation: undefined
+runtime_role: "{{ runtime_node.role | default('undefined') }}"
+runtime_manage_systemd: true
+runtime_config_root: /etc/mlo
+runtime_mount_uuid: ""
+runtime_install_enabled: false
+runtime_payload_source: ""
+runtime_payload_remote: /var/lib/mlo/incoming/runtime
+runtime_host_binding: /etc/mlo/host-binding.json
+runtime_host_binding_source: ""
+runtime_operation: install

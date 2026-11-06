@@ -1,0 +1,60 @@
+name: Collaboration policy advisory
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  pr-routing-and-issue:
+    name: Validate PR issue reference and target
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Issue reference and branch routing
+        env:
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+          pr = event["pull_request"]
+          title = pr.get("title") or ""
+          body = pr.get("body") or ""
+          head = pr["head"]["ref"]
+          base = pr["base"]["ref"]
+          problems = []
+
+          if not re.search(r"\(#[0-9]+\)", title):
+              problems.append("PR title must include (#IssueNumber)")
+          if not re.search(r"(?im)\b(?:Related|Relates to|Closes|Fixes)\s+#\d+\b", body):
+              problems.append("PR body must reference an Issue, e.g. Related #11")
+
+          if base == "main" and head != "develop":
+              problems.append("Only develop -> main is the regular release path")
+          elif base == "develop" and not (
+              head == "feature/infra"
+              or head.startswith(("feat/", "feature/", "fix/", "chore/", "docs/", "test/"))
+          ):
+              problems.append("Unexpected source branch for develop")
+          elif base == "feature/infra" and not head.startswith(
+              ("feat/", "feature/", "fix/", "chore/", "docs/", "test/")
+          ):
+              problems.append("Issue branch required for feature/infra")
+          elif base not in ("main", "develop", "feature/infra"):
+              problems.append("Unexpected target branch")
+
+          print(f"PR route: {head} -> {base}")
+          if problems:
+              for problem in problems:
+                  print("POLICY FAIL:", problem)
+              raise SystemExit(1)
+          print("Issue reference and PR routing: PASS")
+          print("This CI check is advisory without server-side branch protection.")
+          PY

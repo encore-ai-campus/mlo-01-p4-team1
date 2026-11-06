@@ -1,0 +1,18 @@
+name: Runtime image local build (initially disabled)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lab-image:
+    if: vars.RUNTIME_IMAGE_BUILD_ENABLED == 'true'
+    runs-on: [self-hosted, Linux, X64, mlo-runtime-locked]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: test "$(docker version --format '{{.Client.Version}}')" = 29.8.0
+      - name: Build only the isolated acceptance image
+        run: docker build --platform linux/amd64 --label mlo.role=B -f aws-infra/runtime/containers/host-lab.Dockerfile -t mlo-p4-b-host-lab:20261029 aws-infra/runtime
+      # Business image source/digest acceptance and GHCR publication remain unconfigured.

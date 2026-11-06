@@ -1,0 +1,12 @@
+---
+- name: Test host tasks in a dedicated disposable Linux container
+  hosts: all
+  gather_facts: true
+  vars:
+    runtime_lab: true
+    runtime_data_root: /srv/mlo
+    runtime_generation: local-test
+    runtime_role: control
+    runtime_manage_systemd: false
+  roles:
+    - role: runtime

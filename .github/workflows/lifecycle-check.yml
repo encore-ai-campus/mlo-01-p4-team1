@@ -1,0 +1,49 @@
+name: Lifecycle local checks
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline:
+    if: ${{ vars.LIFECYCLE_LOCAL_CHECKS_ENABLED == 'true' }}
+    runs-on: [self-hosted, Linux, X64, mlo-prepared-local-tests]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          clean: true
+          persist-credentials: false
+      - name: Rebuild C environment from administrator prepared offline dependencies
+        env:
+          MLO_C_PYTHON: ${{ vars.LIFECYCLE_PREPARED_PYTHON }}
+          MLO_C_WHEELS: ${{ vars.LIFECYCLE_PREPARED_WHEELHOUSE }}
+          MLO_C_TERRAFORM: ${{ vars.LIFECYCLE_PREPARED_TERRAFORM_ARCHIVE }}
+          PYTHONNOUSERSITE: '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset PYTHONPATH PYTHONHOME
+          test -x "$MLO_C_PYTHON"
+          test -d "$MLO_C_WHEELS"
+          test -f "$MLO_C_TERRAFORM"
+          /usr/bin/python3 - <<'PY'
+          import os, pathlib, sys
+          workspace = pathlib.Path.cwd().resolve()
+          for name in ('MLO_C_PYTHON', 'MLO_C_WHEELS', 'MLO_C_TERRAFORM'):
+              path = pathlib.Path(os.environ[name])
+              assert path.is_absolute() and not path.resolve().is_relative_to(workspace)
+              resolved = path.resolve()
+              for item in (resolved, *resolved.parents):
+                  info = item.stat()
+                  assert info.st_uid == 0 and not info.st_mode & 0o022
+          for item in pathlib.Path(os.environ['MLO_C_WHEELS']).rglob('*'):
+              assert item.is_file() and item.suffix == '.whl' and not item.is_symlink()
+              info = item.stat()
+              assert info.st_uid == 0 and not info.st_mode & 0o022
+          PY
+          "$MLO_C_PYTHON" -c 'import sys; assert sys.version_info[:3] == (3, 14, 8)'
+          "$MLO_C_PYTHON" -m venv aws-infra/lifecycle/.venv
+          aws-infra/lifecycle/.venv/bin/python -m pip install --no-index --find-links "$MLO_C_WHEELS" -r aws-infra/lifecycle/requirements.lock.txt
+          aws-infra/lifecycle/.venv/bin/python aws-infra/lifecycle/scripts/setup-toolchain.py --archive "$MLO_C_TERRAFORM"
+      - name: Check prepared C dependencies and run local suites
+        run: bash aws-infra/lifecycle/scripts/check-local.sh all

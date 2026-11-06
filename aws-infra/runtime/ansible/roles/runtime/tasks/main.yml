@@ -1,0 +1,197 @@
+---
+- name: Require supported OS and accepted target inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == 'Ubuntu'
+      - ansible_facts.distribution_version == '24.04'
+      - runtime_lab | bool or ansible_facts.architecture == 'x86_64'
+      - runtime_generation is match('^[a-z0-9][a-z0-9-]*$')
+      - runtime_generation != 'undefined'
+      - runtime_data_root == '/srv/mlo'
+
+- name: Find persistent mount target without formatting or mounting a disk
+  ansible.builtin.command:
+    argv: [findmnt, -rn, -T, "{{ runtime_data_root }}", -o, TARGET]
+  register: runtime_mount_target
+  changed_when: false
+  check_mode: false
+
+- name: Refuse root filesystem or an unmounted data directory
+  ansible.builtin.assert:
+    that:
+      - runtime_mount_target.stdout == runtime_data_root
+    fail_msg: /srv/mlo must already be the accepted persistent filesystem or dedicated lab bind mount.
+
+- name: Check real filesystem identity
+  when: not runtime_lab | bool
+  block:
+    - name: Require filesystem UUID binding
+      ansible.builtin.assert:
+        that:
+          - runtime_mount_uuid | length > 0
+    - name: Read mounted filesystem UUID
+      ansible.builtin.command:
+        argv: [findmnt, -rn, -T, "{{ runtime_data_root }}", -o, UUID]
+      register: runtime_actual_uuid
+      changed_when: false
+      check_mode: false
+    - name: Reject a different mounted filesystem
+      ansible.builtin.assert:
+        that:
+          - runtime_actual_uuid.stdout == runtime_mount_uuid
+    - name: Require AMI bootstrap tools without internet installation
+      ansible.builtin.command:
+        argv: ["{{ item }}", --version]
+      loop: [docker, curl, python3]
+      changed_when: false
+      check_mode: false
+    - name: Require pinned Compose plugin
+      ansible.builtin.command:
+        argv: [docker, compose, version, --short]
+      register: runtime_compose_version
+      changed_when: false
+      check_mode: false
+    - name: Verify accepted Compose version
+      ansible.builtin.assert:
+        that:
+          - runtime_compose_version.stdout == '5.5.1'
+
+- name: Create runtime group
+  ansible.builtin.group:
+    name: mlo
+    gid: 2000
+    system: true
+
+- name: Create runtime user without login or Docker socket membership
+  ansible.builtin.user:
+    name: mlo
+    uid: 2000
+    group: mlo
+    shell: /usr/sbin/nologin
+    create_home: false
+    system: true
+
+- name: Create persistent runtime directories
+  ansible.builtin.file:
+    path: "{{ runtime_data_root }}/{{ runtime_generation }}/{{ item }}"
+    state: directory
+    owner: mlo
+    group: mlo
+    mode: "0750"
+  loop: [spool, checkpoints, delta, backups, logs, work]
+
+- name: Create protected configuration and volatile secret directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - "{{ runtime_config_root }}"
+    - /run/mlo/secrets
+
+- name: Configure bounded Docker logs without changing global Docker configuration in lab
+  ansible.builtin.copy:
+    dest: "{{ runtime_config_root }}/docker-daemon.required.json"
+    content: '{"log-driver":"local","log-opts":{"max-size":"10m","max-file":"3"},"live-restore":true}\n'
+    mode: "0600"
+  # Actual daemon merge/restart requires an accepted rendered proxy binding.
+
+- name: Install log rotation for diagnostic logs only
+  ansible.builtin.copy:
+    dest: /etc/logrotate.d/mlo-runtime
+    mode: "0644"
+    content: |
+      /srv/mlo/{{ runtime_generation }}/logs/*.log {
+        size 10M
+        rotate 3
+        missingok
+        notifempty
+        compress
+        copytruncate
+      }
+
+- name: Configure time and journal limits on real systemd hosts
+  when: runtime_manage_systemd | bool
+  block:
+    - name: Create systemd drop-in directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: [/etc/systemd/journald.conf.d, /etc/systemd/timesyncd.conf.d]
+    - name: Bound journal size
+      ansible.builtin.copy:
+        dest: /etc/systemd/journald.conf.d/mlo.conf
+        mode: "0644"
+        content: "[Journal]\nSystemMaxUse=256M\nRuntimeMaxUse=64M\nMaxRetentionSec=7day\n"
+      notify: Restart journald
+    - name: Set Amazon time sync service
+      ansible.builtin.copy:
+        dest: /etc/systemd/timesyncd.conf.d/mlo.conf
+        mode: "0644"
+        content: "[Time]\nNTP=169.254.169.123\n"
+      notify: Restart timesyncd
+
+- name: Install accepted runtime through the fixed manifest entrypoint
+  when: runtime_install_enabled | bool
+  block:
+    - name: Require explicit payload and immutable host identity inputs
+      ansible.builtin.assert:
+        that:
+          - runtime_payload_source | length > 0
+          - runtime_payload_remote is match('^/var/lib/mlo/incoming/[a-zA-Z0-9._-]+$')
+          - runtime_operation in ['install', 'deploy', 'health', 'rollback']
+          - runtime_node.name is defined
+          - runtime_environment is defined
+
+    - name: Create protected incoming artifact location
+      ansible.builtin.set_fact:
+        runtime_install_directory: >-
+          {{ runtime_payload_remote }}/{{ lookup('ansible.builtin.file',
+          runtime_payload_source + '/manifest.json', rstrip=false) | hash('sha256') }}
+
+    - name: Create content addressed protected incoming artifact location
+      ansible.builtin.file:
+        path: "{{ runtime_install_directory }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Copy fully verified extracted artifact without templating its contents
+      ansible.builtin.copy:
+        src: "{{ runtime_payload_source }}/"
+        dest: "{{ runtime_install_directory }}/"
+        owner: root
+        group: root
+        mode: preserve
+        directory_mode: "0700"
+
+    - name: Copy separately accepted host binding when provided
+      when: runtime_host_binding_source | length > 0
+      ansible.builtin.copy:
+        src: "{{ runtime_host_binding_source }}"
+        dest: "{{ runtime_host_binding }}"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Execute fixed runtime operation and preserve installer receipt
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/python3
+          - "{{ runtime_install_directory }}/bin/runtime-entrypoint.py"
+          - --operation
+          - "{{ runtime_operation }}"
+          - --environment
+          - "{{ runtime_environment }}"
+          - --generation
+          - "{{ runtime_generation }}"
+          - --node
+          - "{{ runtime_node.name }}"
+          - --binding
+          - "{{ runtime_host_binding }}"
+      register: runtime_install_result
+      changed_when: (runtime_install_result.stdout | from_json).changed | bool

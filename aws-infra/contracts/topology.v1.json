@@ -1,0 +1,195 @@
+{
+  "schema_version": "1.0.0",
+  "region": "ap-northeast-2",
+  "target_platform": "linux/amd64",
+  "accounts": [
+    "encore1",
+    "encore2",
+    "encore3",
+    "encore4",
+    "encore5"
+  ],
+  "az_slots": [
+    "a",
+    "b",
+    "c"
+  ],
+  "nodes": [
+    {
+      "name": "control-a",
+      "role": "control",
+      "account": "encore1",
+      "az_slot": "a",
+      "instance_type": "t3.large",
+      "subnet_kind": "private"
+    },
+    {
+      "name": "control-b",
+      "role": "control",
+      "account": "encore1",
+      "az_slot": "b",
+      "instance_type": "t3.large",
+      "subnet_kind": "private"
+    },
+    {
+      "name": "postgresql",
+      "role": "postgresql",
+      "account": "encore1",
+      "az_slot": "a",
+      "instance_type": "t3.large",
+      "subnet_kind": "private"
+    },
+    {
+      "name": "kafka-01",
+      "role": "kafka",
+      "account": "encore2",
+      "az_slot": "a",
+      "instance_type": "t3.medium",
+      "subnet_kind": "private"
+    },
+    {
+      "name": "spark-01",
+      "role": "spark",
+      "account": "encore2",
+      "az_slot": "a",
+      "instance_type": "t3.large",
+      "subnet_kind": "private"
+    },
+    {
+      "name": "elasticsearch-01",
+      "role": "elasticsearch",
+      "account": "encore2",
+      "az_slot": "a",
+      "instance_type": "t3.large",
+      "subnet_kind": "private"
+    },
+    {
+      "name": "kafka-02",
+      "role": "kafka",
+      "account": "encore3",
+      "az_slot": "b",
+      "instance_type": "t3.medium",
+      "subnet_kind": "private"
+    },
+    {
+      "name": "spark-02",
+      "role": "spark",
+      "account": "encore3",
+      "az_slot": "b",
+      "instance_type": "t3.large",
+      "subnet_kind": "private"
+    },
+    {
+      "name": "elasticsearch-02",
+      "role": "elasticsearch",
+      "account": "encore3",
+      "az_slot": "b",
+      "instance_type": "t3.large",
+      "subnet_kind": "private"
+    },
+    {
+      "name": "kafka-03",
+      "role": "kafka",
+      "account": "encore4",
+      "az_slot": "c",
+      "instance_type": "t3.medium",
+      "subnet_kind": "private"
+    },
+    {
+      "name": "spark-03",
+      "role": "spark",
+      "account": "encore4",
+      "az_slot": "c",
+      "instance_type": "t3.large",
+      "subnet_kind": "private"
+    },
+    {
+      "name": "elasticsearch-03",
+      "role": "elasticsearch",
+      "account": "encore4",
+      "az_slot": "c",
+      "instance_type": "t3.large",
+      "subnet_kind": "private"
+    },
+    {
+      "name": "advertising",
+      "role": "advertising",
+      "account": "encore5",
+      "az_slot": "a",
+      "instance_type": "t3.small",
+      "subnet_kind": "private"
+    },
+    {
+      "name": "mongodb",
+      "role": "mongodb",
+      "account": "encore5",
+      "az_slot": "a",
+      "instance_type": "t3.medium",
+      "subnet_kind": "private"
+    },
+    {
+      "name": "gateway-a",
+      "role": "gateway",
+      "account": "encore5",
+      "az_slot": "a",
+      "instance_type": "t3.small",
+      "subnet_kind": "public"
+    },
+    {
+      "name": "gateway-b",
+      "role": "gateway",
+      "account": "encore5",
+      "az_slot": "b",
+      "instance_type": "t3.small",
+      "subnet_kind": "public"
+    }
+  ],
+  "peering_pairs": [
+    [
+      "encore1",
+      "encore2"
+    ],
+    [
+      "encore1",
+      "encore3"
+    ],
+    [
+      "encore1",
+      "encore4"
+    ],
+    [
+      "encore1",
+      "encore5"
+    ],
+    [
+      "encore2",
+      "encore3"
+    ],
+    [
+      "encore2",
+      "encore4"
+    ],
+    [
+      "encore2",
+      "encore5"
+    ],
+    [
+      "encore3",
+      "encore4"
+    ],
+    [
+      "encore3",
+      "encore5"
+    ],
+    [
+      "encore4",
+      "encore5"
+    ]
+  ],
+  "nat_gateway_count": 0,
+  "ssm_endpoint_az_count": 1,
+  "ssm_services": [
+    "ssm",
+    "ssmmessages"
+  ]
+}
