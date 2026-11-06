@@ -65,6 +65,32 @@ class FoundationLifecycleIntegration(unittest.TestCase):
                 root, shown, metadata, source="mock-plan"
             )
 
+    def test_track2_optional_edge_and_archive_graph_remains_classified_and_retained(self):
+        base=ROOT/"aws-infra/foundation"
+        location=json.loads((base/".artifacts/latest-run.json").read_text())["logs"]
+        snapshots={}
+        for root in ROOTS:
+            filename=("track2-"+root if root.startswith("encore") else root+"-test")+".jsonl"
+            plans=[e["test_plan"] for line in (base/location/filename).read_text().splitlines()
+                   if (e:=json.loads(line)).get("type")=="test_plan"]
+            self.assertEqual(len(plans),1)
+            shown=plans[0]
+            expected={r["address"]:r["change"]["after"].get("id") for r in shown["resource_changes"]
+                      if r["mode"]=="managed" and r["change"]["after"] is not None}
+            metadata={"environment":"dev","generation":"track2-local-mock","account":root,
+                      "region":"ap-northeast-2","state_key":f"dev/{root}/terraform.tfstate",
+                      "lineage":"mock-"+root,"serial":1,"expected_targets":expected,"observed_at":time.time()}
+            snapshots[root]=export_snapshot(root,shown,metadata,source="mock-plan")
+            self.assertEqual(snapshots[root]["unknown"],[])
+        review=review_snapshots(snapshots)
+        for typ in ("aws_cloudfront_response_headers_policy","aws_cloudfront_origin_access_control","aws_cloudfront_function"):
+            rows=[r for r in review["targets"].values() if r["type"]==typ]
+            self.assertTrue(rows,typ)
+            self.assertTrue(all(r["kind"]=="edge" for r in rows))
+        buckets={k for k,r in review["targets"].items() if r["type"]=="aws_s3_bucket"}
+        self.assertTrue(buckets <= set(review["retain"]))
+        self.assertFalse(review["execution_enabled"])
+
     def test_full_seven_root_graph_retention_and_purge(self):
         retain = review_snapshots(self.snapshots)
         purge = review_snapshots(self.snapshots, "purge-data")

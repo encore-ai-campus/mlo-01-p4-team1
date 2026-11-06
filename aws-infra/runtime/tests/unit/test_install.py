@@ -124,6 +124,27 @@ class InstallTests(unittest.TestCase):
         with self.assertRaises(InstallError):
             self.run_operation()
 
+    def test_observation_enable_and_individual_secret_mount_are_explicit(self):
+        image = "fixture.invalid/beat@sha256:" + "a" * 64
+        secret_path = "/run/mlo/secrets/client.key"
+        payload, result = make_payload(self.base, "observation-v1", services={"filebeat": {
+            "image": image, "volumes": [secret_path + ":" + secret_path + ":ro"]}}, required_secrets=[secret_path])
+        self.binding = make_binding(self.root, result)
+        binding = json.loads(self.binding.read_text())
+        binding["image_digests"] = result["manifest"]["image_digests"]
+        self.binding.write_text(json.dumps(binding))
+        secret = self.root / secret_path.lstrip("/")
+        secret.parent.mkdir(parents=True)
+        secret.write_text("synthetic-only")
+        secret.chmod(0o600)
+        with self.assertRaises(InstallError):
+            self.run_operation(payload)
+        self.assertFalse(any(item[0] == "start" for item in self.backend.events))
+        binding["observations_enabled"] = True
+        self.binding.write_text(json.dumps(binding))
+        self.assertEqual(self.run_operation(payload)["status"], "success")
+        compose = json.loads((self.root / "opt/mlo/current/installed-compose.json").read_text())
+        self.assertEqual(compose["services"]["filebeat"]["volumes"], [str(secret) + ":" + secret_path + ":ro"])
     def test_concurrent_deploy_blocked(self):
         lock = self.root / "opt/mlo/deploy.lock"
         with deployment_lock(lock), self.assertRaises(InstallError):

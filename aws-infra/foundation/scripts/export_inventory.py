@@ -8,7 +8,7 @@ def export(paths):
     parts={}
     for path in paths:
         raw=read_json(path)
-        require('foundation' in raw and set(raw)<={'foundation','runtime_artifact_boundary'},'foundation output required; unknown outputs rejected')
+        require('foundation' in raw and set(raw)<={'foundation','runtime_artifact_boundary','foundation_track2'},'foundation output required; unknown outputs rejected')
         wrapped=raw['foundation']
         require(wrapped.get('sensitive') is False and 'type' in wrapped and 'value' in wrapped,'invalid terraform output envelope')
         part=wrapped['value']; key=part['component']

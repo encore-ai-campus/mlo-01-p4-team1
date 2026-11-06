@@ -35,7 +35,7 @@ raise SystemExit(main())
         self.assertNotIn('secret-token', result.stderr)
 
     def test_runner_cannot_pass_missing_empty_skipped_or_failing_suite(self):
-        for mode in ("missing", "empty", "skip", "failure", "pass"):
+        for mode in ("missing", "empty", "skip", "expected_failure", "failure", "pass"):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
                 folder = Path(tmp)
                 (folder / "scripts").mkdir()
@@ -43,7 +43,7 @@ raise SystemExit(main())
                 runner = folder / "scripts/run-tests.py"
                 runner.write_bytes((BASE / "scripts/run-tests.py").read_bytes())
                 good = 'import unittest\nclass T(unittest.TestCase):\n def test_case(self): self.assertTrue(True)\n'
-                for name in ("test_unit", "test_safety", "test_contracts"):
+                for name in ("test_unit", "test_safety", "test_contracts", "test_track2"):
                     (folder / "tests" / (name + ".py")).write_text(good)
                 target = folder / "tests/test_safety.py"
                 if mode == "missing":
@@ -54,6 +54,9 @@ raise SystemExit(main())
                     target.write_text(good.replace('self.assertTrue(True)', 'self.skipTest("required")'))
                 elif mode == "failure":
                     target.write_text(good.replace('self.assertTrue(True)', 'self.fail("required")'))
+                elif mode == "expected_failure":
+                    target.write_text(good.replace(' def test_case', ' @unittest.expectedFailure\n def test_case')
+                                      .replace('self.assertTrue(True)', 'self.fail("required")'))
                 result = subprocess.run([sys.executable, str(runner), "unit"], capture_output=True,
                                         text=True, timeout=10, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
                 self.assertEqual(result.returncode, 0 if mode == "pass" else 2, result.stderr)

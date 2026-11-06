@@ -1,10 +1,11 @@
 # 4차 애플리케이션 로컬 Docker 개발 가이드
 
-- 실행 대상: `$HOME/project/mlo-01-p4-app-integration/app`
+- 실행 대상: `$HOME/project/mlo-01-p4-team1/app`
 - 목표: 3차 앱을 재작성하지 않고 Docker에서 검증하고, 이후 회원/SES 기능을 추가하기 전 기준점 확보
 - **AWS Terraform/EC2/SES 리소스를 생성·변경하지 않습니다.**
 - 기존 Mac/Windows 로컬 DB·실 AWS DB에 접속하지 않습니다. Docker의 `mlo-p4-app-local_*` 전용 볼륨을 사용합니다.
 - 작성/검증 기록: 2단계 결과
+- AWS용 운영 실행점과 별도 배포 전 시험은 [운영 이미지 계약](PRODUCTION.md)을 따릅니다. 이 개발 Compose는 `development` target을 사용합니다.
 
 ## 실행 서비스
 
@@ -25,7 +26,7 @@
 Docker Desktop을 실행하고 **Docker Engine 연결 가능**을 확인하세요.
 
 ```bash
-cd $HOME/project/mlo-01-p4-app-integration/app
+cd $HOME/project/mlo-01-p4-team1/app
 
 docker info --format '{{.ServerVersion}} {{.OSType}}/{{.Architecture}}'
 

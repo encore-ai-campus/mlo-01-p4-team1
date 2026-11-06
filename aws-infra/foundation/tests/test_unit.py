@@ -25,9 +25,26 @@ class BindingTests(unittest.TestCase):
         b=fixture_binding();b['oidc_subjects']['apply']='repo:example/repo:environment:infra-apply'
         statement={'Effect':'Allow','Action':['iam:PassRole'],'Resource':['arn:aws:iam::111111111111:role/p4-runtime-control-a'],'Condition':{'StringEquals':{'iam:PassedToService':'ec2.amazonaws.com'}}}
         b['ci_policies']['apply']={'Version':'2012-10-17','Statement':[statement]};validate_binding(b)
-        for key,value in [('Resource',['*']),('Action',['iam:*']),('Condition',{})]:
+        for key,value in [('Resource',['*']),('Action',['iam:*']),('Action',['iam:PassRol?']),('Condition',{})]:
             bad=copy.deepcopy(b);bad['ci_policies']['apply']['Statement'][0][key]=value
             with self.assertRaises(ContractError):validate_binding(bad)
+    def test_passrole_binds_each_node_to_its_topology_account(self):
+        b=fixture_binding();b['oidc_subjects']['apply']='repo:example/repo:environment:infra-apply'
+        statement={'Effect':'Allow','Action':['iam:PassRole'],'Resource':[f'arn:aws:iam::{b["account_ids"][n["account"]]}:role/p4-runtime-{name}' for name,n in NODES.items()],'Condition':{'StringEquals':{'iam:PassedToService':'ec2.amazonaws.com'}}}
+        b['ci_policies']['apply']={'Version':'2012-10-17','Statement':[statement]};validate_binding(b)
+        for resource in ['arn:aws:iam::999999999999:role/p4-runtime-control-a',
+                         'arn:aws:iam::111111111112:role/p4-runtime-control-a',
+                         'arn:aws:iam::111111111111:role/p4-runtime-nonexistent',
+                         'arn:aws:iam::111111111111:role/p4-runtime-control-?',
+                         'arn:aws:iam::111111111111:role/p4-runtime-control-a/extra']:
+            with self.subTest(resource=resource):
+                bad=copy.deepcopy(b);bad['ci_policies']['apply']['Statement'][0]['Resource']=[resource]
+                with self.assertRaises(ContractError):validate_binding(bad)
+        for action in ['iam:passrole','IAM:PASSROLE','Iam:PaSsRoLe']:
+            with self.subTest(action=action):
+                valid=copy.deepcopy(b);valid['ci_policies']['apply']['Statement'][0]['Action']=[action];validate_binding(valid)
+                valid['ci_policies']['apply']['Statement'][0]['Resource']=['arn:aws:iam::111111111111:role/p4-runtime-nonexistent']
+                with self.assertRaises(ContractError):validate_binding(valid)
     def test_artifact_requires_immutable_hash_version_and_safe_key(self):
         b=fixture_binding();b['artifact']={'key':'artifacts/runtime-v1.tar.gz','version':'version-1','sha256':'a'*64,'manifest_sha256':'b'*64};validate_binding(b)
         valid=copy.deepcopy(b);valid['artifact']['version']='immutable+version/ID=';validate_binding(valid)

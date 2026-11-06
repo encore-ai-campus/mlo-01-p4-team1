@@ -43,6 +43,20 @@ def plan(bundle, mode="retain-data", *, now=None, ttl=3600):
         "stateful:mongodb": {"action": "stateful", "target": "mongodb", "requires": ["idle"]},
     }
     shutdown = ["stateful:postgresql", "stateful:mongodb"]
+    if "track2" in bundle:
+        from .track2 import writer_order
+        steps["track2:freeze"] = {"action": "track2-freeze", "target": None, "requires": ["freeze"]}
+        steps["idle"]["requires"] = ["track2:freeze"]
+        previous = "idle"
+        for writer in writer_order(bundle["track2"]):
+            current = "track2:drain:" + writer
+            steps[current] = {"action": "track2-drain", "target": writer, "requires": [previous]}
+            previous = current
+        steps["track2:seal"] = {"action": "track2-seal", "target": None, "requires": [previous]}
+        for step in shutdown:
+            steps[step]["requires"] = ["track2:seal"]
+        # Every backup and removal re-observes all writers and preservation assets.
+        shutdown = [*shutdown, "track2:seal"]
     if mode == "purge-data":
         for target in sorted(deleted):
             if resources[target]["kind"] == "data":
@@ -65,12 +79,14 @@ def plan(bundle, mode="retain-data", *, now=None, ttl=3600):
         steps["delete:" + target] = {"action": "delete", "target": target, "requires": sorted(requires)}
     sequence = order({k: v["requires"] for k, v in steps.items()})
     body = {
-        "schema_version": "lifecycle-plan-v1", "example_only": True, "ready_for_aws": False,
+        "schema_version": "lifecycle-track2-plan-v1" if "track2" in bundle else "lifecycle-plan-v1", "example_only": True, "ready_for_aws": False,
         "adapter": "local-simulator", "mode": mode, "created_at": now, "expires_at": now + ttl,
         "scope": binding_scope(bundle), "input_sha256": digest(bundle), "code_sha256": code_hash(),
         "targets": resources, "delete": sorted(deleted), "retain": sorted(retained),
         "protection_release": sorted(k for k in deleted if resources[k]["protected"]),
-        "blockers": ["unmigrated root/container data"] if bundle["binding"]["untracked_data"] else [],
+        "blockers": (["unmigrated root/container data"] if bundle["binding"]["untracked_data"] else [])
+                    + (["Track2 retention is unconfirmed; purge-data is disabled"]
+                       if "track2" in bundle and mode == "purge-data" else []),
         "untracked_data": bundle["binding"]["untracked_data"],
         "steps": [{"id": key, **steps[key]} for key in sequence],
         "cost_may_remain": bool(retained), "removal_semantics": "synthetic-logical-removal",

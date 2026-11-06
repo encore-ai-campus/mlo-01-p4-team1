@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sys
 import unittest
+from required_suite import accepted, counts
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = ["test_foundation_lifecycle", "test_coordination", "test_engine_shutdown"]
@@ -43,11 +44,8 @@ def main():
         suite.addTests(loaded)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     report = {
-        "status": "pass" if result.wasSuccessful() and not result.skipped else "fail",
-        "tests": result.testsRun,
-        "failures": len(result.failures),
-        "errors": len(result.errors),
-        "skipped": len(result.skipped),
+        "status": "pass" if accepted(result) else "fail",
+        **counts(result),
         "local_only": True,
         "ready_for_aws": False,
         "modules": MODULES,

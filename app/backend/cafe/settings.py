@@ -21,6 +21,7 @@ MIDDLEWARE = ['django.middleware.security.SecurityMiddleware',
               'backend.common.identity.GuestCookieMiddleware',
               'django.middleware.common.CommonMiddleware', 'django.middleware.csrf.CsrfViewMiddleware']
 ROOT_URLCONF = 'backend.cafe.urls'
+APP_REVISION = os.environ.get('APP_REVISION', '')
 CSRF_FAILURE_VIEW = 'backend.recommendation.api.csrf_failure'
 DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': os.environ.get('C_LOCAL_DATABASE') or BASE_DIR / 'local-demo.sqlite3'}} if LOCAL_DEMO else {
     'default': {'ENGINE': 'django.db.backends.postgresql', 'NAME': os.environ.get('PGDATABASE', ''),
