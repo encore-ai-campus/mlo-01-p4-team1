@@ -14,6 +14,13 @@
     "provider": "builtin terraform_data only; no AWS provider/backend"
   },
   "database": "Python stdlib SQLite; observed version recorded in each summary.json",
+  "database_integration": {
+    "image_lock": "../runtime/images.lock.json",
+    "engines": ["postgresql", "mongodb"],
+    "network": "none; exact pinned images must be prepared locally",
+    "platform": "native linux/arm64 or linux/amd64; recorded per run",
+    "copies": "immutable local file fixture; not S3 durability acceptance"
+  },
   "runtime_protocol": "read-only B operations.stop_stateful + stateful.CommandStatefulBackend",
   "github_actions": {
     "actions/checkout": "11bd71901bbe5b1630ceea73d27597364c9af683"

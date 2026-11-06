@@ -135,9 +135,10 @@ def code_hash():
 
 
 def validate_bundle(bundle):
-    keys(bundle, "schema_version example_only inventory binding states dependencies")
+    track2 = bundle.get("schema_version") == "lifecycle-track2-input-v2"
+    keys(bundle, "schema_version example_only inventory binding states dependencies" + (" track2" if track2 else ""))
     need(
-        bundle["schema_version"] == "lifecycle-input-v1"
+        bundle["schema_version"] in {"lifecycle-input-v1", "lifecycle-track2-input-v2"}
         and bundle["example_only"] is True,
         "only synthetic snapshots are accepted",
     )
@@ -275,6 +276,9 @@ def validate_bundle(bundle):
             "missing/duplicate/self dependency",
         )
     need(isinstance(binding["untracked_data"], list), "untracked-data report required")
+    if track2:
+        from .track2 import validate_spec
+        validate_spec(bundle["track2"], binding["generation"])
     return resources
 
 
@@ -293,7 +297,7 @@ def binding_scope(bundle):
 
 def runtime_facts(bundle):
     """Required synthetic observations. Never proof of remote service state."""
-    return {
+    facts = {
         "issuer": "synthetic-observer-v1",
         "generation": bundle["binding"]["generation"],
         "instances": {
@@ -322,3 +326,8 @@ def runtime_facts(bundle):
             )
         },
     }
+    if "track2" in bundle:
+        facts["track2"] = {"registry_sha256": digest(bundle["track2"]),
+                           "writers": {name: True for name in bundle["track2"]["writers"]},
+                           "pending_outbox_checked": True, "queues_checked": True}
+    return facts

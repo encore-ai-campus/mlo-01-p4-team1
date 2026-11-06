@@ -448,7 +448,6 @@ BRD·PRD가 참조하는 구현 커밋 `183ea87`의 주요 폴더 구조다. 현
 ```text
 .
 ├─ README.md
-├─ AGENTS.md
 ├─ CONTRIBUTING.md
 ├─ frontend/                   공개·관리자 화면
 ├─ backend/

@@ -1,6 +1,7 @@
 {
   "schema_version": "1.0.0",
   "observed_at": "2026-10-29T23:43:00+09:00",
+  "track2_observation_images_verified_at": "2026-11-06",
   "scope": "Registry index digests verified with docker buildx imagetools inspect. Runtime acceptance is separate.",
   "images": {
     "ubuntu": {
@@ -37,6 +38,21 @@
       "ref": "zookeeper:3.9.4",
       "digest": "sha256:dfa9ba46d14bd52bcb3c1dac3ba91f179cf4cebf7ee576e1c2df09c68fc1d30d",
       "source": "https://hub.docker.com/_/zookeeper"
+    },
+    "filebeat": {
+      "ref": "docker.elastic.co/beats/filebeat:8.19.23",
+      "digest": "sha256:2122adc42e6aa4b2fcb81d1c38725dbe27957d1b9d5cc058a18375c2eab62d52",
+      "source": "https://www.docker.elastic.co/r/beats/filebeat"
+    },
+    "logstash": {
+      "ref": "docker.elastic.co/logstash/logstash:8.19.23",
+      "digest": "sha256:a77c29e406ddc6311b302703889f0953b5620dd5aa2445b0cdbcf7f88e285766",
+      "source": "https://www.docker.elastic.co/r/logstash/logstash"
+    },
+    "kibana": {
+      "ref": "docker.elastic.co/kibana/kibana:8.19.23",
+      "digest": "sha256:920b24f689833d34205f426f5359864378a572e829c53016073f0a6837c2e995",
+      "source": "https://www.docker.elastic.co/r/kibana/kibana"
     },
     "elasticsearch": {
       "ref": "docker.elastic.co/elasticsearch/elasticsearch:8.19.23",

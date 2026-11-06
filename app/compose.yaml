@@ -26,6 +26,16 @@ x-api-environment: &api-env
   MUSIC_RAW_DIRECTORY: /workspace/app/.local/music-raw
   GEMINI_ENABLED: "0"
   YOUTUBE_PLAYBACK_MODE: KEYLESS
+  MEMBER_EMAIL_KEYS: '{"local":"${MLO_DEV_MEMBER_EMAIL_KEY:?Run python3 docker/init_dev_env.py}"}'
+  MEMBER_ACTIVE_EMAIL_KEY: local
+  MEMBER_LOOKUP_KEY: ${MLO_DEV_MEMBER_LOOKUP_KEY:?Run python3 docker/init_dev_env.py}
+  MEMBER_PUBLIC_ORIGIN: http://localhost:5173
+  EMAIL_HOST: mailpit
+  EMAIL_PORT: "1025"
+  EMAIL_USE_TLS: "0"
+  DEFAULT_FROM_EMAIL: accounts@example.org
+  ADMIN_PASSKEY_RP_ID: localhost
+  ADMIN_PASSKEY_ORIGIN: http://localhost:5173
 
 x-ads-environment: &ads-env
   DJANGO_DEBUG: "1"
@@ -67,6 +77,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+      target: development
     environment: *api-env
     volumes:
       - .:/workspace/app:ro
@@ -93,6 +104,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+      target: development
     environment: *api-env
     volumes:
       - .:/workspace/app:ro
@@ -103,6 +115,20 @@ services:
       api:
         condition: service_healthy
     restart: unless-stopped
+    networks: [dev]
+
+  account-mail-worker:
+    profiles: [workers]
+    image: mlo-p4-api:dev
+    environment: *api-env
+    volumes:
+      - .:/workspace/app:ro
+    command: ["python", "-m", "backend.manage", "deliver_account_mail"]
+    depends_on:
+      api:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
     networks: [dev]
 
   frontend:
@@ -181,6 +207,7 @@ services:
     build:
       context: .
       dockerfile: docker/ads.Dockerfile
+      target: development
     environment: *ads-env
     volumes:
       - .:/workspace/app:ro
@@ -209,6 +236,7 @@ services:
     build:
       context: .
       dockerfile: docker/ads.Dockerfile
+      target: development
     environment: *ads-env
     volumes:
       - .:/workspace/app:ro
@@ -225,6 +253,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+      target: development
     environment:
       DJANGO_SETTINGS_MODULE: backend.cafe.settings
       DJANGO_SECRET_KEY: ${MLO_DEV_API_SECRET_KEY:?Run python3 docker/init_dev_env.py}
@@ -243,6 +272,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+      target: development
     environment: *api-env
     # Uses Django's automatically created and deleted *test* PostgreSQL DB.
     # Source is embedded in the image, not bind-mounted read-only.
@@ -259,6 +289,7 @@ services:
     build:
       context: .
       dockerfile: docker/ads.Dockerfile
+      target: development
     environment:
       <<: *ads-env
       ADS_RUN_MONGO_TESTS: "0"

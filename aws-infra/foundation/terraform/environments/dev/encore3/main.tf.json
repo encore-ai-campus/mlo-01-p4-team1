@@ -51,7 +51,8 @@
         "mongodb": 30,
         "gateway-a": 16,
         "gateway-b": 16
-      }
+      },
+      "track2": "${try(var.binding.track2,{\"enabled\": false, \"dataset_version\": \"\", \"driver_queries\": {}, \"ingest_nodes\": [], \"endpoint_ids\": {}, \"media\": {\"enabled\": false, \"bucket\": \"\", \"ttl_approved\": false, \"browser_ttl\": 0, \"edge_ttl\": 0}, \"archive\": {\"enabled\": false, \"bucket\": \"\"}, \"tls\": {\"enabled\": false, \"origin_name\": \"\", \"certificate_arn\": \"\", \"control_port\": 8443, \"control_tls_ready\": false}})}"
     },
     "identity": {
       "source": "../../../modules/identity",
@@ -62,6 +63,9 @@
   "output": {
     "foundation": {
       "value": "${module.account.foundation}"
+    },
+    "foundation_track2": {
+      "value": "${merge(module.account.foundation_track2_account,{})}"
     },
     "runtime_artifact_boundary": {
       "value": "${module.account.runtime_artifact_boundary}"

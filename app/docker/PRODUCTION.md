@@ -64,3 +64,7 @@ Runtime `mongod.yaml`은 `ads-rs`와 보호된 `mongodb-keyfile`을 요구합니
 transaction 지원을 위한 것이며 replica failover를 제공하지 않습니다. 기존 데이터의 계정·replica set·
 키와 TLS SAN을 먼저 검토하고 명시적으로 초기화합니다. 앱 시작 때 `rs.initiate`·`rs.reconfig`를 자동 실행하지 않습니다.
 배포 전 로컬 시험의 초기화는 새 project의 빈 disposable DB에만 적용합니다.
+
+## 사용자 화면
+
+web 운영 target은 고정 Node/pnpm 도구로 React를 빌드하고 결과를 같은 Django 이미지에 포함합니다. `/signup`, `/mypage`, 로그인·복구·관리자 화면의 직접 접근과 공개 정적 자산을 제공하며 Vite 개발 서버를 운영에 사용하지 않습니다. HTML은 no-store, 해시 자산은 immutable cache이며 임의 소스 파일이나 API 경로를 SPA로 대체하지 않습니다. 운영 readiness는 프런트 빌드 누락도 거부합니다.

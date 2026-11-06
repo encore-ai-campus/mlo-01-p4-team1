@@ -12,6 +12,7 @@ dependencies = [
   "python-dotenv>=1,<2",
   "argon2-cffi>=23.1,<26",
   "Pillow>=11.3,<13",
+  "gunicorn==26.2.0",
 ]
 
 [dependency-groups]

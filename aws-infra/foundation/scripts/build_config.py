@@ -33,6 +33,7 @@ def bucket_module():
     'aws_s3_bucket_versioning':{'this':{'bucket':ex('aws_s3_bucket.this.id'),'versioning_configuration':[{'status':'Enabled'}]}},
     'aws_s3_bucket_server_side_encryption_configuration':{'this':{'bucket':ex('aws_s3_bucket.this.id'),'rule':[{'apply_server_side_encryption_by_default':[{'sse_algorithm':'AES256'}]}]}},
     'aws_s3_bucket_policy':{'this':{'bucket':ex('aws_s3_bucket.this.id'),'policy':ex('jsonencode({Version="2012-10-17",Statement=concat([{Effect="Deny",Principal="*",Action="s3:*",Resource=[aws_s3_bucket.this.arn,"${aws_s3_bucket.this.arn}/*"],Condition={Bool={"aws:SecureTransport"="false"}}}],var.statements)})')}}}
+    r['aws_s3_bucket_policy']['this']['lifecycle']={'precondition':[{'condition':ex('length('+r['aws_s3_bucket_policy']['this']['policy'][2:-1]+')<=20480'),'error_message':'S3 bucket policy exceeds 20 KiB; review the principal/query registry.'}]}
     return {'terraform':V,'variable':{'name':{'type':'string'},'statements':{'type':'any','default':[]}},'resource':r,'output':{'name':{'value':ex('aws_s3_bucket.this.id')}}}
 
 def account_module():
@@ -87,7 +88,7 @@ def account_module():
     channel_actions=['ssmmessages:CreateControlChannel','ssmmessages:CreateDataChannel','ssmmessages:OpenControlChannel','ssmmessages:OpenDataChannel']
     ssm=allow(agent_actions+channel_actions,['*'])
     loc['storage_grants']={
-        'control':{'raw':['raw/weather/*'],'lake':['lake/feedback/*','aws/${var.binding.environment}/${var.binding.generation}/*/checkpoint/*']},
+        'control':{'raw':['raw/weather/*'],'lake':['lake/feedback/*',*[f'aws/${{var.binding.environment}}/${{var.binding.generation}}/{q}/checkpoint/*' for q in ['weather-stream','feedback-postgresql','feedback-analytics-batch']]]},
         'spark':{'raw':['raw/weather/*'],'lake':['lake/feedback/*']},
         'gateway':{'raw':['raw/weather/*']},
         'postgresql':{'backup':['backups/${var.binding.environment}/${var.binding.generation}/postgresql/*']},
@@ -95,7 +96,7 @@ def account_module():
     # Same source produces identity and resource policies for cross-account grants.
     loc['s3_grants']=ex('{for name,n in local.topology:name=>flatten([for purpose,prefixes in lookup(local.storage_grants,n.role,{}) : [{Effect="Allow",Action=["s3:ListBucket","s3:ListBucketMultipartUploads"],Resource=["arn:aws:s3:::${var.binding.bucket_names[purpose]}"],Condition={StringLike={"s3:prefix"=prefixes}}},{Effect="Allow",Action=["s3:GetObject","s3:GetObjectVersion","s3:PutObject","s3:AbortMultipartUpload","s3:ListMultipartUploadParts"],Resource=[for p in prefixes:"arn:aws:s3:::${var.binding.bucket_names[purpose]}/${p}"]}]] )}')
     # Checkpoint and Delta writers need scoped cleanup; no bucket lifecycle deletes data.
-    loc['lake_cleanup']=ex('{for name,n in local.topology:name=>(contains(["control","spark"],n.role) ? [{Effect="Allow",Action=["s3:DeleteObject"],Resource=concat(["arn:aws:s3:::${var.binding.bucket_names.lake}/lake/feedback/*"],n.role=="control" ? ["arn:aws:s3:::${var.binding.bucket_names.lake}/aws/${var.binding.environment}/${var.binding.generation}/*/checkpoint/*"] : [])}] : [])}')
+    loc['lake_cleanup']=ex('{for name,n in local.topology:name=>(contains(["control","spark"],n.role) ? [{Effect="Allow",Action=["s3:DeleteObject"],Resource=concat(["arn:aws:s3:::${var.binding.bucket_names.lake}/lake/feedback/*"],n.role=="control" ? [for q in ["weather-stream","feedback-postgresql","feedback-analytics-batch"]:"arn:aws:s3:::${var.binding.bucket_names.lake}/aws/${var.binding.environment}/${var.binding.generation}/${q}/checkpoint/*"] : [])}] : [])}')
     add('aws_iam_role_policy','runtime',{'for_each':ex('local.nodes'),'role':ex('aws_iam_role.runtime[each.key].id'),'policy':ex('jsonencode({Version="2012-10-17",Statement=concat('+json.dumps([ssm])+',local.s3_grants[each.key],local.lake_cleanup[each.key],[{Effect="Allow",Action=["ssm:GetDocument","ssm:DescribeDocument"],Resource=["arn:aws:ssm:ap-northeast-2:${var.binding.account_ids[var.account]}:document/p4-runtime-artifact"]}])})')})
     add('aws_network_interface','host',{'for_each':ex('local.nodes'),'subnet_id':ex('aws_subnet.this["${each.value.subnet_kind}-${each.value.az_slot}"].id'),'private_ips':ex('[local.addresses[each.key]]'),'security_groups':ex('[aws_security_group.host[each.key].id]'),'lifecycle':{'prevent_destroy':True}})
     add('aws_instance','host',{'for_each':ex('local.nodes'),'ami':ex('var.binding.ami_ids[var.account]'),'instance_type':ex('each.value.instance_type'),'iam_instance_profile':ex('aws_iam_instance_profile.runtime[each.key].name'),'network_interface':[{'network_interface_id':ex('aws_network_interface.host[each.key].id'),'device_index':0,'delete_on_termination':False}],'root_block_device':[{'encrypted':True,'volume_type':'gp3','volume_size':24,'delete_on_termination':True}],'credit_specification':[{'cpu_credits':'standard'}],'metadata_options':[{'http_endpoint':'enabled','http_tokens':'required','http_put_response_hop_limit':2}],'tags':{'Name':ex('each.key'),'Generation':ex('var.binding.generation'),'Project':'mlo-p4'},'lifecycle':{'precondition':[{'condition':ex('data.aws_caller_identity.this.account_id==var.binding.account_ids[var.account]'),'error_message':'Account identity mismatch.'}]}})
@@ -186,8 +187,9 @@ def roots():
     common={'binding':binding_var}
     sizes={name:({'kafka':40,'spark':40,'elasticsearch':40,'postgresql':30,'mongodb':30}.get(n['role'],16)) for name,n in NODES.items()}
     for a in ACCOUNTS:
-        root={'terraform':dict(V,backend={'s3':{}}),'variable':common,'provider':{'aws':{'region':'ap-northeast-2','allowed_account_ids':ex('[var.binding.account_ids.'+a+']')}},'module':{'account':{'source':'../../../modules/account','account':a,'binding':ex('var.binding'),'data_sizes':sizes},'identity':{'source':'../../../modules/identity','account':a,'binding':ex('var.binding')}},'output':{'foundation':{'value':ex('module.account.foundation')}}}
-        if a=='encore1':root['module']['edge']={'source':'../../../modules/edge','inputs':ex('module.account.edge_inputs'),'origin_header':ex('var.binding.origin_header')}
+        root={'terraform':dict(V,backend={'s3':{}}),'variable':common,'provider':{'aws':{'region':'ap-northeast-2','allowed_account_ids':ex('[var.binding.account_ids.'+a+']')}},'module':{'account':{'source':'../../../modules/account','account':a,'binding':ex('var.binding'),'data_sizes':sizes,'track2':ex('try(var.binding.track2,'+json.dumps(__import__('track2').DEFAULT)+')')},'identity':{'source':'../../../modules/identity','account':a,'binding':ex('var.binding')}},'output':{'foundation':{'value':ex('module.account.foundation')}}}
+        if a=='encore1':root['module']['edge']={'source':'../../../modules/edge','inputs':ex('module.account.edge_inputs'),'origin_header':ex('var.binding.origin_header'),'track2':ex('try(var.binding.track2,'+json.dumps(__import__('track2').DEFAULT)+')'),'account_id':ex('var.binding.account_ids.encore1')}
+        root['output']['foundation_track2']={'value':ex('merge(module.account.foundation_track2_account,'+('module.edge.foundation_track2_edge' if a=='encore1' else '{}')+')')}
         root['output']['runtime_artifact_boundary']={'value':ex('module.account.runtime_artifact_boundary')}
         put(TF/f'environments/dev/{a}/main.tf.json',root)
     providers=[{'alias':a,'region':'ap-northeast-2','allowed_account_ids':ex('[var.binding.account_ids.'+a+']')} for a in ACCOUNTS]
@@ -214,7 +216,8 @@ def roots():
     put(TF/'bootstrap/main.tf.json',boot)
 
 def build():
-    for name,f in [('bucket',bucket_module),('account',account_module),('pair',pair_module),('edge',edge_module),('identity',identity_module)]: put(TF/f'modules/{name}/main.tf.json',f())
+    from track2 import extend_account,extend_edge
+    for name,f in [('bucket',bucket_module),('account',lambda:extend_account(account_module())),('pair',pair_module),('edge',lambda:extend_edge(edge_module())),('identity',identity_module)]: put(TF/f'modules/{name}/main.tf.json',f())
     roots()
     # Explicit per-account profiles are used only by the separately enabled real runner.
     for path in [TF/'bootstrap/main.tf.json',*(TF/'environments/dev').glob('*/main.tf.json')]:

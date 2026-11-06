@@ -190,6 +190,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+      target: development
     working_dir: /workspace/app
     environment:
       KAFKA_BOOTSTRAP: "kafka-01:9092,kafka-02:9092,kafka-03:9092"
@@ -274,6 +275,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+      target: development
     working_dir: /workspace/app
     environment:
       KMA_API_KEY: ""
