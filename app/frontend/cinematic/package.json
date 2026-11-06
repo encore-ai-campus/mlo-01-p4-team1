@@ -1,0 +1,14 @@
+{
+  "name": "mlo-platform-cinematic-build",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node build.mjs --check"
+  },
+  "devDependencies": {
+    "three": "0.180.0",
+    "esbuild": "0.28.2"
+  }
+}

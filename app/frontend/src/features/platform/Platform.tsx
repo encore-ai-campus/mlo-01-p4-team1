@@ -7,6 +7,7 @@ import {ReviewPanel} from './ReviewPanel';
 import {PlatformAdminHome,PlatformRecovery,PlatformLegal,type PlatformAdmin} from './PlatformSupport';
 import {AccountSecurity,PersonalRecords} from './AccountSecurity';
 import './platform.css';
+import {CinematicNavLink} from '../cinematic/CinematicNavLink';
 
 type Boot={account?:Account;session?:{csrf_token:string};csrf_token?:string};
 type Admin=PlatformAdmin;
@@ -34,7 +35,7 @@ export function Platform(){
   const signup=path==='/platform/signup',administratorLogin=path==='/platform/admin/login',login=path==='/platform/login'||administratorLogin;
   return <div className="platform-page"><header className="p-header">
     <a className="p-logo" href="/platform"><b>◈</b> 메인 플랫폼 <small>이름 미정</small></a>
-    <nav className="p-public-nav" aria-label="플랫폼 소개"><a href="/platform#services">서비스 소개</a></nav>
+    <nav className="p-public-nav" aria-label="플랫폼 소개"><CinematicNavLink/><a href="/platform#services">서비스 소개</a></nav>
     <span className="p-demo">LOCAL MVP · 합성 정보만 사용</span>
     <div className="p-header-account">{loading?<span className="p-muted">연결 중…</span>:account?<>
       <a href="/platform/account">{account.nickname}님 · 마이페이지</a><button onClick={()=>void run(async()=>{await call('/sessions/current','DELETE');location.assign('/platform');})}>로그아웃</button>
