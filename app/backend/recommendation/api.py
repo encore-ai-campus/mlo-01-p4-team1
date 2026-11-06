@@ -18,6 +18,11 @@ from .youtube_playback import validate_playback_request, resolve_playback_candid
 
 def csrf_failure(request,reason=''):
     rid=str(uuid.uuid4())
+    if request.path.startswith('/api/platform/'):
+        response=JsonResponse({'error':{'code':'CSRF_FAILED','message':'요청의 보안 정보를 새로 확인해 주세요.'},'request_id':rid},status=403)
+        response['X-Request-ID']=rid
+        response['Cache-Control']='no-store'
+        return response
     response=JsonResponse({'code':'CSRF_FAILED','message':'요청의 보안 정보를 새로 확인해 주세요.',
                            'details':{},'request_id':rid},status=403)
     response['X-Request-ID']=rid

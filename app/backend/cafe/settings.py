@@ -15,13 +15,15 @@ DEBUG = LOCAL_DEMO
 ALLOWED_HOSTS = [value.strip() for value in os.environ.get('DJANGO_ALLOWED_HOSTS','127.0.0.1,localhost,testserver').split(',') if value.strip()]
 CSRF_TRUSTED_ORIGINS = [value.strip() for value in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS','').split(',') if value.strip()]
 INSTALLED_APPS = ['django.contrib.auth', 'django.contrib.contenttypes', 'django.contrib.sessions', 'rest_framework',
-                  'backend.recommendation', 'backend.music', 'backend.common']
+                  'backend.recommendation', 'backend.music', 'backend.common', 'backend.accounts', 'backend.workspaces']
 MIDDLEWARE = ['django.middleware.security.SecurityMiddleware',
               'django.contrib.sessions.middleware.SessionMiddleware',
               'backend.common.identity.GuestCookieMiddleware',
               'django.middleware.common.CommonMiddleware', 'django.middleware.csrf.CsrfViewMiddleware']
 ROOT_URLCONF = 'backend.cafe.urls'
 APP_REVISION = os.environ.get('APP_REVISION', '')
+FRONTEND_DIST = BASE_DIR/'frontend/dist'
+FRONTEND_REQUIRED = os.environ.get('FRONTEND_REQUIRED') == '1'
 CSRF_FAILURE_VIEW = 'backend.recommendation.api.csrf_failure'
 DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': os.environ.get('C_LOCAL_DATABASE') or BASE_DIR / 'local-demo.sqlite3'}} if LOCAL_DEMO else {
     'default': {'ENGINE': 'django.db.backends.postgresql', 'NAME': os.environ.get('PGDATABASE', ''),
@@ -47,6 +49,45 @@ KMA_LOCAL_CACHE_PATH = os.environ.get('KMA_LOCAL_CACHE_PATH', str(BASE_DIR / '.l
 OWNER_RESOLVER = os.environ.get('OWNER_RESOLVER', 'backend.common.identity.owner' if INTEGRATION_ENABLED else '')
 EVENT_SINK = os.environ.get('EVENT_SINK', 'backend.common.events.record' if INTEGRATION_ENABLED else '')
 PASSWORD_HASHERS = ['backend.common.hashers.ServiceArgon2Hasher', 'django.contrib.auth.hashers.PBKDF2PasswordHasher']
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator', 'OPTIONS': {'min_length': 8}},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+]
+# Member/SMTP configuration. Production has no fabricated policy, key or operator defaults.
+import json
+MEMBER_POLICY_VERSION = os.environ.get('MEMBER_POLICY_VERSION', 'local-preview-v1' if LOCAL_DEMO else '')
+MEMBER_LOCAL_PREVIEW = LOCAL_DEMO
+MEMBER_POLICIES_READY = os.environ.get('MEMBER_POLICIES_READY') == '1'
+MEMBER_POLICY_DOCUMENTS = json.loads(os.environ.get('MEMBER_POLICY_DOCUMENTS', '{}'))
+if LOCAL_DEMO and not MEMBER_POLICY_DOCUMENTS:
+    MEMBER_POLICY_DOCUMENTS = {
+        'terms': '로컬 검증용 이용약관입니다. 실제 서비스 약관은 운영 전에 게시합니다.',
+        'privacy_notice': '로컬 검증용 안내: 아이디·비밀번호 해시·별명·카페 유형을 계정 운영에 사용하며 탈퇴 시 정리합니다. 안내 확인은 개인정보 수집 동의와 구분합니다.',
+        'email': '선택한 이메일은 암호화 저장하며 복구 주소 확인·아이디 안내·비밀번호 재설정에만 사용합니다. 등록 철회 시 정리하며, 미동의 시 이메일 복구만 제한됩니다. 로컬 검증용 문구입니다.',
+    }
+MEMBER_EMAIL_KEYS = json.loads(os.environ.get('MEMBER_EMAIL_KEYS', '{}'))
+MEMBER_ACTIVE_EMAIL_KEY = os.environ.get('MEMBER_ACTIVE_EMAIL_KEY', '')
+MEMBER_LOOKUP_KEY = os.environ.get('MEMBER_LOOKUP_KEY', '')
+MEMBER_MAIL_LIMIT_HOUR = int(os.environ.get('MEMBER_MAIL_LIMIT_HOUR', '10' if LOCAL_DEMO else '0'))
+MEMBER_RECOVERY_IP_LIMIT_HOUR = int(os.environ.get('MEMBER_RECOVERY_IP_LIMIT_HOUR', '30' if LOCAL_DEMO else '0'))
+MEMBER_LOGIN_LIMIT_HOUR = int(os.environ.get('MEMBER_LOGIN_LIMIT_HOUR', '30' if LOCAL_DEMO else '0'))
+MEMBER_PUBLIC_LIMIT_HOUR = int(os.environ.get('MEMBER_PUBLIC_LIMIT_HOUR', '100' if LOCAL_DEMO else '0'))
+MEMBER_SECURITY_MAIL_SECONDS = int(os.environ.get('MEMBER_SECURITY_MAIL_SECONDS', '3600' if LOCAL_DEMO else '0'))
+MEMBER_PUBLIC_ORIGIN = os.environ.get('MEMBER_PUBLIC_ORIGIN', 'http://localhost:5173' if LOCAL_DEMO else '')
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', '1') == '1'
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL') == '1'
+EMAIL_TIMEOUT = 10
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', '')
+ADMIN_PASSKEY_REQUIRED = not LOCAL_DEMO or os.environ.get('ADMIN_PASSKEY_REQUIRED') == '1'
+ADMIN_PASSKEY_RP_ID = os.environ.get('ADMIN_PASSKEY_RP_ID', 'localhost' if LOCAL_DEMO else '')
+ADMIN_PASSKEY_ORIGIN = os.environ.get('ADMIN_PASSKEY_ORIGIN', 'http://localhost:5173' if LOCAL_DEMO else '')
+PLATFORM_ENABLED = os.environ.get('PLATFORM_LOCAL_MVP') == '1'
 GUEST_COOKIE_NAME = 'cafe_guest'
 GUEST_TTL_SECONDS = int(os.environ.get('GUEST_TTL_SECONDS', '0'))
 ADMIN_SESSION_SECONDS = int(os.environ.get('ADMIN_SESSION_SECONDS', '0'))

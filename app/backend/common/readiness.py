@@ -5,6 +5,7 @@ from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from .frontend import frontend_ready
 
 
 def database_ready():
@@ -23,7 +24,8 @@ class Readiness(APIView):
     def get(self, request):
         try:
             revision = settings.APP_REVISION
-            if not re.fullmatch(r'[0-9a-f]{40}|[0-9a-f]{64}', revision) or not database_ready():
+            if (not re.fullmatch(r'[0-9a-f]{40}|[0-9a-f]{64}', revision) or not database_ready()
+                    or (settings.FRONTEND_REQUIRED and not frontend_ready())):
                 raise ValueError('not ready')
             return Response({'status': 'ready', 'revision': revision})
         except Exception:

@@ -1,13 +1,16 @@
-from django.urls import path
+from django.urls import path, include
 from backend.recommendation import api
 from backend.common import api as common, music_api, history_api
 from backend.common import youtube_review as admin_review, sso
 from backend.common.readiness import Readiness
+from backend.common import frontend
 
 from backend.recommendation import youtube_review_api as review
 from backend.recommendation.youtube_queue_api import YoutubeQueue
 
 urlpatterns = [
+    path('', include('backend.workspaces.urls')),
+    path('', include('backend.accounts.urls')),
     path('api/auth/sso/login',sso.SSOLogin.as_view()),
     path('api/auth/sso/callback',sso.SSOCallback.as_view()),
     path('api/admin/operations/kibana',sso.KibanaDashboard.as_view()),
@@ -61,4 +64,13 @@ urlpatterns = [
     path('api/playlists/<str:pk>/tracks/<str:track_id>/reaction',api.TrackReaction.as_view()),
     path('api/playlists/<str:pk>/rating',api.PlaylistRating.as_view()),
     path('api/playlist-families/<str:pk>/exclusions',api.Exclusions.as_view()),
+    *[path(route, frontend.index) for route in ('','playlist','login','signup','mypage','account/recovery',
+        'admin/passkey','admin/ads','admin/music','admin/music/youtube','admin/feedback/exclusions')],
+    path('platform', frontend.index),
+    path('platform/<path:route>', lambda request,route: frontend.index(request)),
+    path('assets/<path:name>', frontend.asset, {'prefix':'assets'}),
+    path('muther/<path:name>', frontend.asset, {'prefix':'muther'}),
+    path('ad-examples/<path:name>', frontend.asset, {'prefix':'ad-examples'}),
+    path('default-cover.svg', frontend.asset, {'name':'default-cover.svg'}),
+    path('penguin-guide-first.png', frontend.asset, {'name':'penguin-guide-first.png'}),
 ]

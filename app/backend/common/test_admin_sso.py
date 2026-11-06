@@ -192,6 +192,18 @@ class OIDCFlowTests(TestCase):
         self.assertTrue(result['logout_url'].startswith(ISSUER+'/logout?'))
         self.assertFalse(self.client.get('/api/auth/me').json()['authenticated'])
 
+    @override_settings(ADMIN_PASSKEY_REQUIRED=True)
+    def test_signed_sso_primary_still_requires_passkey_before_admin_access(self):
+        self.start()
+        response = self.callback()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], '/admin/passkey')
+        account = self.client.get('/api/auth/me').json()
+        self.assertTrue(account['passkey_required'])
+        self.assertFalse(account['authenticated'])
+        self.assertEqual(account['allowed_menus'], [])
+        self.assertEqual(self.client.get('/api/admin/operations/kibana').status_code, 403)
+
     def test_wrong_state_issuer_audience_expiry_nonce_and_roles_are_rejected(self):
         for claims in ({'iss':'https://other.example.org'}, {'aud':'other-client'}, {'exp':int(time.time())-120},
                        {'nonce':'wrong'}, {'groups':['SUPER_ADMIN','OPS_ADMIN']}, {'groups':['unknown']}):
