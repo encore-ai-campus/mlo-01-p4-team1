@@ -29,7 +29,7 @@
 **/.aws/
 
 # Published source must not include internal investigations, identity/privacy audits,
-# raw experiment results, or per-agent working notes. Git history will be restarted.
+# raw experiment results, or per-agent working notes. Historical copies stay private.
 # Note: .gitignore does not untrack files in the old existing initial commit.
 /.local/
 /docs/internal/
@@ -52,3 +52,15 @@
 /app/analysis/
 
 # .terraform.lock.hcl, requirements locks and selected public technical contracts are tracked.
+
+# Local instruction files stay on disk but must not be tracked or force-added.
+AGENTS.md
+AGENTS.override.md
+CLAUDE.md
+GEMINI.md
+/.codex/
+/.agents/
+*.bundle
+
+# Local planning drafts stay outside the shared source.
+/track2_venue_platform_draft_plan.md

@@ -32,7 +32,9 @@
         "SECURITY.md",
         ".github/pull_request_template.md",
         ".github/workflows/public-source-safety.yml",
-        ".github/workflows/collaboration-check.yml"
+        ".github/workflows/collaboration-check.yml",
+        "PRIVACY-MEMBERSHIP-MYPAGE-DESIGN.md",
+        "TEAM-GIT-COLLABORATION-GUIDE.md"
       ],
       "prefixes": [
         "aws-infra/contracts/",
