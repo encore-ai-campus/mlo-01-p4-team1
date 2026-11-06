@@ -359,6 +359,7 @@ export function PublicPage(){
             <div className="playlist-actions">
               <button disabled={!canRegenerate||!!jobIntent} onClick={()=>void generate(true)}>다른 선곡표 요청</button>
               <button className="primary" disabled={!canApprove||!!jobIntent||approvedCurrent} onClick={()=>void approve()}>{approving?'승인 중…':approvedCurrent?'승인 완료':'이 선곡표 승인'}</button>
+              <button disabled={!result||busy} onClick={()=>{if(result)void api('/api/me/playlists','POST',{playlist_id:result.playlist_id}).then(()=>setJobNotice('내 선곡표에 저장했습니다. 마이페이지에서 확인해 주세요.')).catch(e=>setError(e.message));}}>내 선곡표에 저장</button>
             </div>
             <small className="playlist-hint">{result?.preview_only?'CSV 검증용 결과입니다. 좋아요·싫어요·별점·제외·승인은 이 PC의 로컬 데이터에 저장돼요.':'조건을 바꾸면 새 선곡표를 받아 확인해 주세요.'}</small>
           </section>

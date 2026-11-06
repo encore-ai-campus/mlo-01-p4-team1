@@ -3,7 +3,14 @@ export function setCsrf(value:string){csrf=value;}
 export class ApiError extends Error {
   constructor(public code:string,message:string,public details:Record<string,unknown>={},public status=0){super(message);}
 }
-export const key = () => crypto.randomUUID();
+export const key = () => {
+  // getRandomValues also exists on the LAN HTTP origin used for synthetic demos.
+  if(typeof crypto.randomUUID==='function')return crypto.randomUUID();
+  const bytes=crypto.getRandomValues(new Uint8Array(16));
+  bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;
+  const hex=Array.from(bytes,value=>value.toString(16).padStart(2,'0')).join('');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+};
 export async function api<T>(path:string,method='GET',body?:unknown,idempotencyKey?:string,signal?:AbortSignal,headers:Record<string,string>={}):Promise<T>{
   const token=csrf || document.cookie.split('; ').find(x=>x.startsWith('csrftoken='))?.slice(10) || '';
   const response=await fetch(path,{method,credentials:'same-origin',cache:'no-store',signal,
