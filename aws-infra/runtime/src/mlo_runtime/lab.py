@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import json
+import hashlib
 import os
 from pathlib import Path
 import subprocess
@@ -19,6 +20,7 @@ class Lab:
         self.compose_path = self.folder / "compose.json"
         self.service = name
         self.locks = json.loads((RUNTIME / "images.lock.json").read_text())["images"]
+        self._image_volumes = {}
 
     def image(self, name):
         item = self.locks[name]
@@ -45,6 +47,8 @@ class Lab:
         return result
 
     def compose(self, *args, **kwargs):
+        if args and args[0] in {"up", "run", "create"}:
+            self._own_image_volumes()
         return self.docker(
             "compose",
             "--project-name",
@@ -54,6 +58,48 @@ class Lab:
             *args,
             **kwargs,
         )
+
+    def _own_image_volumes(self):
+        """Name image-declared volumes so recreation cannot orphan anonymous data."""
+        config = json.loads(self.compose_path.read_text())
+        volumes = config.setdefault("volumes", {})
+        owned = []
+        for name, service in config["services"].items():
+            image = service["image"]
+            if image not in self._image_volumes:
+                raw = self.docker("image", "inspect", image, "--format", "{{json .Config.Volumes}}")
+                self._image_volumes[image] = json.loads(raw.stdout) or {}
+            mounts = service.setdefault("volumes", [])
+            targets = set()
+
+            def named(target):
+                key = "image_" + hashlib.sha256((name + "\0" + target).encode()).hexdigest()[:16]
+                volumes.setdefault(key, {"labels": {"mlo.role": "B", "mlo.run": self.project}})
+                owned.append({"service": name, "image": image, "target": target, "volume": key})
+                return key
+
+            for index, mount in enumerate(mounts):
+                if isinstance(mount, str):
+                    parts = mount.split(":")
+                    target = parts[-1] if parts[-1].startswith("/") else parts[-2]
+                    if len(parts) == 1:
+                        mounts[index] = named(target) + ":" + target
+                else:
+                    target = mount["target"]
+                    if mount.get("type", "volume") == "volume" and not mount.get("source"):
+                        mount["source"] = named(target)
+                targets.add(target.rstrip("/"))
+            for target in sorted(self._image_volumes[image]):
+                if not target.startswith("/"):
+                    raise RuntimeError("image volume target must be absolute")
+                # A bind on /data/db does not cover an image VOLUME /data.
+                if any(target == base or target.startswith(base + "/") for base in targets):
+                    continue
+                mounts.append(named(target) + ":" + target)
+                targets.add(target.rstrip("/"))
+        self.compose_path.write_text(json.dumps(config, indent=2))
+        if owned:
+            (self.folder / "image-volumes.json").write_text(json.dumps(owned, indent=2))
 
     def configure(self, service):
         service.setdefault("labels", {})["mlo.role"] = "B"
@@ -100,9 +146,14 @@ class Lab:
             self.compose("logs", "--no-color", check=False)
             # These volumes only belong to the project created above, never global prune.
             self.compose("down", "--volumes", "--remove-orphans", timeout=120)
+            remaining = self.docker("volume", "ls", "--filter",
+                                    "label=com.docker.compose.project=" + self.project,
+                                    "--format", "{{.Name}}")
+            if remaining.stdout.strip():
+                raise RuntimeError("owned lab volumes remain; inspect " + str(self.folder))
 
 
-def certificates(folder):
+def certificates(folder, dns_names=()):
     """Ephemeral lab-only CA/server certificate; no production identity is generated."""
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
@@ -125,6 +176,11 @@ def certificates(folder):
         .not_valid_before(now - datetime.timedelta(minutes=1))
         .not_valid_after(now + datetime.timedelta(days=1))
         .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+        .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), False)
+        .add_extension(x509.KeyUsage(digital_signature=True, content_commitment=False,
+                                    key_encipherment=False, data_encipherment=False,
+                                    key_agreement=False, key_cert_sign=True, crl_sign=True,
+                                    encipher_only=False, decipher_only=False), True)
         .sign(key, hashes.SHA256())
     )
     server_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -141,11 +197,16 @@ def certificates(folder):
                 [
                     x509.DNSName("localhost"),
                     x509.DNSName("broker"),
+                    *[x509.DNSName(name) for name in dns_names],
                     x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
                 ]
             ),
             critical=False,
         )
+        .add_extension(
+            x509.AuthorityKeyIdentifier.from_issuer_public_key(key.public_key()), False
+        )
+        .add_extension(x509.BasicConstraints(ca=False, path_length=None), True)
         .add_extension(
             x509.ExtendedKeyUsage(
                 [

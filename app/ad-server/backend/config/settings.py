@@ -33,6 +33,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
 ]
 ROOT_URLCONF = "config.urls"
+APP_REVISION = os.environ.get('APP_REVISION', '')
 WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
@@ -74,6 +75,7 @@ SPECTACULAR_SETTINGS = {
 }
 ADS_MONGODB_URI = os.environ.get("ADS_MONGODB_URI", "")
 ADS_MONGODB_DATABASE = os.environ.get("ADS_MONGODB_DATABASE", "advertising_dev")
+ADS_MONGODB_REPLICA_SET = os.environ.get('ADS_MONGODB_REPLICA_SET', 'ads-rs')
 ADS_IS_TEST = os.environ.get("ADS_IS_TEST", "1" if DEBUG else "0") == "1"
 ADS_ADMIN_AUTHORIZER = os.environ.get("ADS_ADMIN_AUTHORIZER", "api.common_bridge.authorize_admin")
 # 공통 계약의 이벤트 버전 불일치는 이 설정으로 임의 통합하지 않습니다.

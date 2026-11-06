@@ -16,11 +16,13 @@
 
 resource/module 주소·중복·버전·account/region·state key·ownership·보호 충돌·references 누락·순환을 거부합니다. 미지원 type/provider schema/configuration은 unknown 목록과 blocker로 반환합니다. **unknown이 없어도 execution_enabled=false**입니다. caller가 함께 조작한 state/config/binding은 신뢰 가능한 외부 증거가 아니므로 이 검사가 실제 provenance를 보증하지 않습니다.
 
-실제 생산자는 raw state의 lineage/serial과 Terraform show/config/provider schema를 매핑하고 module의 표현식을 전체 확장 주소로 해석해야 합니다. implicit/provider/API 의존성, ENI/EBS attachment·IAM·SSM·DNS·ALB·CloudFront·Route53·endpoint·peering·S3 object versions까지 전체 graph를 대조해야 합니다. 현재 8개 type·81개 합성 모델을 실제 A graph로 간주하지 않습니다.
+Foundation의 `lifecycle_export.py`와 C의 `foundation.py`는 별도 구현된 연계 경로입니다. `integration-lifecycle`는 A의 실제 mock plan 7개 전체를 exporter → C 보존 집합 → root별 저장 계획 검토에 연결합니다. raw state의 lineage/serial/ID 불일치와 계획의 누락·중복·replacement·ID 변경도 거부합니다. 8개 type·81개 CLI 합성 모델과 이 전체 mock graph를 구분하며, 어느 쪽도 실제 AWS graph 관측은 아닙니다.
+
+실환경 생산자는 raw state의 lineage/serial과 Terraform show/config/provider schema를 매핑하고 module의 표현식을 전체 확장 주소로 해석해야 합니다. implicit/provider/API 의존성, ENI/EBS attachment·IAM·SSM·DNS·ALB·CloudFront·Route53·endpoint·peering·S3 object versions까지 전체 graph를 대조해야 합니다.
 
 보호 판단은 snapshot의 bool 단독 값으로 승인하지 않습니다. 현재 simulator는 코드에 고정된 정책으로 data/network/backend=true를 강제합니다. 운영은 configuration digest, API 속성, ownership, freshness, 별도 검토된 정적 보존 구성과 정확한 protection_release 승인에 결합해야 합니다. 생성 config를 전역 치환하거나 state rm/force-unlock/target으로 우회하지 않습니다.
 
-`check_partition(before, deleted, retained, after)`는 전체 집합 분할·중복·관측 잔여 set equality를 검사합니다. 실제 provider 관측과 address/ID 조합의 후속 비교도 필요합니다. 입력을 실제 CLI bundle로 변환하는 실행 경로는 제공하지 않습니다. 자세한 요청은 001입니다.
+`check_partition(before, deleted, retained, after)`는 전체 집합 분할·중복·관측 잔여 set equality를 검사합니다. 실제 provider 관측과 address/ID 조합의 후속 비교도 필요합니다. Foundation 검토 결과를 실제 CLI bundle로 변환하거나 AWS 삭제를 실행하는 경로는 제공하지 않습니다.
 
 ## 2. 공통 실행 잠금 제안
 
@@ -32,7 +34,7 @@ resource/module 주소·중복·버전·account/region·state key·ownership·�
 - A wrapper, B deploy·supervisor/Driver/timer/collector, C adapter 모두 효과 직전에 fencing token을 검증해야 합니다. 한 소비자가 무시하면 공통 상호 배제가 성립하지 않습니다.
 - fence token을 검사할 수 없는 외부 API의 진행 중 요청은 취소됐다고 간주하지 않고 ambiguous로 기록합니다. 네트워크 단절 시 자동 재실행하지 않습니다.
 
-`lease_contract.LeaseContract`는 두 Control·작업 충돌·프로세스 죽음·네트워크 갱신 유실·stale token·generation 우회를 시험하는 **단일 메모리 reference model**입니다. 분산 backend·영구 epoch·통신 구현이 아니며 C execute에 연결하지 않습니다. 현재 실행 잠금은 여전히 lab flock입니다. 공통/A/B는 수정하지 않았고 002에 인계합니다.
+`lease_contract.LeaseContract`는 **단일 메모리 reference model**이며 C execute에 연결하지 않습니다. 현재 공통 연계는 별도의 `infra_common.coordination.OperationLease`를 사용합니다. C execute는 lab flock과 함께 주입된 공통 guard를 각 단계에서 확인합니다. localhost S3 SDK 조건부 쓰기·영구 epoch·별도 프로세스·응답 유실·만료 후 자동 승계 차단·A/B/C 진입점의 배제를 `integration-lifecycle`에서 검사합니다. 실제 S3/IAM 권한·네트워크 단절·원격 효과 fencing은 실환경 인수 사항입니다. guard를 주입하지 않은 CLI 합성 lab은 로컬 flock만 사용합니다.
 
 ## 3. 종료·백업 증거
 
@@ -42,7 +44,7 @@ resource/module 주소·중복·버전·account/region·state key·ownership·�
 
 운영 PostgreSQL은 쓰기 차단 장벽과 일관 snapshot/transaction, dump 시점·WAL/LSN·역할·확장·schema·복원된 카탈로그/행·업무 불변식이 필요합니다. MongoDB는 deployment 종류별 일관성/읽기 시점, oplog 사용 가능 여부, transaction·index·권한·collection 검증을 합의해야 합니다. 현재 단일 MongoDB에서 oplog/PITR가 가능하다고 가정하지 않습니다. 두 엔진 모두 dump 성공과 복원 가능 판정을 분리합니다.
 
-운영 archive/사본 증거는 S3 bucket/key/version ID/checksum, 암호화·소유권·독립 failure domain, 원격 조회·복원 영수증과 쓰기 장벽에 결합해야 합니다. 지금 SQLite의 independent 경로는 같은 lab/failure domain입니다. 손상·restore 실패·원본/사본 drift는 로컬 회귀로 검사하지만 운영 PG/Mongo hook·S3 내구성은 미구현입니다.
+운영 archive/사본 증거는 S3 bucket/key/version ID/checksum, 암호화·소유권·독립 failure domain, 원격 조회·복원 영수증과 쓰기 장벽에 결합해야 합니다. CLI의 SQLite independent 경로는 같은 lab/failure domain입니다. 별도 C `runtime.stop_engine_backends()` 연계는 B `ContainerStatefulBackend`를 소비하며 실제 disposable PostgreSQL/MongoDB에서 quiesce·dump·localhost 버전 사본·hash·독립 컨테이너 복원·원본 정지를 시험합니다. 이 local-lab 경로의 서명된 전체 서비스 종료 증거와 localhost S3 대역을 실제 서비스 관측·S3 내구성·독립 장애 영역으로 간주하지 않습니다. 운영 SSM hook·권한·원격 백업 복원은 별도 인수 사항입니다.
 
 승인자·실행자는 별도 운영 identity와 권한을 사용하고 실행자가 승인 서명을 발급할 수 없어야 합니다. 실환경 발급자 allowlist·key rotation·외부 검토자 신원·서명 검증은 별도 인수 사항입니다. 예약 reviewer와 로컬 HMAC은 테스트 신뢰 경계이며 이 역할 분리를 보장하지 않습니다.
 

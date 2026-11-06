@@ -141,7 +141,14 @@ class DockerSparkExecution:
     client_key: str
 
     def _containers(self, token):
-        if not self.containers or len(self.masters) != 3 or len(self.workers) != 3:
+        if (
+            not self.containers
+            or len(set(self.containers)) != len(self.containers)
+            or len(self.masters) != 3
+            or len(set(self.masters)) != 3
+            or len(self.workers) != 3
+            or len(set(self.workers)) != 3
+        ):
             raise UnsafeTransition(
                 "complete old container set and all Spark endpoints required"
             )
@@ -199,13 +206,54 @@ class DockerSparkExecution:
             self._json(url) for url in self.workers
         ]
         # Missing fields fail closed instead of interpreting an unknown response as idle.
-        valid_masters = all(
-            set(m) >= {"status", "activeapps", "activedrivers"} for m in masters
+        # Spark 4.1.3 Worker JSON has no `drivers` field. This adapter binds
+        # client-mode Driver containers; cluster-mode drivers are accounted for
+        # by the Masters' activedrivers. See Spark deploy/JsonProtocol.scala.
+        valid_masters = (
+            all(
+                set(m)
+                >= {
+                    "url",
+                    "status",
+                    "activeapps",
+                    "activedrivers",
+                    "workers",
+                    "aliveworkers",
+                }
+                and m["status"] in {"ALIVE", "STANDBY"}
+                and all(
+                    type(m[k]) is list
+                    for k in ("activeapps", "activedrivers", "workers")
+                )
+                and type(m["aliveworkers"]) is int
+                for m in masters
+            )
+            and len({m.get("url") for m in masters}) == 3
         )
-        valid_workers = all(
-            set(w) >= {"executors", "drivers", "coresused"} for w in workers
+        valid_workers = (
+            all(
+                set(w) >= {"id", "masterurl", "executors", "coresused", "memoryused"}
+                and type(w["executors"]) is list
+                and type(w["coresused"]) is int
+                and w["coresused"] >= 0
+                and type(w["memoryused"]) is int
+                and w["memoryused"] >= 0
+                for w in workers
+            )
+            and len({w.get("id") for w in workers}) == 3
         )
         one_active = sum(m.get("status") == "ALIVE" for m in masters) == 1
+        connected = False
+        if valid_masters and valid_workers and one_active:
+            active = next(m for m in masters if m["status"] == "ALIVE")
+            connected = (
+                active["aliveworkers"] == 3
+                and {
+                    w.get("id") for w in active["workers"] if w.get("state") == "ALIVE"
+                }
+                == {w["id"] for w in workers}
+                and all(w["masterurl"] == active["url"] for w in workers)
+            )
         return FenceEvidence(
             token["owner"],
             token["generation"],
@@ -215,11 +263,12 @@ class DockerSparkExecution:
             drivers_absent=valid_masters
             and valid_workers
             and all(not m["activeapps"] and not m["activedrivers"] for m in masters)
-            and all(not w["drivers"] for w in workers),
+            and containers_stopped,
             executors_absent=valid_workers and all(not w["executors"] for w in workers),
-            cluster_idle=one_active
+            cluster_idle=valid_masters
+            and connected
             and valid_workers
-            and all(w["coresused"] == 0 for w in workers),
+            and all(w["coresused"] == 0 and w["memoryused"] == 0 for w in workers),
             all_masters_observed=valid_masters,
             all_workers_observed=valid_workers,
         )

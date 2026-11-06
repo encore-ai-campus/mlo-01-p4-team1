@@ -35,28 +35,33 @@ def quorum_certificates(folder):
         (folder / (peer + ".p12")).write_bytes(pkcs12.serialize_key_and_certificates(peer.encode(), peerkey, certificate, [ca], serialization.BestAvailableEncryption(b"fixture")))
 
 
+def quorum_services(lab):
+    quorum_certificates(lab.folder)
+    services = {}
+    for sid in [1, 2, 3]:
+        peer = "z" + str(sid)
+        data = lab.folder / ("data-" + peer)
+        validate_identity("spark", "spark-0" + str(sid), data, {"node_id": sid})
+        conf = ("tickTime=2000\ninitLimit=10\nsyncLimit=5\ndataDir=/data/zookeeper\nsecureClientPort=2182\n"
+                "serverCnxnFactory=org.apache.zookeeper.server.NettyServerCnxnFactory\nsslQuorum=true\nportUnification=false\n"
+                "ssl.clientAuth=need\nssl.quorum.clientAuth=need\nssl.keyStore.type=PKCS12\nssl.trustStore.type=PKCS12\n"
+                f"ssl.keyStore.location=/seed/{peer}.p12\nssl.keyStore.password=fixture\nssl.trustStore.location=/tmp/truststore.p12\nssl.trustStore.password=fixture\n"
+                "ssl.quorum.keyStore.type=PKCS12\nssl.quorum.trustStore.type=PKCS12\n"
+                f"ssl.quorum.keyStore.location=/seed/{peer}.p12\nssl.quorum.keyStore.password=fixture\nssl.quorum.trustStore.location=/tmp/truststore.p12\nssl.quorum.trustStore.password=fixture\n"
+                "4lw.commands.whitelist=ruok,srvr,mntr\n" + "".join(f"server.{i}=z{i}:2888:3888\n" for i in [1,2,3]))
+        (lab.folder / (peer + ".cfg")).write_text(conf)
+        services[peer] = {"image": lab.image("zookeeper"), "platform": os.environ.get("RUNTIME_LAB_PLATFORM", "linux/arm64"), "hostname": peer,
+                          "user": "0:0", "mem_limit": "512m", "environment": {"JVMFLAGS": "-Xms64m -Xmx128m"},
+                          "volumes": [f"{lab.folder}:/seed:ro", f"{data}/zookeeper:/data/zookeeper"],
+                          "entrypoint": ["/bin/bash", "-ec", f"if [ ! -f /tmp/truststore.p12 ]; then keytool -importcert -noprompt -alias ca -file /seed/ca.crt -keystore /tmp/truststore.p12 -storetype PKCS12 -storepass fixture; fi; exec zkServer.sh start-foreground /seed/{peer}.cfg"]}
+    return services
+
+
 class ZooKeeperQuorumIntegration(unittest.TestCase):
     def test_tls_three_peer_quorum_restart_and_myid_preservation(self):
         lab = Lab("zookeeper-quorum")
         self.addCleanup(lab.close)
-        quorum_certificates(lab.folder)
-        services = {}
-        for sid in [1, 2, 3]:
-            peer = "z" + str(sid)
-            data = lab.folder / ("data-" + peer)
-            validate_identity("spark", "spark-0" + str(sid), data, {"node_id": sid})
-            conf = ("tickTime=2000\ninitLimit=10\nsyncLimit=5\ndataDir=/data/zookeeper\nsecureClientPort=2182\n"
-                    "serverCnxnFactory=org.apache.zookeeper.server.NettyServerCnxnFactory\nsslQuorum=true\nportUnification=false\n"
-                    "ssl.clientAuth=need\nssl.quorum.clientAuth=need\nssl.keyStore.type=PKCS12\nssl.trustStore.type=PKCS12\n"
-                    f"ssl.keyStore.location=/seed/{peer}.p12\nssl.keyStore.password=fixture\nssl.trustStore.location=/tmp/truststore.p12\nssl.trustStore.password=fixture\n"
-                    "ssl.quorum.keyStore.type=PKCS12\nssl.quorum.trustStore.type=PKCS12\n"
-                    f"ssl.quorum.keyStore.location=/seed/{peer}.p12\nssl.quorum.keyStore.password=fixture\nssl.quorum.trustStore.location=/tmp/truststore.p12\nssl.quorum.trustStore.password=fixture\n"
-                    "4lw.commands.whitelist=ruok,srvr,mntr\n" + "".join(f"server.{i}=z{i}:2888:3888\n" for i in [1,2,3]))
-            (lab.folder / (peer + ".cfg")).write_text(conf)
-            services[peer] = {"image": lab.image("zookeeper"), "platform": os.environ.get("RUNTIME_LAB_PLATFORM", "linux/arm64"), "hostname": peer,
-                              "user": "0:0", "mem_limit": "512m", "environment": {"JVMFLAGS": "-Xms64m -Xmx128m"},
-                              "volumes": [f"{lab.folder}:/seed:ro", f"{data}/zookeeper:/data/zookeeper"],
-                              "entrypoint": ["/bin/bash", "-ec", f"if [ ! -f /tmp/truststore.p12 ]; then keytool -importcert -noprompt -alias ca -file /seed/ca.crt -keystore /tmp/truststore.p12 -storetype PKCS12 -storepass fixture; fi; exec zkServer.sh start-foreground /seed/{peer}.cfg"]}
+        services = quorum_services(lab)
         lab.compose_path.write_text(json.dumps({"services": services}))
         lab.compose("up", "-d", timeout=600)
         def client(peer, command, check=True):

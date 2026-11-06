@@ -1,5 +1,5 @@
 # The ads API has its own Django 5.2 lockfile; do not merge with common API.
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-bookworm@sha256:e697c81897302a4c4333bade000d98038fbb21eb064f8ee1fd42d02ebcd9d337 AS development
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -22,3 +22,14 @@ USER mlo-ads
 
 EXPOSE 8000
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+
+FROM development AS production
+ARG APP_REVISION
+RUN python -c 'import re,sys;sys.exit(0 if re.fullmatch("[0-9a-f]{40}|[0-9a-f]{64}",sys.argv[1]) else 2)' "$APP_REVISION"
+ENV APP_REVISION=$APP_REVISION APP_KIND=advertising DJANGO_DEBUG=0
+COPY --chmod=0555 docker/runtime/serve.py /opt/mlo/bin/serve
+COPY --chmod=0555 docker/runtime/readiness.py /opt/mlo/bin/readiness
+COPY docker/runtime/app_runtime.py /opt/mlo/bin/app_runtime.py
+EXPOSE 8001
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s CMD ["/opt/mlo/bin/readiness"]
+CMD ["/opt/mlo/bin/serve", "--config", "/etc/mlo/service.json"]

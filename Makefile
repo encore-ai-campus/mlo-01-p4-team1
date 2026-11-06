@@ -1,6 +1,8 @@
 PYTHON ?= .venv/bin/python
+APP_IMAGES ?= .artifacts/app-predeploy/images.json
+APP_CHECK_OUTPUT ?= .artifacts/app-predeploy/summary.json
 
-.PHONY: prep-check prep-test foundation-unit foundation-integration runtime-unit runtime-integration integration-contract integration-execution lifecycle-unit lifecycle-integration integration-lifecycle preauth-check predeploy-check
+.PHONY: prep-check prep-test foundation-unit foundation-integration runtime-unit runtime-integration integration-contract integration-execution lifecycle-unit lifecycle-integration integration-lifecycle preauth-check predeploy-check app-images app-predeploy
 
 # Ordered acceptance: Foundation mock exports precede the common graph checks;
 # Docker suites run serially even when the caller supplies make -j.
@@ -10,7 +12,7 @@ prep-check:
 	$(PYTHON) scripts/check_preparation.py
 
 prep-test:
-	$(PYTHON) -m unittest discover -s tests/preparation -p 'test_*.py' -v
+	$(PYTHON) scripts/required_suite.py --start tests/preparation --pattern 'test_*.py'
 
 foundation-unit:
 	@test -f aws-infra/foundation/scripts/check-local.sh || { echo 'NOT READY: A의 check-local.sh가 아직 없습니다.'; exit 2; }
@@ -45,5 +47,12 @@ integration-lifecycle:
 
 preauth-check:
 	aws-infra/runtime/.venv/bin/python scripts/check_preauth.py
+
+app-images:
+	$(PYTHON) scripts/build_app_images.py --output "$(APP_IMAGES)"
+
+app-predeploy:
+	@test -f "$(APP_IMAGES)" || { echo 'NOT READY: run make app-images for the current source first.'; exit 2; }
+	aws-infra/runtime/.venv/bin/python scripts/check_app_predeploy.py --images "$(APP_IMAGES)" --output "$(APP_CHECK_OUTPUT)"
 
 predeploy-check: prep-check prep-test foundation-unit foundation-integration runtime-unit runtime-integration integration-contract integration-execution lifecycle-unit lifecycle-integration integration-lifecycle preauth-check

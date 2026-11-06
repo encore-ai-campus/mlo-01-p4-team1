@@ -1,5 +1,11 @@
 # Never package runtime secrets, local data, local Python/Node installs or Git metadata.
 **/.git
+**/AGENTS.md
+**/AGENTS.override.md
+**/CLAUDE.md
+**/GEMINI.md
+**/.codex
+**/.agents
 **/.DS_Store
 **/.env
 **/.env.*

@@ -36,9 +36,11 @@ def main():
         suite = unittest.TestSuite(loaded)
         with (folder / (part + ".log")).open("w") as stream:
             result = unittest.TextTestRunner(stream=stream, verbosity=2).run(suite)
-        passed = result.wasSuccessful() and result.testsRun > 0 and not result.skipped
+        passed = (result.wasSuccessful() and result.testsRun > 0
+                  and not result.skipped and not result.expectedFailures)
         results[part] = {"status": "pass" if passed else "fail", "tests": result.testsRun,
-                         "skipped": len(result.skipped), "errors": len(result.errors), "failures": len(result.failures)}
+                         "skipped": len(result.skipped), "expected_failures": len(result.expectedFailures),
+                         "errors": len(result.errors), "failures": len(result.failures)}
         print(part + ": " + json.dumps(results[part]), flush=True)
         if not passed:
             print((folder / (part + ".log")).read_text()[-6000:], file=sys.stderr)

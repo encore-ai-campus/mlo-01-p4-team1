@@ -24,11 +24,7 @@ from .contracts import (
     validate_runtime_plan,
 )
 
-QUERIES = {
-    "weather-stream": (19000, 19001),
-    "feedback-postgresql": (19002, 19003),
-    "feedback-analytics-batch": (19004, 19005),
-}
+from .queries import QUERIES
 TIMERS = {
     "control": {
         "feedback-analytics-batch": "*:0/15",
@@ -189,7 +185,7 @@ def systemd_units(node, inventory):
             + root
             + "\nAfter=network-online.target\n"
             "[Service]\nType=oneshot\nUser=root\nUMask=0077\n"
-            "Environment=PYTHONPATH=/opt/mlo/current/src\n"
+            "Environment=PYTHONPATH=/opt/mlo/current/aws-infra/runtime/src\n"
             "ExecStart=/usr/bin/python3 -m mlo_runtime.jobs --job " + job + "\n"
             "TimeoutStartSec=14min\nNoNewPrivileges=true\nProtectSystem=strict\n"
             "ReadWritePaths=/run/mlo " + root + "\nPrivateTmp=true\n"
@@ -207,7 +203,7 @@ def systemd_units(node, inventory):
             "[Unit]\nDescription=MLO shutdown backup gate\nAfter=docker.service network-online.target\n"
             "Requires=docker.service\nRequiresMountsFor=" + root + "\n"
             "[Service]\nType=oneshot\nRemainAfterExit=true\n"
-            "Environment=PYTHONPATH=/opt/mlo/current/src\n"
+            "Environment=PYTHONPATH=/opt/mlo/current/aws-infra/runtime/src\n"
             "ExecStart=/usr/bin/python3 -m mlo_runtime.jobs --validate-only --job "
             + job
             + "\n"
@@ -231,6 +227,11 @@ def service_configs(node, inventory):
         (n for n in inventory["nodes"] if n["role"] == role), key=lambda n: n["name"]
     )
     files = {}
+    if role in {"control", "advertising"}:
+        kind = "web" if role == "control" else "advertising"
+        files["service.json"] = encode({"kind": kind,
+                                         "bind": f"{ip}:{8000 if kind == 'web' else 8001}",
+                                         "secret_env": "/run/mlo/secrets/app-env.json"})
     if role == "kafka":
         voters = ",".join(
             f"{stable_id(n)}@{n['private_ip']}:9094" for n in grouped("kafka")
@@ -280,7 +281,8 @@ def service_configs(node, inventory):
                         "CAFile": "/run/mlo/secrets/ca.crt",
                     },
                 },
-                "security": {"authorization": "enabled"},
+                "replication": {"replSetName": "ads-rs"},
+                "security": {"authorization": "enabled", "keyFile": "/run/mlo/secrets/mongodb-keyfile"},
             }
         )
     elif role == "elasticsearch":
@@ -530,6 +532,8 @@ def compose(node, inventory):
                 [f"{data}/spool:/data/spool"],
                 "test -x /opt/mlo/bin/readiness && /opt/mlo/bin/readiness",
             )
+            if key in {"web", "advertising"}:
+                services[key]["volumes"].append(f"{config}/service.json:/etc/mlo/service.json:ro")
         if role == "gateway":
             services["forward-proxy"] = svc(
                 "squid",

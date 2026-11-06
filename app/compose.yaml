@@ -67,6 +67,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+      target: development
     environment: *api-env
     volumes:
       - .:/workspace/app:ro
@@ -93,6 +94,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+      target: development
     environment: *api-env
     volumes:
       - .:/workspace/app:ro
@@ -181,6 +183,7 @@ services:
     build:
       context: .
       dockerfile: docker/ads.Dockerfile
+      target: development
     environment: *ads-env
     volumes:
       - .:/workspace/app:ro
@@ -209,6 +212,7 @@ services:
     build:
       context: .
       dockerfile: docker/ads.Dockerfile
+      target: development
     environment: *ads-env
     volumes:
       - .:/workspace/app:ro
@@ -225,6 +229,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+      target: development
     environment:
       DJANGO_SETTINGS_MODULE: backend.cafe.settings
       DJANGO_SECRET_KEY: ${MLO_DEV_API_SECRET_KEY:?Run python3 docker/init_dev_env.py}
@@ -243,6 +248,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+      target: development
     environment: *api-env
     # Uses Django's automatically created and deleted *test* PostgreSQL DB.
     # Source is embedded in the image, not bind-mounted read-only.
@@ -259,6 +265,7 @@ services:
     build:
       context: .
       dockerfile: docker/ads.Dockerfile
+      target: development
     environment:
       <<: *ads-env
       ADS_RUN_MONGO_TESTS: "0"

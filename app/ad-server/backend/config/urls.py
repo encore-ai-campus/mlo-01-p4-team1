@@ -13,9 +13,11 @@ from api.ads import (
 )
 from api.ads_public import PublicAdEventsView, PublicAdImageView, PublicAdsView
 from api.health import HealthView
+from api.readiness import ReadinessView
 
 urlpatterns = [
     path("api/health", HealthView.as_view(), name="health"),
+    path('readyz', ReadinessView.as_view(), name='readiness'),
     path("api/ads", PublicAdsView.as_view(), name="ads-public"),
     path("api/ad-events", PublicAdEventsView.as_view(), name="ad-events-public"),
     path(
