@@ -4,6 +4,8 @@
 
 ## 설치와 검사
 
+Track2의 artifact/query·release·관측 수집·TLS gate와 미인수 입력은 [Track2 실행 경계](docs/TRACK2.md)에 있습니다.
+
 저장소 루트에서 다음 명령을 사용합니다. 공개 의존성 다운로드와 Docker 접근이 필요하며 전역 Docker 설정은 변경하지 않습니다.
 
 ```bash

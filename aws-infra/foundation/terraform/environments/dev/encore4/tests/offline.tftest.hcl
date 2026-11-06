@@ -1,5 +1,8 @@
 mock_provider "aws" {
   override_during = plan
+  mock_resource "aws_cloudfront_distribution" {
+    defaults = { "arn" : "arn:aws:cloudfront::111111111111:distribution/EXAMPLEBASE" }
+  }
   mock_resource "aws_iam_role" {
     defaults = { "arn" : "arn:aws:iam::111111111111:role/p4-mock" }
   }

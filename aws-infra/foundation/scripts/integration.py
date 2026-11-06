@@ -145,6 +145,8 @@ def render(output):
         require(refused.returncode!=0 and 'Controller prefixes must equal this account actual EC2 instance set' in refused.stdout,'stale/cross-account controller instance binding accepted')
         print('PASS: evaluated Terraform precondition rejects swapped cross-account controller IDs')
         test_dispatcher(bound_states['encore1'],bound,work)
+        from track2_integration import exercise
+        exercise(work,env,artifacts,tool,parts,bound)
         require(export(list(reversed(parts)))==inv,'order-dependent exporter')
         # Exporter must preserve a previous valid inventory on failed replacement.
         before=Path(output).read_bytes()

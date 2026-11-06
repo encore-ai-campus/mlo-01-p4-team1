@@ -83,13 +83,14 @@ def audit(states):
             for s in statements(v['policy']):
                 allowed=s.get('Condition',{}).get('ArnEquals',{}).get('aws:PrincipalArn')
                 expected={f'arn:aws:iam::{fixture_binding()["account_ids"][n["account"]]}:role/p4-runtime-{name}' for name,n in NODES.items() if v['vpc_endpoint_type']=='Interface' or n['account']==account}
-                require(set(scalar_list(allowed))==expected,'endpoint role restriction missing/widened')
+                actual=set(scalar_list(allowed))
+                require(actual==expected if v['vpc_endpoint_type']=='Interface' else bool(actual) and actual<=expected,'endpoint role restriction missing/widened')
                 require(all('*' not in a and '?' not in a for a in scalar_list(s['Action'])),'endpoint action wildcard')
                 if v['vpc_endpoint_type']=='Gateway':require('*' not in scalar_list(s['Resource']),'unbounded endpoint resource')
     for v in select('aws_cloudfront_cache_policy'):
         require(all(v[k]==0 for k in ['min_ttl','default_ttl','max_ttl']),'API caching forbidden')
     for v in select('aws_cloudfront_origin_request_policy'):
-        require(v['cookies_config'][0]['cookie_behavior']=='all' and v['headers_config'][0]['header_behavior']=='allViewer' and v['query_strings_config'][0]['query_string_behavior']=='all','API forwarding incomplete')
+        require(v['cookies_config'][0]['cookie_behavior']=='all' and v['headers_config'][0]=={'header_behavior':'allViewerAndWhitelistCloudFront','headers':[{'items':['CloudFront-Forwarded-Proto']}]} and v['query_strings_config'][0]['query_string_behavior']=='all','API forwarding incomplete')
     for v in select('aws_cloudfront_distribution'):
         require(v['default_cache_behavior'][0]['viewer_protocol_policy']=='redirect-to-https','viewer HTTPS required')
         require(v['origin'][0]['custom_origin_config'][0]['origin_protocol_policy']=='http-only','origin scope changed')

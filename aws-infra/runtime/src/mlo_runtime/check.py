@@ -98,9 +98,11 @@ def main():
             ("B-I7-supervisor", "test_supervisor.py"),
             ("B-I8-relay-tls", "test_relay.py"),
             ("B-I9-spark-cluster-fence", "test_spark_cluster.py"),
+            ("B-I10-track2-catalog", "test_catalog*.py"),
+            ("B-I11-observation-stack", "test_observability.py"),
         ]:
             commands[name] = [python, "-m", "mlo_runtime.suite", "--start", str(RUNTIME / "tests/integration"), "--pattern", pattern]
-            if not (RUNTIME / "tests/integration" / pattern).is_file():
+            if not any((RUNTIME / "tests/integration").glob(pattern)):
                 raise RuntimeError("mandatory integration suite is missing: " + pattern)
     for name, command in commands.items():
         print("RUN: " + name, flush=True)

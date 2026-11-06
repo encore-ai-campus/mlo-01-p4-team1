@@ -10,7 +10,8 @@ def write_tests():
         content=[]
         aliases=ACCOUNTS if a=='connectivity' else [None]
         for alias in aliases:
-            defaults={'aws_iam_role':{'arn':'arn:aws:iam::111111111111:role/p4-mock'},
+            defaults={'aws_cloudfront_distribution':{'arn':'arn:aws:cloudfront::111111111111:distribution/EXAMPLEBASE'},
+                      'aws_iam_role':{'arn':'arn:aws:iam::111111111111:role/p4-mock'},
                       'aws_iam_openid_connect_provider':{'arn':'arn:aws:iam::111111111111:oidc-provider/token.actions.githubusercontent.com'},
                       'aws_ssm_document':{'arn':'arn:aws:ssm:ap-northeast-2:111111111111:document/p4-runtime-artifact','document_version':'1','hash':'b'*64,'hash_type':'Sha256'},
                       'aws_lb':{'arn':'arn:aws:elasticloadbalancing:ap-northeast-2:111111111111:loadbalancer/app/mock/1234567890123456','dns_name':'mock.ap-northeast-2.elb.amazonaws.com'},
@@ -33,6 +34,15 @@ def write_tests():
             if a=='encore1':
                 content.append('override_data {\n override_during = plan\n target = module.edge.data.aws_ec2_managed_prefix_list.cloudfront\n values = { id = "pl-00000002" }\n}\n')
                 for purpose,name in b['bucket_names'].items():overrides[f'module.account.module.{purpose}[0].aws_s3_bucket.this']={'id':name,'arn':'arn:aws:s3:::'+name}
+                for target,value in {
+                    'aws_cloudfront_cache_policy.disabled':{'id':'00000000-0000-0000-0000-000000000001'},
+                    'aws_cloudfront_origin_request_policy.api':{'id':'00000000-0000-0000-0000-000000000002'},
+                    'aws_cloudfront_cache_policy.photos[0]':{'id':'00000000-0000-0000-0000-000000000003'},
+                    'aws_cloudfront_response_headers_policy.photos[0]':{'id':'00000000-0000-0000-0000-000000000004'},
+                    'aws_cloudfront_response_headers_policy.private_api':{'id':'00000000-0000-0000-0000-000000000005'},
+                    'aws_cloudfront_origin_access_control.media[0]':{'id':'EXAMPLEOAC'},
+                    'aws_cloudfront_function.photo_version[0]':{'arn':'arn:aws:cloudfront::111111111111:function/example-photo-version'},
+                }.items():overrides['module.edge.'+target]=value
                 for ei,s in enumerate(['ssm','ssmmessages'],1):
                     overrides[f'module.account.aws_route53_zone.ssm["{s}"]']={'zone_id':f'ZMOCK{ei}','name':f'{s}.ap-northeast-2.amazonaws.com'}
                     overrides[f'module.account.aws_vpc_endpoint.ssm["{s}"]']={'dns_entry':[{'dns_name':f'{s}.mock.invalid','hosted_zone_id':f'ZMOCK{ei}'}]}

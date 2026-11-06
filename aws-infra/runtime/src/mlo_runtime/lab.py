@@ -128,8 +128,10 @@ class Lab:
             result = self.exec(*command, check=False, timeout=10)
             if result.returncode == 0:
                 return
+            # A multi-service outage lab deliberately keeps peers stopped.
+            # Diagnose the service being probed, not every project container.
             state = self.compose(
-                "ps", "--all", "--format", "json", check=False
+                "ps", "--all", "--format", "json", self.service, check=False
             ).stdout.decode()
             if '"State":"exited"' in state:
                 self.compose("logs", "--no-color", check=False)

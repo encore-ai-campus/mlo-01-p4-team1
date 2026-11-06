@@ -482,6 +482,14 @@ def verify_payload(payload, binding, operation):
         "images not accepted by host binding",
     )
     required = manifest.get("required_secrets", {}).get(binding["node"])
+    host = payload / "hosts" / binding["node"]
+    accepted_services = read(host / "compose.json").get("services", {})
+    if "filebeat" in accepted_services:
+        require(binding.get("observations_enabled") is True,
+                "observation persistence/secrets must be explicitly accepted")
+    if binding.get("track2_execution_enabled") is True:
+        from .track2 import validate_edge
+        validate_edge(read(host / "edge-policy.json"))
     require(
         isinstance(required, list)
         and set(required) == set(binding.get("required_secrets", [])),
@@ -514,6 +522,12 @@ def prepare_persistence(binding, data):
         "gateway": ["spool"],
         "advertising": ["spool"],
     }[binding["role"]]
+    # New observation paths also require explicitly accepted image UID/GID.
+    # Never let Docker implicitly create root-owned persistent directories.
+    if binding.get("observations_enabled") is True:
+        names = [*names, "observations/spool", "observations/filebeat"]
+        if binding["node"] == "control-b":
+            names += ["observations/logstash", "observations/kibana"]
     for name in names:
         owner = binding.get("persistent_owners", {}).get(name)
         if binding.get("lab") is True and owner is None:
@@ -529,7 +543,8 @@ def prepare_persistence(binding, data):
             "accepted persistent image UID/GID required",
         )
         target = data / name
-        require(not target.is_symlink(), "persistent directory symlink refused")
+        require(not target.is_symlink() and target.resolve().is_relative_to(data.resolve()),
+                "persistent directory symlink refused")
         if not target.exists():
             target.mkdir(parents=True, mode=0o750)
             os.chown(target, owner["uid"], owner["gid"])
@@ -551,6 +566,50 @@ def require_stateful_change(binding, generation):
             and backup.get("expires_at", 0) > time.time(),
             "stateful replacement requires current verified backup and remote copy acceptance",
         )
+
+
+def prepare_service_access(binding, config, services):
+    """Keep archive files 0600; grant only accepted non-root service ownership.
+
+    Secrets are operator-provisioned individual mounts. Validate their existing
+    UID and mode rather than weakening permissions or changing original secrets.
+    """
+    claimed = {}
+    for name, component in {"log-ingest": "logstash", "kibana": "kibana"}.items():
+        if name not in services:
+            continue
+        service = services[name]
+        owner = binding.get("persistent_owners", {}).get("observations/" + component)
+        require(isinstance(owner, dict) and set(owner) == {"uid", "gid"}
+                and all(type(owner[k]) is int and 0 <= owner[k] <= 65535 for k in owner)
+                and owner["uid"] > 0, "accepted non-root observation service owner required")
+        user = str(owner["uid"]) + ":" + str(owner["gid"])
+        require(service.get("user") in (None, user), "observation service user differs from accepted owner")
+        service["user"] = user
+        for volume in service.get("volumes", []):
+            require(isinstance(volume, str), "explicit observation file bind required")
+            source, target, *mode = volume.split(":")
+            if source.startswith("/etc/mlo/current/config/"):
+                require(mode == ["ro"], "observation configuration must be read-only")
+                path = config / Path(source).name
+                require(path.is_file() and not path.is_symlink(), "observation config file missing")
+                pair = (owner["uid"], owner["gid"])
+                require(path not in claimed or claimed[path] == pair, "configuration has conflicting service owners")
+                claimed[path] = pair
+            elif source.startswith("/run/mlo/secrets/"):
+                require(mode == ["ro"] and source in binding.get("required_secrets", []),
+                        "observation secret must be an accepted read-only file")
+                path = host_path(binding, source)
+                require(path.is_file() and not path.is_symlink()
+                        and path.stat().st_uid == owner["uid"]
+                        and stat.S_IMODE(path.stat().st_mode) == 0o600,
+                        "provision observation secret 0600 for the accepted service UID")
+    for path, (uid, gid) in claimed.items():
+        os.chown(path, uid, gid)
+        path.chmod(0o600)
+        require(path.stat().st_uid == uid and path.stat().st_gid == gid
+                and stat.S_IMODE(path.stat().st_mode) == 0o600,
+                "observation configuration ownership was not applied")
 
 
 def prepare_release(payload, release, binding, manifest):
@@ -583,6 +642,7 @@ def prepare_release(payload, release, binding, manifest):
                 and source.suffix not in {".service", ".timer"}
             ):
                 shutil.copy2(source, config / source.name)
+        prepare_service_access(binding, config, accepted.get("services", {}))
         final_host = release / "hosts" / binding["node"]
         for service in accepted.get("services", {}).values():
             require(
@@ -601,7 +661,9 @@ def prepare_release(payload, release, binding, manifest):
                 source, target, *mode = volume.split(":")
                 if source.startswith("/etc/mlo/current/config/"):
                     source = str(final_host / "config" / Path(source).name)
-                elif source.startswith("/srv/mlo/") or source == "/run/mlo/secrets":
+                elif source.startswith("/srv/mlo/") or source == "/run/mlo/secrets" or (
+                    source.startswith("/run/mlo/secrets/") and source in binding.get("required_secrets", [])
+                ):
                     source = str(host_path(binding, source))
                 elif source == "/opt/mlo/current":
                     source = str(release)
