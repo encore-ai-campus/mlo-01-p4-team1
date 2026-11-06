@@ -21,6 +21,59 @@
           "error_message": "Origin header minimum 32 characters."
         }
       ]
+    },
+    "track2": {
+      "type": "object({enabled=bool,dataset_version=string,driver_queries=map(set(string)),ingest_nodes=set(string),endpoint_ids=map(string),media=object({enabled=bool,bucket=string,ttl_approved=bool,browser_ttl=number,edge_ttl=number}),archive=object({enabled=bool,bucket=string}),tls=object({enabled=bool,origin_name=string,certificate_arn=string,control_port=number,control_tls_ready=bool})})",
+      "default": {
+        "enabled": false,
+        "dataset_version": "",
+        "driver_queries": {},
+        "ingest_nodes": [],
+        "endpoint_ids": {},
+        "media": {
+          "enabled": false,
+          "bucket": "",
+          "ttl_approved": false,
+          "browser_ttl": 0,
+          "edge_ttl": 0
+        },
+        "archive": {
+          "enabled": false,
+          "bucket": ""
+        },
+        "tls": {
+          "enabled": false,
+          "origin_name": "",
+          "certificate_arn": "",
+          "control_port": 8443,
+          "control_tls_ready": false
+        }
+      },
+      "validation": [
+        {
+          "condition": "${!var.track2.enabled ? jsonencode(var.track2) == jsonencode(jsondecode(\"{\\\"enabled\\\": false, \\\"dataset_version\\\": \\\"\\\", \\\"driver_queries\\\": {}, \\\"ingest_nodes\\\": [], \\\"endpoint_ids\\\": {}, \\\"media\\\": {\\\"enabled\\\": false, \\\"bucket\\\": \\\"\\\", \\\"ttl_approved\\\": false, \\\"browser_ttl\\\": 0, \\\"edge_ttl\\\": 0}, \\\"archive\\\": {\\\"enabled\\\": false, \\\"bucket\\\": \\\"\\\"}, \\\"tls\\\": {\\\"enabled\\\": false, \\\"origin_name\\\": \\\"\\\", \\\"certificate_arn\\\": \\\"\\\", \\\"control_port\\\": 8443, \\\"control_tls_ready\\\": false}}\")) : true}",
+          "error_message": "Disabled Track2 cannot contain active inputs."
+        },
+        {
+          "condition": "${!var.track2.enabled || (can(regex(\"^[a-z0-9][a-z0-9-]{0,62}$\",var.track2.dataset_version)) && length(var.track2.endpoint_ids)==5 && length(distinct(values(var.track2.endpoint_ids)))==5 && alltrue([for a in [\"encore1\",\"encore2\",\"encore3\",\"encore4\",\"encore5\"]:can(regex(\"^vpce-[a-f0-9]{17}$\",var.track2.endpoint_ids[a]))]))}",
+          "error_message": "Track2 dataset and five distinct local endpoint IDs required."
+        },
+        {
+          "condition": "${!var.track2.enabled || (length(var.track2.driver_queries)>0 && alltrue([for n,qs in var.track2.driver_queries:contains([\"control-a\",\"control-b\"],n) && length(qs)>0 && alltrue([for q in qs:q==\"venues-catalog\"])]) && alltrue([for n in var.track2.ingest_nodes:contains([\"control-a\",\"control-b\"],n)]))}",
+          "error_message": "Only Control may ingest venues or own query checkpoints."
+        },
+        {
+          "condition": "${!var.track2.media.enabled || (var.track2.enabled && var.track2.media.ttl_approved && var.track2.media.browser_ttl>=0 && floor(var.track2.media.browser_ttl)==var.track2.media.browser_ttl && var.track2.media.edge_ttl>0 && floor(var.track2.media.edge_ttl)==var.track2.media.edge_ttl && var.track2.media.edge_ttl>=var.track2.media.browser_ttl && var.track2.media.edge_ttl<=31536000)}",
+          "error_message": "Approved bounded photo TTL inputs required."
+        },
+        {
+          "condition": "${!var.track2.tls.enabled || (var.track2.enabled && var.track2.tls.control_tls_ready && var.track2.tls.control_port==8443 && can(regex(\"^([a-z0-9][a-z0-9-]*[.])+[a-z]{2,}$\",var.track2.tls.origin_name)) && !endswith(var.track2.tls.origin_name,\".amazonaws.com\") && !endswith(var.track2.tls.origin_name,\".cloudfront.net\") && can(regex(\"^arn:aws:acm:ap-northeast-2:[0-9]{12}:certificate/[a-f0-9-]{36}$\",var.track2.tls.certificate_arn)))}",
+          "error_message": "Full TLS requires a controlled hostname, ACM certificate and Control TLS readiness."
+        }
+      ]
+    },
+    "account_id": {
+      "type": "string"
     }
   },
   "data": {
@@ -37,8 +90,8 @@
         "ingress": [
           {
             "protocol": "tcp",
-            "from_port": 80,
-            "to_port": 80,
+            "from_port": "${var.track2.enabled && var.track2.tls.enabled ? 443 : 80}",
+            "to_port": "${var.track2.enabled && var.track2.tls.enabled ? 443 : 80}",
             "prefix_list_ids": "${[data.aws_ec2_managed_prefix_list.cloudfront.id]}",
             "cidr_blocks": [],
             "ipv6_cidr_blocks": [],
@@ -57,8 +110,8 @@
         "security_group_id": "${var.inputs.control_sgs[count.index]}",
         "source_security_group_id": "${aws_security_group.alb.id}",
         "protocol": "tcp",
-        "from_port": 8000,
-        "to_port": 8000
+        "from_port": "${var.track2.enabled && var.track2.tls.enabled ? 8443 : 8000}",
+        "to_port": "${var.track2.enabled && var.track2.tls.enabled ? 8443 : 8000}"
       },
       "target_out": {
         "count": "${length(var.inputs.control_sgs)}",
@@ -66,8 +119,8 @@
         "security_group_id": "${aws_security_group.alb.id}",
         "source_security_group_id": "${var.inputs.control_sgs[count.index]}",
         "protocol": "tcp",
-        "from_port": 8000,
-        "to_port": 8000
+        "from_port": "${var.track2.enabled && var.track2.tls.enabled ? 8443 : 8000}",
+        "to_port": "${var.track2.enabled && var.track2.tls.enabled ? 8443 : 8000}"
       }
     },
     "aws_lb": {
@@ -83,14 +136,14 @@
     "aws_lb_target_group": {
       "web": {
         "name": "p4-control",
-        "port": 8000,
-        "protocol": "HTTP",
+        "port": "${var.track2.enabled && var.track2.tls.enabled ? 8443 : 8000}",
+        "protocol": "${var.track2.enabled && var.track2.tls.enabled ? \"HTTPS\" : \"HTTP\"}",
         "vpc_id": "${var.inputs.vpc_id}",
         "health_check": [
           {
             "path": "/health",
             "port": "traffic-port",
-            "protocol": "HTTP",
+            "protocol": "${var.track2.enabled && var.track2.tls.enabled ? \"HTTPS\" : \"HTTP\"}",
             "matcher": "200"
           }
         ]
@@ -101,14 +154,14 @@
         "count": "${length(var.inputs.targets)}",
         "target_group_arn": "${aws_lb_target_group.web.arn}",
         "target_id": "${var.inputs.targets[count.index]}",
-        "port": 8000
+        "port": "${var.track2.enabled && var.track2.tls.enabled ? 8443 : 8000}"
       }
     },
     "aws_lb_listener": {
       "http": {
         "load_balancer_arn": "${aws_lb.this.arn}",
-        "port": 80,
-        "protocol": "HTTP",
+        "port": "${var.track2.enabled && var.track2.tls.enabled ? 443 : 80}",
+        "protocol": "${var.track2.enabled && var.track2.tls.enabled ? \"HTTPS\" : \"HTTP\"}",
         "default_action": [
           {
             "type": "fixed-response",
@@ -120,7 +173,17 @@
               }
             ]
           }
-        ]
+        ],
+        "certificate_arn": "${var.track2.enabled && var.track2.tls.enabled ? var.track2.tls.certificate_arn : null}",
+        "ssl_policy": "${var.track2.enabled && var.track2.tls.enabled ? \"ELBSecurityPolicy-TLS13-1-2-2021-06\" : null}",
+        "lifecycle": {
+          "precondition": [
+            {
+              "condition": "${!(var.track2.enabled && var.track2.tls.enabled) || startswith(var.track2.tls.certificate_arn,\"arn:aws:acm:ap-northeast-2:${var.account_id}:certificate/\")}",
+              "error_message": "Origin certificate must belong to encore1 in Seoul."
+            }
+          ]
+        }
       }
     },
     "aws_lb_listener_rule": {
@@ -170,6 +233,32 @@
             ]
           }
         ]
+      },
+      "photos": {
+        "count": "${var.track2.enabled && var.track2.media.enabled ? 1 : 0}",
+        "name": "p4-approved-photo-cache",
+        "min_ttl": 0,
+        "default_ttl": "${var.track2.media.edge_ttl}",
+        "max_ttl": "${var.track2.media.edge_ttl}",
+        "parameters_in_cache_key_and_forwarded_to_origin": [
+          {
+            "cookies_config": [
+              {
+                "cookie_behavior": "none"
+              }
+            ],
+            "headers_config": [
+              {
+                "header_behavior": "none"
+              }
+            ],
+            "query_strings_config": [
+              {
+                "query_string_behavior": "none"
+              }
+            ]
+          }
+        ]
       }
     },
     "aws_cloudfront_origin_request_policy": {
@@ -182,7 +271,14 @@
         ],
         "headers_config": [
           {
-            "header_behavior": "allViewer"
+            "header_behavior": "allViewerAndWhitelistCloudFront",
+            "headers": [
+              {
+                "items": [
+                  "CloudFront-Forwarded-Proto"
+                ]
+              }
+            ]
           }
         ],
         "query_strings_config": [
@@ -198,7 +294,7 @@
         "is_ipv6_enabled": true,
         "origin": [
           {
-            "domain_name": "${aws_lb.this.dns_name}",
+            "domain_name": "${var.track2.enabled && var.track2.tls.enabled ? var.track2.tls.origin_name : aws_lb.this.dns_name}",
             "origin_id": "control",
             "custom_header": [
               {
@@ -210,7 +306,7 @@
               {
                 "http_port": 80,
                 "https_port": 443,
-                "origin_protocol_policy": "http-only",
+                "origin_protocol_policy": "${var.track2.enabled && var.track2.tls.enabled ? \"https-only\" : \"http-only\"}",
                 "origin_ssl_protocols": [
                   "TLSv1.2"
                 ]
@@ -236,7 +332,8 @@
               "HEAD"
             ],
             "cache_policy_id": "${aws_cloudfront_cache_policy.disabled.id}",
-            "origin_request_policy_id": "${aws_cloudfront_origin_request_policy.api.id}"
+            "origin_request_policy_id": "${aws_cloudfront_origin_request_policy.api.id}",
+            "response_headers_policy_id": "${aws_cloudfront_response_headers_policy.private_api.id}"
           }
         ],
         "restrictions": [
@@ -253,7 +350,136 @@
             "cloudfront_default_certificate": true
           }
         ],
-        "price_class": "PriceClass_200"
+        "price_class": "PriceClass_200",
+        "ordered_cache_behavior": [
+          {
+            "target_origin_id": "control",
+            "viewer_protocol_policy": "redirect-to-https",
+            "allowed_methods": [
+              "GET",
+              "HEAD",
+              "OPTIONS",
+              "PUT",
+              "POST",
+              "PATCH",
+              "DELETE"
+            ],
+            "cached_methods": [
+              "GET",
+              "HEAD"
+            ],
+            "cache_policy_id": "${aws_cloudfront_cache_policy.disabled.id}",
+            "origin_request_policy_id": "${aws_cloudfront_origin_request_policy.api.id}",
+            "response_headers_policy_id": "${aws_cloudfront_response_headers_policy.private_api.id}",
+            "path_pattern": "/api/*"
+          }
+        ],
+        "dynamic": {
+          "origin": {
+            "for_each": "${var.track2.enabled && var.track2.media.enabled ? [1] : []}",
+            "content": {
+              "domain_name": "${\"${module.media[0].name}.s3.ap-northeast-2.amazonaws.com\"}",
+              "origin_id": "approved-photos",
+              "origin_access_control_id": "${aws_cloudfront_origin_access_control.media[0].id}",
+              "s3_origin_config": [
+                {
+                  "origin_access_identity": ""
+                }
+              ]
+            }
+          },
+          "ordered_cache_behavior": {
+            "for_each": "${var.track2.enabled && var.track2.media.enabled ? [1] : []}",
+            "content": {
+              "path_pattern": "/media/venues/approved/*",
+              "target_origin_id": "approved-photos",
+              "viewer_protocol_policy": "https-only",
+              "allowed_methods": [
+                "GET",
+                "HEAD"
+              ],
+              "cached_methods": [
+                "GET",
+                "HEAD"
+              ],
+              "cache_policy_id": "${aws_cloudfront_cache_policy.photos[0].id}",
+              "response_headers_policy_id": "${aws_cloudfront_response_headers_policy.photos[0].id}",
+              "function_association": [
+                {
+                  "event_type": "viewer-request",
+                  "function_arn": "${aws_cloudfront_function.photo_version[0].arn}"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "aws_cloudfront_response_headers_policy": {
+      "private_api": {
+        "name": "p4-private-no-store",
+        "custom_headers_config": [
+          {
+            "items": [
+              {
+                "header": "Cache-Control",
+                "override": true,
+                "value": "no-store, private"
+              }
+            ]
+          }
+        ]
+      },
+      "photos": {
+        "count": "${var.track2.enabled && var.track2.media.enabled ? 1 : 0}",
+        "name": "p4-approved-photo-response",
+        "custom_headers_config": [
+          {
+            "items": [
+              {
+                "header": "Cache-Control",
+                "override": true,
+                "value": "${\"public,max-age=${var.track2.media.browser_ttl},s-maxage=${var.track2.media.edge_ttl}\"}"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "aws_cloudfront_origin_access_control": {
+      "media": {
+        "count": "${var.track2.enabled && var.track2.media.enabled ? 1 : 0}",
+        "name": "p4-approved-venue-photos",
+        "origin_access_control_origin_type": "s3",
+        "signing_behavior": "always",
+        "signing_protocol": "sigv4"
+      }
+    },
+    "aws_cloudfront_function": {
+      "photo_version": {
+        "count": "${var.track2.enabled && var.track2.media.enabled ? 1 : 0}",
+        "name": "p4-approved-photo-version",
+        "runtime": "cloudfront-js-2.0",
+        "publish": true,
+        "code": "function handler(event) {\n  var request = event.request;\n  if (!/^\\/media\\/venues\\/approved\\/[a-z0-9-]+\\/[a-f0-9]{64}\\/[a-zA-Z0-9_-]+\\.(jpg|jpeg|png|webp|avif)$/.test(request.uri)) {\n    return {statusCode: 403, statusDescription: 'Forbidden'};\n  }\n  return request;\n}"
+      }
+    }
+  },
+  "module": {
+    "media": {
+      "source": "../bucket",
+      "count": "${var.track2.enabled && var.track2.media.enabled ? 1 : 0}",
+      "name": "${var.track2.media.bucket}",
+      "statements": "${concat(var.inputs.media_statements,[{Effect=\"Allow\",Principal={Service=\"cloudfront.amazonaws.com\"},Action=[\"s3:GetObject\"],Resource=[\"arn:aws:s3:::${var.track2.media.bucket}/media/venues/approved/*\"],Condition={StringEquals={\"AWS:SourceArn\"=aws_cloudfront_distribution.this.arn}}}])}"
+    }
+  },
+  "output": {
+    "foundation_track2_edge": {
+      "value": {
+        "media_bucket_ref": "${var.track2.enabled && var.track2.media.enabled ? var.track2.media.bucket : null}",
+        "distribution_arn": "${aws_cloudfront_distribution.this.arn}",
+        "tls_status": "${var.track2.enabled && var.track2.tls.enabled ? \"CONFIGURED_NOT_VERIFIED\" : \"UNRESOLVED_ORIGIN_NAME_CERTIFICATE\"}",
+        "ready_for_aws": false
       }
     }
   }

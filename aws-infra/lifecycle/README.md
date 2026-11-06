@@ -1,5 +1,7 @@
 # Lifecycle 로컬 구현 v1
 
+Track2 확장은 [종료·보존·격리 복구 계약](docs/TRACK2.md)을 따릅니다. 별도 형식의 C 합성 입력에 writer별 drain·Outbox/queue 확인·세대별 checkpoint·완전 release·archive/삭제 원장 대조를 추가했습니다. 실제 PostgreSQL/MongoDB의 전용 Docker dump/독립 복원/정지도 C integration의 필수 항목입니다. 실제 앱·원격 adapter 인수와 구분합니다.
+
 Issue #10의 종료·백업·삭제 **로컬 simulator**입니다. `inspect`, `plan`, `execute`, `resume`, `verify`를 제공하며 모든 결과의 `ready_for_aws`는 false입니다. Foundation mock graph 검토·공통 실행 잠금·실제 로컬 PostgreSQL/MongoDB 종료 연계도 별도 통합 인터페이스로 검사합니다. 실제 AWS adapter와 backend 접근 경로는 제공하지 않습니다.
 
 ## 준비와 검사

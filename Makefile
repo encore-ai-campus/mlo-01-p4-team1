@@ -2,11 +2,15 @@ PYTHON ?= .venv/bin/python
 APP_IMAGES ?= .artifacts/app-predeploy/images.json
 APP_CHECK_OUTPUT ?= .artifacts/app-predeploy/summary.json
 
-.PHONY: prep-check prep-test foundation-unit foundation-integration runtime-unit runtime-integration integration-contract integration-execution lifecycle-unit lifecycle-integration integration-lifecycle preauth-check predeploy-check app-images app-predeploy
+.PHONY: prep-check prep-test foundation-unit foundation-integration runtime-unit runtime-integration integration-contract integration-execution integration-track2 lifecycle-unit lifecycle-integration integration-lifecycle preauth-check predeploy-check app-images app-predeploy
 
 # Ordered acceptance: Foundation mock exports precede the common graph checks;
 # Docker suites run serially even when the caller supplies make -j.
 .NOTPARALLEL: predeploy-check
+
+.PHONY: member-check
+member-check:
+	aws-infra/runtime/.venv/bin/python scripts/check_member_local.py --images "$(APP_IMAGES)"
 
 prep-check:
 	$(PYTHON) scripts/check_preparation.py
@@ -36,6 +40,9 @@ integration-contract:
 integration-execution:
 	$(PYTHON) scripts/check_execution_contract.py
 
+integration-track2:
+	$(PYTHON) scripts/check_track2_contract.py
+
 lifecycle-unit:
 	bash aws-infra/lifecycle/scripts/check-local.sh unit
 
@@ -55,4 +62,4 @@ app-predeploy:
 	@test -f "$(APP_IMAGES)" || { echo 'NOT READY: run make app-images for the current source first.'; exit 2; }
 	aws-infra/runtime/.venv/bin/python scripts/check_app_predeploy.py --images "$(APP_IMAGES)" --output "$(APP_CHECK_OUTPUT)"
 
-predeploy-check: prep-check prep-test foundation-unit foundation-integration runtime-unit runtime-integration integration-contract integration-execution lifecycle-unit lifecycle-integration integration-lifecycle preauth-check
+predeploy-check: prep-check prep-test foundation-unit foundation-integration runtime-unit runtime-integration integration-contract integration-execution lifecycle-unit lifecycle-integration integration-lifecycle integration-track2 preauth-check

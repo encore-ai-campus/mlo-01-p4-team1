@@ -6,6 +6,7 @@ import hashlib
 import http.cookiejar
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import socket
@@ -98,7 +99,9 @@ def check_platform(record, architecture):
                     raise RuntimeError(label+' required container exited; inspect '+str(lab.folder))
                 time.sleep(1)
             raise RuntimeError(label+' timed out; inspect '+str(lab.folder))
-        wait(lambda:exec_service('postgres','pg_isready','-U','bootstrap',check=False).returncode==0,'PostgreSQL')
+        # The image's initdb bootstrap server accepts Unix sockets before it
+        # shuts down and starts the final server. TCP avoids that false ready.
+        wait(lambda:exec_service('postgres','pg_isready','-h','127.0.0.1','-d','postgres','-U','bootstrap',check=False).returncode==0,'PostgreSQL')
         for role,database in [('common_app','common_dev'),('ads_app','ads_dev')]:
             exec_service('postgres','psql','-U','bootstrap','-d','postgres','-v','ON_ERROR_STOP=1','-c',f"CREATE USER {role} PASSWORD '{password}'")
             exec_service('postgres','createdb','-U','bootstrap','-O',role,database)
@@ -108,7 +111,21 @@ def check_platform(record, architecture):
         exec_service('mongo',*mongo,"rs.initiate({_id:'ads-rs',members:[{_id:0,host:'mongo:27017'}]})")
         wait(lambda:exec_service('mongo',*mongo,'quit(db.hello().isWritablePrimary?0:1)',check=False).returncode==0,'Mongo replica-set primary')
         lab.compose('run','--rm','--no-deps','prepare-secrets',timeout=90)
-        lab.compose('up','-d','api','ads','proxy',timeout=180)
+        lab.compose('up','-d','api','ads',timeout=180)
+        # HAProxy resolves static service names when it starts. Starting all
+        # three at once can make it exit before Docker has attached the APIs.
+        # Wait for real application listeners, including the required 503 for
+        # an unmigrated DB, before starting the TLS proxy.
+        for kind,listen in (('api',8000),('ads',8001)):
+            probe=("import urllib.request,urllib.error; "
+                   "opener=urllib.request.build_opener(urllib.request.ProxyHandler({})); "
+                   "request=urllib.request.Request('http://127.0.0.1:"+str(listen)+"/readyz')\n"
+                   "try: response=opener.open(request,timeout=3); response.close(); raise SystemExit(1)\n"
+                   "except urllib.error.HTTPError as error:\n"
+                   " code=error.code; error.close(); raise SystemExit(0 if code==503 else 1)\n")
+            wait(lambda kind=kind,probe=probe:exec_service(kind,'python','-c',probe,check=False,timeout=10).returncode==0,
+                 kind+' unmigrated listener')
+        lab.compose('up','-d','proxy',timeout=90)
         jar=http.cookiejar.CookieJar()
         opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),urllib.request.HTTPCookieProcessor(jar),
                   urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile=str(lab.folder/'ca.crt'))))
@@ -129,6 +146,21 @@ def check_platform(record, architecture):
         for path in ('/readyz','/ads-readyz'):
             wait(lambda:fetch(path)==(200,{'status':'ready','revision':revision}),path)
         checks.append('real_tls_postgresql_and_mongo_schema_revision_ready')
+        html = None
+        for page in ('/signup', '/mypage', '/account/recovery', '/admin/passkey'):
+            with opener.open(origin+page,timeout=8) as response:
+                body=response.read(2_000_000)
+                assert response.status==200 and b'id="root"' in body
+                assert response.headers['Cache-Control']=='no-store'
+                assert response.headers['Referrer-Policy']=='no-referrer'
+                html=body
+        asset=re.search(rb'src="(/assets/[^" ]+\.js)"',html).group(1).decode()
+        with opener.open(origin+asset,timeout=8) as response:
+            assert response.status==200 and response.read(2_000_000)
+            assert 'javascript' in response.headers['Content-Type']
+            assert 'immutable' in response.headers['Cache-Control']
+            assert response.headers['X-Content-Type-Options']=='nosniff'
+        checks.append('bundled_frontend_routes_and_static_assets')
         for kind in ('api','ads'):
             exec_service(kind,'/opt/mlo/bin/readiness')
             wrong=lab.compose('exec','-T','-e','APP_REVISION='+'f'*64,kind,'/opt/mlo/bin/readiness',check=False)
@@ -165,7 +197,9 @@ def check_platform(record, architecture):
         error.app_smoke_evidence=str(lab.folder)
         raise
     finally:
-        lab.close()
+        # Production servers use a 220-second graceful stop, longer than the
+        # small default fixtures. Cleanup must wait through that same budget.
+        lab.close(timeout=300)
 
 
 def main():

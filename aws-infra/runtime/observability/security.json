@@ -1,0 +1,200 @@
+{
+  "writer": {
+    "cluster": [
+      "monitor"
+    ],
+    "indices": [
+      {
+        "names": [
+          "logs-mlo.pipeline-*",
+          "logs-mlo.ads-*",
+          "logs-mlo.security-*",
+          "logs-mlo.service-*"
+        ],
+        "privileges": [
+          "create_index",
+          "index"
+        ]
+      }
+    ]
+  },
+  "reader": {
+    "cluster": [],
+    "indices": [
+      {
+        "names": [
+          "logs-mlo.pipeline-*",
+          "logs-mlo.ads-*",
+          "logs-mlo.security-*",
+          "logs-mlo.service-*"
+        ],
+        "privileges": [
+          "read",
+          "view_index_metadata"
+        ]
+      }
+    ]
+  },
+  "template": {
+    "index_patterns": [
+      "logs-mlo.pipeline-*",
+      "logs-mlo.ads-*",
+      "logs-mlo.security-*",
+      "logs-mlo.service-*"
+    ],
+    "priority": 501,
+    "template": {
+      "settings": {
+        "number_of_shards": 1
+      },
+      "mappings": {
+        "dynamic": "strict",
+        "properties": {
+          "@timestamp": {
+            "type": "date"
+          },
+          "event": {
+            "properties": {
+              "id": {
+                "type": "keyword"
+              },
+              "dataset": {
+                "type": "keyword"
+              },
+              "action": {
+                "type": "keyword"
+              },
+              "outcome": {
+                "type": "keyword"
+              },
+              "duration": {
+                "type": "long"
+              }
+            }
+          },
+          "service": {
+            "properties": {
+              "name": {
+                "type": "keyword"
+              }
+            }
+          },
+          "host": {
+            "properties": {
+              "name": {
+                "type": "keyword"
+              }
+            }
+          },
+          "trace": {
+            "properties": {
+              "id": {
+                "type": "keyword"
+              }
+            }
+          },
+          "pipeline": {
+            "properties": {
+              "name": {
+                "type": "keyword"
+              },
+              "run_id": {
+                "type": "keyword"
+              },
+              "stage": {
+                "type": "keyword"
+              },
+              "state": {
+                "type": "keyword"
+              },
+              "attempt": {
+                "type": "long"
+              },
+              "release_id": {
+                "type": "keyword"
+              },
+              "batch_id": {
+                "type": "long"
+              },
+              "records_in": {
+                "type": "long"
+              },
+              "records_out": {
+                "type": "long"
+              },
+              "records_quarantined": {
+                "type": "long"
+              },
+              "source_ref": {
+                "type": "keyword"
+              },
+              "target_ref": {
+                "type": "keyword"
+              },
+              "business_event_id": {
+                "type": "keyword"
+              }
+            }
+          },
+          "error": {
+            "properties": {
+              "code": {
+                "type": "keyword"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            }
+          },
+          "cloud": {
+            "properties": {
+              "provider": {
+                "type": "keyword"
+              },
+              "region": {
+                "type": "keyword"
+              },
+              "account": {
+                "properties": {
+                  "name": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "kibana_operator": {
+    "elasticsearch": {
+      "cluster": [],
+      "indices": [
+        {
+          "names": [
+            "logs-mlo.pipeline-*",
+            "logs-mlo.ads-*",
+            "logs-mlo.security-*",
+            "logs-mlo.service-*"
+          ],
+          "privileges": [
+            "read",
+            "view_index_metadata"
+          ]
+        }
+      ]
+    },
+    "kibana": [
+      {
+        "base": [
+          "read"
+        ],
+        "feature": {},
+        "spaces": [
+          "observations"
+        ]
+      }
+    ]
+  }
+}

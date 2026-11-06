@@ -1,5 +1,7 @@
 # Lifecycle 후속 인터페이스와 신뢰 경계
 
+Track2의 C 전용 버전·입출력·stop/보존 목록·격리 복구와 공통 v2 인수 조건은 [TRACK2.md](TRACK2.md)에 있습니다. 기존 공통 v1 evidence를 Track2 전체 완료 증거로 확대하지 않습니다.
+
 이 문서는 로컬 구현과 운영 인수 계약을 구분합니다. 현재 CLI는 example_only=true·snapshot-only·예약된 합성 계정만 받습니다. 실제 AWS adapter, 실제 backend init/refresh/plan/destroy, SSM hook을 추가하지 않았습니다. Foundation의 기존 차단·prevent_destroy·deletion protection도 유지합니다.
 
 ## 1. Foundation 읽기 전용 exporter 제안

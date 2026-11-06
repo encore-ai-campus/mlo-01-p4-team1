@@ -88,6 +88,9 @@ def validate_binding(b, *, real=False):
         require(b['existing_encore3_reviewed'] is True,'encore3 ownership review required')
         require(not any('example-only' in s or 'UNBOUND' in s for s in json.dumps(b).split('"')),'unbound/example value')
         require(len(b['origin_header'])>=32,'origin header length')
+    if 'track2' in b:
+        from track2 import validate_track2
+        validate_track2(b['track2'], b)
     return b
 
 def flows():

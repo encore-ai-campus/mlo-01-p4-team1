@@ -128,8 +128,10 @@ class Lab:
             result = self.exec(*command, check=False, timeout=10)
             if result.returncode == 0:
                 return
+            # A multi-service outage lab deliberately keeps peers stopped.
+            # Diagnose the service being probed, not every project container.
             state = self.compose(
-                "ps", "--all", "--format", "json", check=False
+                "ps", "--all", "--format", "json", self.service, check=False
             ).stdout.decode()
             if '"State":"exited"' in state:
                 self.compose("logs", "--no-color", check=False)
@@ -141,11 +143,11 @@ class Lab:
     def recreate(self):
         self.compose("up", "-d", "--force-recreate", timeout=120)
 
-    def close(self):
+    def close(self, *, timeout=120):
         if self.compose_path.exists():
             self.compose("logs", "--no-color", check=False)
             # These volumes only belong to the project created above, never global prune.
-            self.compose("down", "--volumes", "--remove-orphans", timeout=120)
+            self.compose("down", "--volumes", "--remove-orphans", timeout=timeout)
             remaining = self.docker("volume", "ls", "--filter",
                                     "label=com.docker.compose.project=" + self.project,
                                     "--format", "{{.Name}}")
