@@ -1,6 +1,6 @@
 import hmac
 from django.conf import settings
-from django.contrib.auth import authenticate, login, logout, get_user
+from django.contrib.auth import authenticate, login, logout, get_user, get_user_model
 from django.middleware.csrf import get_token
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -16,6 +16,8 @@ def account_data_for_user(user):
     active = user.is_authenticated and user.is_active and user.is_staff
     menus = []
     if active:
+        if getattr(settings, 'PLATFORM_ENABLED', False) and user.has_perm('workspaces.review_workspace'):
+            menus.append({'path':'/platform/review','label':'매장 권한 심사'})
         for permission, path, label in [('manage_ads','/admin/ads','광고 관리'),
                 ('manage_music','/admin/music','음악 관리'),
                 ('manage_music','/admin/music/youtube','YouTube 연결 검수'),
@@ -29,11 +31,21 @@ def account_data_for_user(user):
 
 def account_data(request):
     user = get_user(raw_request(request))
-    active = user.is_authenticated and user.is_active and user.is_staff
+    from backend.accounts.passkeys import complete
+    from backend.accounts.models import MemberProfile, AdminPasskey
+    primary = user.is_authenticated and user.is_active and user.is_staff
+    active = primary and complete(request)
+    profile = MemberProfile.objects.filter(user=user).first() if user.is_authenticated and not user.is_staff else None
+    member_active = bool(profile and user.is_active)
     operations = access_for(user, 'operations')
     logs = access_for(user, 'logs')
-    return {'authenticated':bool(active), 'role':'ADMIN' if active else None,
-            'allowed_menus':account_data_for_user(user), 'csrf_token':get_token(raw_request(request)),
+    return {'authenticated':bool(active or member_active), 'role':'ADMIN' if active else 'USER' if member_active else None,
+            'platform_enabled':bool(getattr(settings,'PLATFORM_ENABLED',False) and settings.MEMBER_LOCAL_PREVIEW),
+            'nickname':profile.nickname if member_active else None,
+            'passkey_required':bool(primary and not active),
+            'passkey_enrolled':bool(primary and AdminPasskey.objects.filter(user=user).exists()),
+            'member_login_enabled':True,
+            'allowed_menus':account_data_for_user(user) if active else [], 'csrf_token':get_token(raw_request(request)),
             'admin_role':role_for(user),
             'sso_enabled':settings.ADMIN_SSO_ENABLED,
             'local_login_enabled':settings.ADMIN_LOCAL_LOGIN_ENABLED,
@@ -49,18 +61,34 @@ class Me(Endpoint):
 
 class Login(Endpoint):
     def post(self, request):
-        require(settings.ADMIN_LOCAL_LOGIN_ENABLED, 'SSO_REQUIRED', '통합 로그인으로 접속해 주세요.', 403)
-        body = shape(request.data, ['username','password'], ['username','password'])
-        require(all(type(body[k]) is str and body[k] for k in body))
-        user = authenticate(raw_request(request), username=body['username'], password=body['password'])
-        require(user is not None and user.is_active and user.is_staff,
+        from backend.accounts.models import MemberProfile
+        from backend.accounts import services
+        from backend.accounts.passkeys import begin_primary, complete
+        body = shape(request.data, ['username','password','remember'], ['username','password'])
+        require(all(type(body[k]) is str and body[k] for k in ('username','password')) and
+                len(body['username']) <= 150 and len(body['password']) <= 128 and type(body.get('remember', False)) is bool)
+        require(settings.MEMBER_LOCAL_PREVIEW or (settings.MEMBER_LOOKUP_KEY and settings.MEMBER_LOGIN_LIMIT_HOUR > 0),
+                'ACCOUNT_LIMITS_NOT_READY', '계정 요청 제한 설정이 필요합니다.', 503)
+        if settings.MEMBER_LOOKUP_KEY:
+            require(services.limit('login:'+body['username'].lower(), maximum=settings.MEMBER_LOGIN_LIMIT_HOUR),
+                    'RATE_LIMITED', '로그인 요청이 많습니다. 잠시 후 다시 시도해 주세요.', 429)
+        candidate = get_user_model().objects.filter(username__iexact=body['username']).first()
+        user = authenticate(raw_request(request), username=candidate.username if candidate else body['username'].lower(), password=body['password'])
+        require(user is not None and user.is_active,
                 'AUTH_FAILED', '아이디 또는 비밀번호를 확인해 주세요.', 401)
+        if not user.is_staff:
+            require(MemberProfile.objects.filter(user=user).exists(), 'AUTH_FAILED', '아이디 또는 비밀번호를 확인해 주세요.', 401)
+            login(raw_request(request), user)
+            raw_request(request).session.set_expiry(7*24*3600 if body.get('remember') else 8*3600)
+            return Response({**account_data(request), 'landing_path':'/playlist'})
+        require(settings.ADMIN_LOCAL_LOGIN_ENABLED, 'SSO_REQUIRED', '통합 로그인으로 접속해 주세요.', 403)
         require(settings.ADMIN_SESSION_SECONDS > 0, 'POLICY_NOT_READY', '관리자 세션 만료 설정이 필요합니다.', 503)
         menus = account_data_for_user(user)
         require(bool(menus), 'FORBIDDEN', '사용 가능한 관리자 메뉴가 없습니다.', 403)
         login(raw_request(request), user)
+        begin_primary(request)
         raw_request(request).session.set_expiry(settings.ADMIN_SESSION_SECONDS)
-        return Response({**account_data(request), 'landing_path':menus[0]['path']})
+        return Response({**account_data(request), 'landing_path':menus[0]['path'] if complete(request) else '/admin/passkey'})
 
 
 class Logout(Endpoint):

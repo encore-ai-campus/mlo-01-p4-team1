@@ -8,3 +8,6 @@ argon2-cffi
 kafka-python
 boto3
 uvicorn
+cryptography
+Authlib
+webauthn==3.0.1
