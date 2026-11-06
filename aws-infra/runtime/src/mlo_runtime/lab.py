@@ -143,11 +143,11 @@ class Lab:
     def recreate(self):
         self.compose("up", "-d", "--force-recreate", timeout=120)
 
-    def close(self):
+    def close(self, *, timeout=120):
         if self.compose_path.exists():
             self.compose("logs", "--no-color", check=False)
             # These volumes only belong to the project created above, never global prune.
-            self.compose("down", "--volumes", "--remove-orphans", timeout=120)
+            self.compose("down", "--volumes", "--remove-orphans", timeout=timeout)
             remaining = self.docker("volume", "ls", "--filter",
                                     "label=com.docker.compose.project=" + self.project,
                                     "--format", "{{.Name}}")

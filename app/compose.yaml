@@ -26,6 +26,16 @@ x-api-environment: &api-env
   MUSIC_RAW_DIRECTORY: /workspace/app/.local/music-raw
   GEMINI_ENABLED: "0"
   YOUTUBE_PLAYBACK_MODE: KEYLESS
+  MEMBER_EMAIL_KEYS: '{"local":"${MLO_DEV_MEMBER_EMAIL_KEY:?Run python3 docker/init_dev_env.py}"}'
+  MEMBER_ACTIVE_EMAIL_KEY: local
+  MEMBER_LOOKUP_KEY: ${MLO_DEV_MEMBER_LOOKUP_KEY:?Run python3 docker/init_dev_env.py}
+  MEMBER_PUBLIC_ORIGIN: http://localhost:5173
+  EMAIL_HOST: mailpit
+  EMAIL_PORT: "1025"
+  EMAIL_USE_TLS: "0"
+  DEFAULT_FROM_EMAIL: accounts@example.org
+  ADMIN_PASSKEY_RP_ID: localhost
+  ADMIN_PASSKEY_ORIGIN: http://localhost:5173
 
 x-ads-environment: &ads-env
   DJANGO_DEBUG: "1"
@@ -105,6 +115,20 @@ services:
       api:
         condition: service_healthy
     restart: unless-stopped
+    networks: [dev]
+
+  account-mail-worker:
+    profiles: [workers]
+    image: mlo-p4-api:dev
+    environment: *api-env
+    volumes:
+      - .:/workspace/app:ro
+    command: ["python", "-m", "backend.manage", "deliver_account_mail"]
+    depends_on:
+      api:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
     networks: [dev]
 
   frontend:

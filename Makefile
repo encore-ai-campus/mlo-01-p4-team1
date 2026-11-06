@@ -8,6 +8,10 @@ APP_CHECK_OUTPUT ?= .artifacts/app-predeploy/summary.json
 # Docker suites run serially even when the caller supplies make -j.
 .NOTPARALLEL: predeploy-check
 
+.PHONY: member-check
+member-check:
+	aws-infra/runtime/.venv/bin/python scripts/check_member_local.py --images "$(APP_IMAGES)"
+
 prep-check:
 	$(PYTHON) scripts/check_preparation.py
 

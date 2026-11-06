@@ -111,3 +111,7 @@ revision·secret 충돌 거부·DB 장애/복구·정상 종료를 확인하고 
 결과와 원시 로그는 Git 제외 `.artifacts/`에 저장합니다. 로컬 image ID와 레지스트리 digest를
 구분하고, 실제 AWS·물리 AMD64·3AZ·제품 전체 E2E·새 회원 기능 성공으로 확대하지 않습니다.
 Mac의 AMD64 컨테이너 실행은 에뮬레이션 호환 시험입니다. 실제 EC2/systemd 인수는 별도입니다.
+
+## 회원 기능 수용
+
+회원·SMTP·패스키 변경은 저장소 루트에서 `make app-images member-check app-predeploy`로 검증합니다. 새 PostgreSQL/메일 수집기/Chromium 가상 인증기를 사용하며 기존 DB와 기존 Compose 프로젝트를 대상으로 하지 않습니다. 운영 web 이미지의 실제 React 빌드를 Django에서 제공하고 Vite 없이 브라우저 흐름을 확인합니다. 도구·정책·운영 입력은 [회원 실행 계약](../../../app/docs/product/MEMBER-ACCOUNTS.md)을 참조합니다. 운영 이미지 검사는 두 아키텍처에서 HTTPS 화면 직접 접근·정적 자산·DB 준비 상태를 확인합니다.

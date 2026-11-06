@@ -1,3 +1,13 @@
+# Immutable React assets for the production web host; no Vite server at runtime.
+FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS frontend
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+WORKDIR /frontend
+RUN npm install --global pnpm@10.19.0
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY frontend/ ./
+RUN pnpm build
+
 # Development image. Runtime source can be bind-mounted by compose.
 FROM python:3.14-slim-bookworm@sha256:516b51cb9db2ef061e465c803e50f64361b82cefd91e525b889b967b83e83527 AS development
 
@@ -22,7 +32,8 @@ CMD ["python", "-m", "backend.manage", "runserver", "0.0.0.0:8001"]
 FROM development AS production
 ARG APP_REVISION
 RUN python -c 'import re,sys;sys.exit(0 if re.fullmatch("[0-9a-f]{40}|[0-9a-f]{64}",sys.argv[1]) else 2)' "$APP_REVISION"
-ENV APP_REVISION=$APP_REVISION APP_KIND=web DJANGO_SETTINGS_MODULE=backend.cafe.settings C_LOCAL_DEMO=0
+ENV APP_REVISION=$APP_REVISION APP_KIND=web DJANGO_SETTINGS_MODULE=backend.cafe.settings C_LOCAL_DEMO=0 FRONTEND_REQUIRED=1
+COPY --from=frontend --chown=mlo:mlo /frontend/dist /workspace/app/frontend/dist
 COPY --chmod=0555 docker/runtime/serve.py /opt/mlo/bin/serve
 COPY --chmod=0555 docker/runtime/readiness.py /opt/mlo/bin/readiness
 COPY docker/runtime/app_runtime.py /opt/mlo/bin/app_runtime.py
