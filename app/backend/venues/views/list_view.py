@@ -1,0 +1,88 @@
+import json
+from typing import Any, Dict, List
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
+
+from backend.venues.services.ranking_service import filter_and_rank_venues
+from backend.venues.services.event_service import check_and_send_nearby_event_promo
+
+
+@require_GET
+def venue_list_api(request):
+    """
+    GET /api/venues
+    - 쿼리 파라미터 기반 매장 탐색 및 Two-Tower 추천 랭킹 API
+    """
+    gu = request.GET.get('sigungu') or request.GET.get('gu') or '강남구'
+    dong = request.GET.get('dong', '').strip()
+    category_raw = request.GET.get('category', 'ALL').strip()
+    price_tier_raw = request.GET.get('price_tier', '').strip()
+    store_type_raw = request.GET.get('store_type', '').strip()
+    event_only = request.GET.get('event_only', '0') in ('1', 'true', 'True')
+    partner_only = request.GET.get('partner_only', '0') in ('1', 'true', 'True')
+    open_now = request.GET.get('open_now', '0') in ('1', 'true', 'True')
+    q = request.GET.get('q', '').strip()
+    weather = request.GET.get('weather', 'CLEAR').strip().upper()
+    time_slot = request.GET.get('time_slot', 'AFTERNOON').strip().upper()
+
+    # 유저 식별자 (쿠키 또는 헤더 또는 쿼리)
+    user_id = request.GET.get('user_id') or request.COOKIES.get('cafe_guest') or 'guest_anonymous'
+
+    # 카테고리 정규화
+    cat = 'ALL'
+    if category_raw in ('카페', 'CAFE'):
+        cat = 'CAFE'
+    elif category_raw in ('주점', '술집', 'PUB'):
+        cat = 'PUB'
+
+    # 형태 정규화
+    prefer_local = None
+    if store_type_raw.upper() in ('로컬', '개인', '개인/로컬매장', 'LOCAL'):
+        prefer_local = True
+    elif store_type_raw.upper() in ('체인', '체인점', '프랜차이즈', 'CHAIN'):
+        prefer_local = False
+
+    # 랭킹 서비스 호출
+    results = filter_and_rank_venues(
+        gu=gu,
+        user_id=user_id,
+        category=cat,
+        budget_tier=price_tier_raw or None,
+        weather=weather,
+        time_slot=time_slot,
+        only_with_events=event_only,
+        only_open_now=open_now,
+        prefer_local=prefer_local,
+        limit=50,
+    )
+
+    # 추가 메모리 필터: 동 단위 & 검색어(q) & 파트너 전용
+    filtered_results = []
+    for item in results:
+        if dong and dong not in item.get('dong_name', ''):
+            continue
+        if partner_only and not item.get('is_partner'):
+            continue
+        if q:
+            q_lower = q.lower()
+            name_match = q_lower in item.get('venue_name', '').lower()
+            dong_match = q_lower in item.get('dong_name', '').lower()
+            menu_match = any(q_lower in m.get('menu_name', '').lower() for m in item.get('matched_menus_preview', []))
+            if not (name_match or dong_match or menu_match):
+                continue
+
+        # active_event 단일 대표 이벤트 추출
+        active_events = item.get('active_events', [])
+        item['active_event'] = active_events[0] if active_events else None
+
+        filtered_results.append(item)
+
+    # 유저 동네 탐색 시 당일 주변 이벤트 프로모 알림 자동 체크
+    check_and_send_nearby_event_promo(user_id=user_id, gu_name=gu)
+
+    return JsonResponse({
+        'success': True,
+        'gu': gu,
+        'total_count': len(filtered_results),
+        'venues': filtered_results,
+    })
