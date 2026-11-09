@@ -381,6 +381,61 @@ class CsvLazyRepository:
             self._gu_venues_cache[gu_name] = venues
             return venues
 
+    def get_venues_by_bbox(
+        self,
+        min_lat: float,
+        max_lat: float,
+        min_lng: float,
+        max_lng: float,
+        fallback_gu: str = '강남구',
+    ) -> List[Dict[str, Any]]:
+        """
+        사용자가 현재 보고 있는 지도 영역(Bounding Box: min_lat~max_lat, min_lng~max_lng) 내의 매장을 반환.
+        - 지도 영역과 겹치거나 인접한 구의 CSV를 자동 지연 로딩한 뒤, 실제 위경도가 BBox 안에 들어오는 매장들을 추출합니다.
+        """
+        gu_centers = {
+            '강남구': (37.5172, 127.0286), '서초구': (37.4837, 127.0324), '송파구': (37.5145, 127.1059),
+            '강동구': (37.5301, 127.1238), '마포구': (37.5563, 126.9226), '은평구': (37.6176, 126.9227),
+            '서대문구': (37.5791, 126.9368), '용산구': (37.5326, 126.9905), '종로구': (37.5730, 126.9794),
+            '중구': (37.5641, 126.9979), '성동구': (37.5446, 127.0439), '광진구': (37.5385, 127.0823),
+            '영등포구': (37.5264, 126.8962), '관악구': (37.4784, 126.9516), '동작구': (37.5124, 126.9393),
+            '강서구': (37.5510, 126.8495), '양천구': (37.5170, 126.8665), '구로구': (37.4954, 126.8874),
+            '금천구': (37.4569, 126.8955), '성북구': (37.5894, 127.0167), '동대문구': (37.5744, 127.0398),
+            '중랑구': (37.6065, 127.0927), '노원구': (37.6542, 127.0568), '도봉구': (37.6688, 127.0471),
+            '강북구': (37.6396, 127.0257),
+        }
+        center_lat = (min_lat + max_lat) / 2.0
+        center_lng = (min_lng + max_lng) / 2.0
+
+        # BBox 여유 반경(약 ±0.06도) 내에 중심점이 들어오는 자치구들을 후보로 선정
+        pad = 0.065
+        target_gus = [
+            g for g, (clat, clng) in gu_centers.items()
+            if (min_lat - pad <= clat <= max_lat + pad) and (min_lng - pad <= clng <= max_lng + pad)
+        ]
+        if not target_gus:
+            # 가장 가까운 구 2개 선택
+            sorted_gus = sorted(
+                gu_centers.keys(),
+                key=lambda g: (gu_centers[g][0] - center_lat) ** 2 + (gu_centers[g][1] - center_lng) ** 2,
+            )
+            target_gus = sorted_gus[:2] if sorted_gus else [fallback_gu]
+
+        with self._lock:
+            matched_venues: List[Dict[str, Any]] = []
+            seen_ids = set()
+            for g in target_gus:
+                for v in self.get_venues_by_gu(g):
+                    vid = v.get('venue_id')
+                    if vid in seen_ids:
+                        continue
+                    lat = float(v.get('latitude') or 0.0)
+                    lng = float(v.get('longitude') or 0.0)
+                    if min_lat <= lat <= max_lat and min_lng <= lng <= max_lng:
+                        seen_ids.add(vid)
+                        matched_venues.append(v)
+            return matched_venues
+
     def get_venue_by_id(self, venue_id: str) -> Optional[Dict[str, Any]]:
         """매장 단건 고속 조회 (O(1) 해시 룩업, 미로드 시 강남구 기본 로드)"""
         with self._lock:

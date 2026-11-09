@@ -42,6 +42,18 @@ def venue_list_api(request):
     elif store_type_raw.upper() in ('체인', '체인점', '프랜차이즈', 'CHAIN'):
         prefer_local = False
 
+    # 지도 뷰포트(BBox) 파라미터 파싱 (사용자가 보고 있는 맵 영역 기준 검색 지원)
+    bbox = None
+    try:
+        min_lat_s = request.GET.get('min_lat')
+        max_lat_s = request.GET.get('max_lat')
+        min_lng_s = request.GET.get('min_lng')
+        max_lng_s = request.GET.get('max_lng')
+        if min_lat_s and max_lat_s and min_lng_s and max_lng_s:
+            bbox = (float(min_lat_s), float(max_lat_s), float(min_lng_s), float(max_lng_s))
+    except (ValueError, TypeError):
+        bbox = None
+
     # 랭킹 서비스 호출 (조건에 부합하는 전체 후보 매장 추출 후 동/검색어/파트너 필터까지 적용하여 정확한 전수 카운트 산출)
     results, _ = filter_and_rank_venues(
         gu=gu,
@@ -55,6 +67,7 @@ def venue_list_api(request):
         prefer_local=prefer_local,
         limit=5000,
         return_total=True,
+        bbox=bbox,
     )
 
     # 추가 메모리 필터: 동 단위 & 검색어(q) & 파트너 전용

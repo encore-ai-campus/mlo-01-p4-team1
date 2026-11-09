@@ -21,6 +21,8 @@ export const VenueExplorePage: React.FC = () => {
   const {
     gu,
     setGu,
+    mapBounds,
+    setMapBounds,
     weather,
     setWeather,
     category,
@@ -198,8 +200,26 @@ export const VenueExplorePage: React.FC = () => {
           top: '20px',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-            <div style={{ fontWeight: 800, fontSize: '16px' }}>
-              🗺️ {gu} 매장 인터랙티브 지도
+            <div style={{ fontWeight: 800, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>🗺️ {gu} 매장 인터랙티브 지도</span>
+              {mapBounds && (
+                <button
+                  type="button"
+                  onClick={() => setMapBounds(null)}
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    backgroundColor: '#eff6ff',
+                    color: '#2563eb',
+                    border: '1px solid #bfdbfe',
+                    cursor: 'pointer',
+                  }}
+                >
+                  현 지도 영역 기준 ({totalCount.toLocaleString()}곳) · 구 전체 보기 ✕
+                </button>
+              )}
             </div>
             <a href="/admin/venues/closures" style={{ fontSize: '12px', color: '#dc2626', textDecoration: 'none', fontWeight: 600 }}>
               🛡️ 폐업 제보 관리자 검수함 &rarr;
@@ -211,6 +231,9 @@ export const VenueExplorePage: React.FC = () => {
             venues={venues}
             selectedVenueId={detailVenueId}
             onSelectVenue={handleOpenDetail}
+            onBoundsChange={(bounds) => {
+              setMapBounds(bounds);
+            }}
           />
         </div>
 

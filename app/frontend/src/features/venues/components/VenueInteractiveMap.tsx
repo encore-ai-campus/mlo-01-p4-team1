@@ -1,11 +1,13 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { VenueItem } from '../types/venue.types';
+import { MapBounds } from '../hooks/useVenueList';
 
 interface VenueInteractiveMapProps {
   gu: string;
   venues: VenueItem[];
   selectedVenueId: string | null;
   onSelectVenue: (venueId: string) => void;
+  onBoundsChange?: (bounds: MapBounds, detectedGu?: string) => void;
 }
 
 // 서울 25개 자치구 중심 좌표 (매장 0개일 때 폴백용)
@@ -48,11 +50,17 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
   venues,
   selectedVenueId,
   onSelectVenue,
+  onBoundsChange,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersLayerRef = useRef<any>(null);
-  const [leafletReady, setLeafletReady] = React.useState<boolean>(Boolean(window.L));
+  const lastGuRef = useRef<string>('');
+  const suppressMoveEventRef = useRef<boolean>(false);
+  const onBoundsChangeRef = useRef(onBoundsChange);
+  onBoundsChangeRef.current = onBoundsChange;
+  const [leafletReady, setLeafletReady] = useState<boolean>(Boolean(window.L));
+  const [pendingBounds, setPendingBounds] = useState<{ bounds: MapBounds; nearestGu: string } | null>(null);
 
   useEffect(() => {
     if (window.L) {
@@ -99,6 +107,42 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
 
       markersLayerRef.current = L.layerGroup().addTo(map);
       mapInstanceRef.current = map;
+
+      // 사용자가 지도를 드래그(Pan)하거나 줌(Zoom)했을 때 현재 보고 있는 맵 영역(BBox) 기준으로 매장 자동 갱신
+      let debounceTimer: any = null;
+      const handleUserMapMove = () => {
+        if (suppressMoveEventRef.current) return;
+        const b = map.getBounds();
+        const center = map.getCenter();
+        const newBounds: MapBounds = {
+          min_lat: Number(b.getSouth().toFixed(6)),
+          max_lat: Number(b.getNorth().toFixed(6)),
+          min_lng: Number(b.getWest().toFixed(6)),
+          max_lng: Number(b.getEast().toFixed(6)),
+        };
+
+        // 현재 지도 중심 좌표에서 가장 가까운 자치구 판별
+        let nearestGu = gu;
+        let minDist = Infinity;
+        Object.entries(GU_CENTER_COORDS).forEach(([gName, [clat, clng]]) => {
+          const d = (clat - center.lat) ** 2 + (clng - center.lng) ** 2;
+          if (d < minDist) {
+            minDist = d;
+            nearestGu = gName;
+          }
+        });
+
+        setPendingBounds({ bounds: newBounds, nearestGu });
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          if (onBoundsChangeRef.current) {
+            onBoundsChangeRef.current(newBounds, nearestGu);
+          }
+        }, 350);
+      };
+
+      map.on('dragend', handleUserMapMove);
+      map.on('zoomend', handleUserMapMove);
     }
 
     const map = mapInstanceRef.current;
@@ -173,20 +217,59 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
       boundsPoints.push([v.latitude, v.longitude]);
     });
 
-    // 3. 핀들의 실제 위경도 분포에 맞춰 지도 카메라 자동 이동 (fitBounds)
-    if (boundsPoints.length > 1) {
-      map.fitBounds(boundsPoints, { padding: [36, 36], maxZoom: 16 });
-    } else if (boundsPoints.length === 1) {
-      map.setView(boundsPoints[0], 15);
-    } else {
-      const fallbackCenter = GU_CENTER_COORDS[gu] || [37.5172, 127.0286];
-      map.setView(fallbackCenter, 14);
+    // 3. 드롭다운에서 자치구(gu)가 변경된 경우에만 지도 카메라를 해당 구로 자동 이동 (사용자가 직접 드래그한 경우 카메라 고정!)
+    if (lastGuRef.current !== gu) {
+      lastGuRef.current = gu;
+      setPendingBounds(null);
+      suppressMoveEventRef.current = true;
+      if (boundsPoints.length > 1) {
+        map.fitBounds(boundsPoints, { padding: [36, 36], maxZoom: 15 });
+      } else if (boundsPoints.length === 1) {
+        map.setView(boundsPoints[0], 15);
+      } else {
+        const fallbackCenter = GU_CENTER_COORDS[gu] || [37.5172, 127.0286];
+        map.setView(fallbackCenter, 14);
+      }
+      setTimeout(() => {
+        suppressMoveEventRef.current = false;
+      }, 450);
     }
   }, [leafletReady, gu, venues, selectedVenueId]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '520px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+      {pendingBounds && (
+        <button
+          type="button"
+          onClick={() => {
+            if (onBoundsChange) {
+              onBoundsChange(pendingBounds.bounds, pendingBounds.nearestGu);
+            }
+          }}
+          style={{
+            position: 'absolute',
+            top: '14px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 550,
+            backgroundColor: '#0f172a',
+            color: '#ffffff',
+            border: '2px solid #38bdf8',
+            borderRadius: '9999px',
+            padding: '8px 16px',
+            fontSize: '12px',
+            fontWeight: 800,
+            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.35)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+          }}
+        >
+          <span>🔄 현 지도 영역 내 매장 탐색 중 ({pendingBounds.nearestGu} 일대)</span>
+        </button>
+      )}
       <div
         style={{
           position: 'absolute',
