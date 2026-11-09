@@ -141,12 +141,21 @@ export const OwnerVenueClaimModal: React.FC<OwnerVenueClaimModalProps> = ({
               <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>자치구</label>
-                  <input
-                    type="text"
+                  <select
                     value={guName}
                     onChange={(e) => setGuName(e.target.value)}
-                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
-                  />
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box', backgroundColor: '#ffffff' }}
+                  >
+                    {[
+                      '강남구', '강동구', '강북구', '강서구', '관악구',
+                      '광진구', '구로구', '금천구', '노원구', '도봉구',
+                      '동대문구', '동작구', '마포구', '서대문구', '서초구',
+                      '성동구', '성북구', '송파구', '양천구', '영등포구',
+                      '용산구', '은평구', '종로구', '중구', '중랑구',
+                    ].map((g) => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>업종</label>
