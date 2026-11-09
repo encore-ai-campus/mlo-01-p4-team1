@@ -1,6 +1,7 @@
 import {useEffect,useRef,useState} from 'react';
 import {api,canonical,key} from '../../shared/api';
 import {Icon} from '../../components/Icons';
+import {AdAnalytics} from './AdAnalytics';
 import {PlatformAdminReturn,type AdminMe} from '../admin/AdminLayout';
 
 type Measurement={status?:string;impressions:number|null;clicks:number|null;as_of?:string|null;is_stale?:boolean};
@@ -18,6 +19,7 @@ const count=(value:number|null|undefined)=>value===null||value===undefined?'연�
 const assetUrl=(id:string)=>'/api/admin/ad-assets/'+encodeURIComponent(id);
 
 export function AdsAdmin(){
+  const [view,setView]=useState<'manage'|'analytics'>('manage');
   const [me,setMe]=useState<Me|null>(null),[rows,setRows]=useState<Ad[]>([]),[summary,setSummary]=useState<Summary|null>(null);
   const [form,setForm]=useState(empty),[editing,setEditing]=useState<Ad|null>(null),[file,setFile]=useState<File|null>(null);
   const [fileUrl,setFileUrl]=useState(''),[previewAsset,setPreviewAsset]=useState<{asset_id:string;title:string;placement:'top'|'bottom'}|null>(null);
@@ -101,9 +103,11 @@ export function AdsAdmin(){
   return <>
 
     <main className="admin ads-admin"><PlatformAdminReturn/><h1>광고 관리</h1><p className="ads-subtitle">상·하단 배너 게시 상태를 관리하세요.</p>
-      {error&&<p role="alert" className="notice error">{error} <button disabled={busy||loading} onClick={()=>void load()}>다시 확인</button></p>}
-      {notice&&<p role="status" className="notice">{notice}</p>}
+      {view==='manage'&&error&&<p role="alert" className="notice error">{error} <button disabled={busy||loading} onClick={()=>void load()}>다시 확인</button></p>}
+      {view==='manage'&&notice&&<p role="status" className="notice">{notice}</p>}
       {!allowed?<p>광고 관리 권한을 확인해 주세요. <a href="/platform/admin/login">로그인</a></p>:<>
+        <div className="segments ads-tabs" role="group" aria-label="광고 업무 선택"><button aria-pressed={view==='manage'} onClick={()=>setView('manage')}>게시 관리</button><button aria-pressed={view==='analytics'} onClick={()=>setView('analytics')}>성과 리포트</button></div>
+        {view==='analytics'?<AdAnalytics/>:<>
         <section className="ads-metrics" aria-label="광고 요약">
           {[{title:'게시 중',value:summary?.counts.ACTIVE,icon:'▶',kind:'active'},
             {title:'예약',value:summary?.counts.RESERVED,icon:'◷',kind:'reserved'},
@@ -153,6 +157,7 @@ export function AdsAdmin(){
           <button type="button" className="ads-preview-button" onClick={()=>void submit(true)}>편집 내용 미리보기</button>
           <div className="ads-editor-actions"><button className="primary" type="submit">{busy?'처리 중…':'저장'}</button><button type="button" disabled={!editing||editing.paused||editing.status==='ENDED'} onClick={()=>editing&&void stop(editing)}>게시 중단</button></div>
         </fieldset></form></section></div>
+        </>}
       </>}
     </main>
   </>;

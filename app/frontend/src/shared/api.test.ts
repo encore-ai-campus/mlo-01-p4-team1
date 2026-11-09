@@ -19,3 +19,12 @@ it('sends a delivery proof separately from the event JSON while keeping CSRF and
     headers:{'Content-Type':'application/json','X-CSRFToken':'fixture-csrf','Idempotency-Key':'request-key','X-Ad-Delivery-Token':'proof-d1'},
   }));
 });
+
+it('preserves server retry timing on temporary advertising API errors',async()=>{
+  vi.stubGlobal('document',{cookie:''});
+  vi.stubGlobal('fetch',vi.fn().mockResolvedValue({
+    ok:false,status:429,headers:new Headers({'Retry-After':'30'}),
+    json:async()=>({code:'RATE_LIMITED',message:'temporary'}),
+  }));
+  await expect(api('/api/ad-events','POST',{})).rejects.toMatchObject({status:429,retryAfterMs:30000,code:'RATE_LIMITED'});
+});
