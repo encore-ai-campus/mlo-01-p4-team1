@@ -24,6 +24,7 @@ def filter_and_rank_venues(
     mood_tags: Optional[List[str]] = None,
     limit: int = 30,
     return_total: bool = False,
+    bbox: Optional[tuple[float, float, float, float]] = None,
 ) -> Union[List[Dict[str, Any]], tuple[List[Dict[str, Any]], int]]:
     """
     Track 2 매장 탐색, 필터링 및 Two-Tower 결합 랭킹 서비스.
@@ -37,8 +38,12 @@ def filter_and_rank_venues(
     two_tower = get_micro_two_tower()
     user_memory = get_user_memory()
 
-    # 1. 구 단위 매장 목록 지연 로딩
-    raw_venues = repo.get_venues_by_gu(gu)
+    # 1. 지도 뷰포트(BBox) 또는 구 단위 매장 목록 지연 로딩
+    if bbox is not None:
+        min_lat, max_lat, min_lng, max_lng = bbox
+        raw_venues = repo.get_venues_by_bbox(min_lat, max_lat, min_lng, max_lng, fallback_gu=gu)
+    else:
+        raw_venues = repo.get_venues_by_gu(gu)
     if not raw_venues:
         return ([], 0) if return_total else []
 

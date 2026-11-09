@@ -22,6 +22,10 @@ export interface VenueSearchParams {
   weather?: string;
   time_slot?: string;
   user_id?: string;
+  min_lat?: number;
+  max_lat?: number;
+  min_lng?: number;
+  max_lng?: number;
 }
 
 export async function fetchVenues(params: VenueSearchParams): Promise<{ success: boolean; gu: string; total_count: number; venues: VenueItem[] }> {
@@ -38,6 +42,12 @@ export async function fetchVenues(params: VenueSearchParams): Promise<{ success:
   if (params.weather) query.set('weather', params.weather);
   if (params.time_slot) query.set('time_slot', params.time_slot);
   if (params.user_id) query.set('user_id', params.user_id);
+  if (params.min_lat !== undefined && params.max_lat !== undefined && params.min_lng !== undefined && params.max_lng !== undefined) {
+    query.set('min_lat', String(params.min_lat));
+    query.set('max_lat', String(params.max_lat));
+    query.set('min_lng', String(params.min_lng));
+    query.set('max_lng', String(params.max_lng));
+  }
 
   const res = await fetch(`/api/venues?${query.toString()}`);
   if (!res.ok) {
