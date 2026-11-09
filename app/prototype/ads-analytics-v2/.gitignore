@@ -1,0 +1,7 @@
+.local/
+__pycache__/
+*.py[cod]
+*.sqlite3*
+.venv/
+.env
+.ruff_cache/
