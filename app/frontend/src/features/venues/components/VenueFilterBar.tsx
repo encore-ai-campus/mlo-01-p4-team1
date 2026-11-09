@@ -44,12 +44,21 @@ export const VenueFilterBar: React.FC<VenueFilterBarProps> = ({
   setSearchQuery,
   totalCount,
 }) => {
-  const guList = [
+  const seoulGuList = [
     '강남구', '강동구', '강북구', '강서구', '관악구',
     '광진구', '구로구', '금천구', '노원구', '도봉구',
     '동대문구', '동작구', '마포구', '서대문구', '서초구',
     '성동구', '성북구', '송파구', '양천구', '영등포구',
     '용산구', '은평구', '종로구', '중구', '중랑구',
+  ];
+
+  const gyeonggiCityList = [
+    '가평군', '고양시', '과천시', '광명시', '광주시',
+    '구리시', '군포시', '김포시', '남양주시', '동두천시',
+    '부천시', '성남시', '수원시', '시흥시', '안양시',
+    '안성시', '양주시', '양평군', '여주시', '연천군',
+    '오산시', '용인시', '의왕시', '의정부시', '이천시',
+    '파주시', '평택시', '포천시', '하남시', '화성시',
   ];
 
   const budgetOptions: Array<{ label: string; value: BudgetTier }> = [
@@ -86,9 +95,16 @@ export const VenueFilterBar: React.FC<VenueFilterBarProps> = ({
               cursor: 'pointer',
             }}
           >
-            {guList.map((g) => (
-              <option key={g} value={g}>{g}</option>
-            ))}
+            <optgroup label="서울특별시 (25개 자치구)">
+              {seoulGuList.map((g) => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </optgroup>
+            <optgroup label="경기도 (30개 시·군)">
+              {gyeonggiCityList.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </optgroup>
           </select>
           <span style={{ fontSize: '14px', color: '#64748b' }}>
             검색 결과 <strong>{totalCount.toLocaleString()}</strong>개 매장
