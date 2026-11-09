@@ -14,8 +14,10 @@ def day(value):
 
 
 def scope_matches(event, scope):
-    return all(not scope.get(key) or getattr(event, key) == scope[key]
-               for key in ("ad_id", "placement", "media_id"))
+    return all(
+        not scope.get(key) or getattr(event, key) == scope[key]
+        for key in ("ad_id", "placement", "media_id")
+    )
 
 
 def validate_query(cutoff, settled_through=None, **scope):
@@ -55,9 +57,14 @@ def prepare(events, cutoff, scope, max_events=100_000):
         if event.event_id in unique and unique[event.event_id] != event:
             raise Conflict("EVENT_ID_CONFLICT")
         unique[event.event_id] = event
-    visible = sorted((event for event in unique.values()
-                      if event.received_at <= cutoff and scope_matches(event, scope)),
-                     key=lambda event: event.event_id)
+    visible = sorted(
+        (
+            event
+            for event in unique.values()
+            if event.received_at <= cutoff and scope_matches(event, scope)
+        ),
+        key=lambda event: event.event_id,
+    )
     eligible = [event for event in visible if event.counted and not event.is_test]
     by_delivery = {}
     kinds = set()
@@ -74,15 +81,26 @@ def prepare(events, cutoff, scope, max_events=100_000):
 
 
 def assemble(visible, rows, cutoff, settled, scope, details=None):
-    rows = sorted(rows, key=lambda row: (row["date_kst"], row["ad_id"], row["placement"], row["media_id"]))
+    rows = sorted(
+        rows, key=lambda row: (row["date_kst"], row["ad_id"], row["placement"], row["media_id"])
+    )
     totals = {name: sum(row[name] for row in rows) for name in COUNTERS}
-    totals["ctr_percent"] = (round(totals["matched_clicks"] * 100 / totals["impressions"], 6)
-                             if totals["impressions"] else None)
+    totals["ctr_percent"] = (
+        round(totals["matched_clicks"] * 100 / totals["impressions"], 6)
+        if totals["impressions"]
+        else None
+    )
     for row in rows:
-        row["ctr_percent"] = (round(row["matched_clicks"] * 100 / row["impressions"], 6)
-                              if row["impressions"] else None)
-    counts = Counter(event.result for event in visible
-                     if not event.is_test and in_period(day(event.occurred_at), scope))
+        row["ctr_percent"] = (
+            round(row["matched_clicks"] * 100 / row["impressions"], 6)
+            if row["impressions"]
+            else None
+        )
+    counts = Counter(
+        event.result
+        for event in visible
+        if not event.is_test and in_period(day(event.occurred_at), scope)
+    )
     report = {
         "report_policy_version": REPORT_POLICY,
         "as_of": stamp(cutoff),
@@ -107,11 +125,14 @@ def assemble(visible, rows, cutoff, settled, scope, details=None):
     return report
 
 
-def report(events, *, cutoff, settled_through=None, include_details=False, max_events=100_000, **scope):
+def report(
+    events, *, cutoff, settled_through=None, include_details=False, max_events=100_000, **scope
+):
     cutoff, settled, scope = validate_query(cutoff, settled_through, **scope)
     visible, eligible = prepare(events, cutoff, scope, max_events)
-    impressions = {event.delivery_id: event for event in eligible
-                   if event.event_type == "VIEWABLE_IMPRESSION"}
+    impressions = {
+        event.delivery_id: event for event in eligible if event.event_type == "VIEWABLE_IMPRESSION"
+    }
     rows, details = {}, []
 
     def increment(event, metric_day, counter):
@@ -119,8 +140,13 @@ def report(events, *, cutoff, settled_through=None, include_details=False, max_e
             return
         key = (metric_day, event.ad_id, event.placement, event.media_id)
         if key not in rows:
-            rows[key] = {"date_kst": key[0], "ad_id": key[1], "placement": key[2],
-                         "media_id": key[3], **dict.fromkeys(COUNTERS, 0)}
+            rows[key] = {
+                "date_kst": key[0],
+                "ad_id": key[1],
+                "placement": key[2],
+                "media_id": key[3],
+                **dict.fromkeys(COUNTERS, 0),
+            }
         rows[key][counter] += 1
 
     for event in eligible:
@@ -139,8 +165,17 @@ def report(events, *, cutoff, settled_through=None, include_details=False, max_e
             status = "pending_clicks"
         increment(event, metric_day, status)
         if in_period(metric_day, scope):
-            details.append({"event_id": event.event_id, "delivery_id": event.delivery_id,
-                            "classification": status, "date_kst": metric_day,
-                            "impression_event_id": impression.event_id if status == "matched_clicks" else None})
-    return assemble(visible, list(rows.values()), cutoff, settled, scope,
-                    details if include_details else None)
+            details.append(
+                {
+                    "event_id": event.event_id,
+                    "delivery_id": event.delivery_id,
+                    "classification": status,
+                    "date_kst": metric_day,
+                    "impression_event_id": impression.event_id
+                    if status == "matched_clicks"
+                    else None,
+                }
+            )
+    return assemble(
+        visible, list(rows.values()), cutoff, settled, scope, details if include_details else None
+    )

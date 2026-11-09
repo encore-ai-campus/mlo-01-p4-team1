@@ -3,11 +3,12 @@
 - 작성일: 2026-11-06
 - 수정일: 2026-11-09
 - 작성자/담당: Codex / 사용자 요청에 따른 별도 개선판 작성
-- 범위: 기존 광고 코드·문서를 보존한 독립 성과 분석 V2, 로컬 시연·검증 및 선택 어댑터
+- 78452f9 이관 당시 범위: 기존 광고 코드·문서를 보존한 독립 성과 분석 V2, 로컬 시연·검증 및 선택 어댑터
 - 원본 작성 당시 3차 기준: `develop` / `42e5a821c937580b56b8a5a81503912ea6156c0c`
 - 4차 이관 기준: `encore-ai-campus/mlo-01-p4-team1`의 `develop` / `a4155b1bebfe19318c2f20c8419fea41d32e84b7`
 - 이관 브랜치/경로: `feature/AD` / `app/prototype/ads-analytics-v2/`
-- 상태: 독립 프로토타입 로컬 검증. 기존 서버·DB·프론트·AWS 미연결/미적용
+- 이관 당시 상태: 독립 프로토타입 로컬 검증. 기존 서버·DB·프론트·AWS 미연결/미적용
+- 현재 로컬 개선: 아래 광고 시스템 개선 절과 FEEDBACK.md를 따릅니다. 실제 외부 서비스 통합은 수행 전입니다.
 - [코드·실행·인계 안내](README.md)
 
 ## 기준 → 원래 코드 → 이번 독립판
@@ -67,7 +68,7 @@
 
 ## 4차 광고 전용 이관 범위 (2026-11-09)
 
-- 관련 Issue: [#13 광고 성과 분석 V2 독립 모듈 이관](https://github.com/encore-ai-campus/mlo-01-p4-team1/issues/13)
+- 관련 Issue: [#13 광고 시스템 개선 및 평가 피드백 대응](https://github.com/encore-ai-campus/mlo-01-p4-team1/issues/13)
 
 - 최신 4차 develop에서 분기한 `feature/AD`에 독립 광고 프로토타입 25개 파일과 이 이관 문서만 선별합니다. 저장소의 공개 소스 경계에 따라 과거 app/docs/development 경로 대신 프로토타입 안에 이관 기록을 둡니다.
 - Python 소스·합성 fixture는 원본 내용을 유지합니다. 문서의 실행 경로·기준 커밋·인프라 전제를 이관 기준에 맞춥니다.
@@ -82,3 +83,42 @@
 - Ruff 정적 검사 통과. Python 소스 20개 AST 파싱 및 원본 바이트 일치를 확인했습니다. 합성 fixture·설정 예시의 내용도 원본과 같습니다.
 - 이관 문서 상대 링크 모두 유효합니다. 기존 4차 추적 파일 수정 없이 광고 전용 신규 파일 26개만 선별합니다.
 - 테스트가 만든 .local 임시 자료는 Git 제외 대상입니다. 기존 3차 원본과 4차 런타임·인프라는 변경하지 않았습니다.
+
+## 광고 시스템 개선 — 미반영 피드백 보완 (2026-11-09)
+
+### 판단과 변경
+
+78452f9는 독립 분석 모듈의 이관이었으며 전체 광고 개선 완료가 아니었습니다. 이번에는 사용자 요청에 따라 지속 수집·원본 대조·관리자 보고·배너 전송·실행 경로와 검증 도구를 연결했습니다. 전체 작업명은 광고 시스템 개선, 분석 core는 그 하위 모듈입니다.
+
+- [공통 core](../../ads_analytics_v2/)를 app 루트로 이동해 실제 앱/Docker에서 import합니다.
+- [pipeline](../../ads_analytics_v2/pipeline.py): 원본 읽기→진행상태/발행 대기→broker→별도 sink→materialized snapshot입니다. consumer 없이 보고서를 생성하지 않습니다.
+- [수집](../../ads_analytics_v2/adapters/source_snapshot.py): 고정 cutoff/ID 상한·CAS 진행상태·완료 후 재순회로 중단과 늦은 commit을 처리합니다.
+- [관리자 API](../../ad-server/backend/api/ads_analytics.py): 기존 ADMIN 권한으로 저장 스냅샷만 읽고 필터·합계/CTR을 계산합니다.
+- [화면](../../frontend/src/features/admin-ads/AdAnalytics.tsx): 기간·광고·위치·매체·KST 관찰시각, 추이·상세, 미활성/미집계/0건/오류·지연·잠정 정책을 구분합니다.
+- [배너 전송](../../frontend/src/features/ad-banners/adEventTransport.ts): 동일 사건/본문/토큰, 408/425/429·네트워크·5xx와 Retry-After, 중복/언마운트 처리를 보완했습니다.
+- [운영 명령](../../ad-server/backend/domains/ads/management/commands/run_ads_analytics.py): collect/publish/spark/dead/requeue입니다. [Spark driver](../../ads_analytics_v2/worker_cli.py)는 Django 없이 실행할 수 있습니다.
+- [대조](../../ads_analytics_v2/audit.py)·[측정](../../ads_analytics_v2/benchmark.py)은 입력·메시지·sink·스냅샷 및 실제 로컬 복구/처리량을 확인합니다.
+- 원본·발행 DB·수신 DB 분리, timezone-aware Mongo, 개발 origin allowlist, Kafka 계약·JAR·CA 검증을 추가했습니다. 기존 AWS 자원·원장·계정/매장 코드는 변경하지 않았습니다.
+
+### 검증 결과
+
+- 분석 전체 80개: 79개 통과, 실제 Spark 1개 skip.
+- 광고 API·명령·인증 bridge·오프라인 수집→관리자 HTTP 연결: 56개 통과.
+- 광고/공유 API/화면 관련 38개, TypeScript·Vite build 통과.
+- Python 정적 검사와 변경 형식 검사 통과.
+- 합성 2,000건, ACK 직후 중단·저장소 재개: 전송 2,001회/고유 저장 2,000건/전체 재전송 후 추가 0건. 공급된 원본·메시지·집계와 입력/정책/스냅샷 해시가 일치했습니다.
+- 측정은 Windows AMD64·Python3.12.10·SQLite·메모리 broker입니다. 약20.953초/95.45고유사건·초, publish 100건 배치 p50약1024.10ms/p95약1203.56ms입니다. Kafka/Spark 성능이나 사건별 종단 지연이 아닙니다.
+- 전체 프론트의 앞선 검사에서는 기존 시네마틱 checkout CRLF 해시 2개가 실패했습니다(167/169 통과). 원본 Git blob·LF 정규화와 일치하고 광고 변경 diff가 없어 해당 자산은 수정하지 않았습니다. 이후 광고 추가 테스트까지 포함한 관련 38개는 통과했습니다.
+
+### 미실행·남은 완료 조건
+
+실제 MongoDB transaction·Kafka 발행/소비·Java/Spark·S3A checkpoint·Docker 빌드·공통 인증 포함 실제 브라우저 종단 흐름·클러스터 부하/장애·AWS 배포는 미실행입니다. 보고 정책·원본 보관·매체를 합의하고 실제 입력과 같은 cutoff로 대조해야 합니다. 기존 AWS 광고→PostgreSQL 허용 누락은 앱 개선으로 해결됐다고 표시하지 않습니다.
+
+앞선 로컬 개선 단계에서는 Git 커밋·푸시·Issue 수정·배포를 하지 않았습니다. [피드백 대응표](FEEDBACK.md)와 [실행 가이드](README.md)에 현재 범위와 다음 검증을 연결했습니다.
+
+### 후속 Git 반영 (2026-11-09)
+
+- 변경 묶음: 광고 시스템 개선 및 평가 피드백 대응 (#13).
+- 대상 브랜치: feature/AD. 최신 개선 코드·테스트·환경 예시·실행/검증 문서를 함께 반영합니다.
+- 이전 78452f9의 독립 모듈 이관 이력은 보존합니다. 이번 범위는 지속 수집·관리자 보고·전송 안정성·정합성/복구 검증을 포함합니다.
+- main/develop 직접 반영·실제 배포와 실환경 검증은 이 작업에 포함하지 않습니다.

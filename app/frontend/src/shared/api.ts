@@ -1,7 +1,13 @@
 let csrf = '';
 export function setCsrf(value:string){csrf=value;}
 export class ApiError extends Error {
-  constructor(public code:string,message:string,public details:Record<string,unknown>={},public status=0){super(message);}
+  constructor(public code:string,message:string,public details:Record<string,unknown>={},public status=0,public retryAfterMs:number|null=null){super(message);}
+}
+export function retryAfterMilliseconds(value:string|null,now=Date.now()):number|null{
+  if(value===null||!value.trim())return null;
+  const input=value.trim();
+  if(/^\d+$/.test(input)){const delay=Number(input)*1000;return Number.isSafeInteger(delay)?delay:null;}
+  const when=Date.parse(input);return Number.isFinite(when)?Math.max(0,when-now):null;
 }
 export const key = () => {
   // getRandomValues also exists on the LAN HTTP origin used for synthetic demos.
@@ -17,7 +23,7 @@ export async function api<T>(path:string,method='GET',body?:unknown,idempotencyK
     headers:{...headers,'Content-Type':'application/json',...(token?{'X-CSRFToken':token}:{}),...(idempotencyKey?{'Idempotency-Key':idempotencyKey}:{})},
     body:body===undefined?undefined:JSON.stringify(body)});
   const json=await response.json().catch(()=>null);
-  if(!response.ok)throw new ApiError(json?.code || 'SERVICE_UNAVAILABLE',json?.message || '서비스 연결을 확인해 주세요.',json?.details,response.status);
+  if(!response.ok)throw new ApiError(json?.code || 'SERVICE_UNAVAILABLE',json?.message || '서비스 연결을 확인해 주세요.',json?.details,response.status,retryAfterMilliseconds(response.headers?.get?.('Retry-After')??null));
   return json;
 }
 export const wait=(ms:number,signal:AbortSignal)=>new Promise<void>((resolve,reject)=>{

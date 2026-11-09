@@ -16,11 +16,20 @@ class KafkaBroker:
         if not all((bootstrap_servers, username, password, ca_file)):
             raise AnalyticsError("KAFKA_TLS_CONFIGURATION_REQUIRED")
         from kafka import KafkaProducer
+
         producer = KafkaProducer(
-            bootstrap_servers=bootstrap_servers, security_protocol="SASL_SSL",
-            sasl_mechanism="PLAIN", sasl_plain_username=username, sasl_plain_password=password,
-            ssl_cafile=ca_file, ssl_check_hostname=True, acks="all", retries=0,
-            request_timeout_ms=15_000, max_block_ms=20_000,
+            bootstrap_servers=bootstrap_servers,
+            security_protocol="SASL_SSL",
+            sasl_mechanism="PLAIN",
+            sasl_plain_username=username,
+            sasl_plain_password=password,
+            ssl_cafile=ca_file,
+            ssl_check_hostname=True,
+            acks="all",
+            retries=0,
+            allow_auto_create_topics=False,
+            request_timeout_ms=15_000,
+            max_block_ms=20_000,
         )
         return cls(producer, topic=topic)
 

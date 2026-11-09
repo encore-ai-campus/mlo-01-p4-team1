@@ -8,8 +8,12 @@ from .errors import AnalyticsError
 EVENT_SCHEMA = "ads-analytics-event-v2.1"
 EVENT_TYPES = {"VIEWABLE_IMPRESSION", "CLICK"}
 RESULTS = {
-    "COUNTED", "DELIVERY_DUPLICATE", "REPEAT_SUPPRESSED", "LATE_EVENT",
-    "DELIVERY_INVALID", "MEASUREMENT_UNAVAILABLE",
+    "COUNTED",
+    "DELIVERY_DUPLICATE",
+    "REPEAT_SUPPRESSED",
+    "LATE_EVENT",
+    "DELIVERY_INVALID",
+    "MEASUREMENT_UNAVAILABLE",
 }
 
 
@@ -62,7 +66,11 @@ class Event:
 
     def __post_init__(self):
         for field in (
-            "event_id", "delivery_id", "ad_id", "creative_version", "media_id",
+            "event_id",
+            "delivery_id",
+            "ad_id",
+            "creative_version",
+            "media_id",
             "source_policy_version",
         ):
             identifier(getattr(self, field))
@@ -70,13 +78,19 @@ class Event:
             raise AnalyticsError("UNSUPPORTED_EVENT_SCHEMA")
         if self.placement not in ("top", "bottom") or self.event_type not in EVENT_TYPES:
             raise AnalyticsError("INVALID_EVENT_KIND")
-        if self.result not in RESULTS or type(self.counted) is not bool or type(self.is_test) is not bool:
+        if (
+            self.result not in RESULTS
+            or type(self.counted) is not bool
+            or type(self.is_test) is not bool
+        ):
             raise AnalyticsError("INVALID_DECISION")
         if self.counted != (self.result == "COUNTED") or (self.is_test and self.counted):
             raise AnalyticsError("INCONSISTENT_SOURCE_DECISION")
         object.__setattr__(self, "occurred_at", timestamp(self.occurred_at))
         object.__setattr__(self, "received_at", timestamp(self.received_at))
-        if self.counted and not timedelta(0) <= self.received_at - self.occurred_at <= timedelta(seconds=300):
+        if self.counted and not timedelta(0) <= self.received_at - self.occurred_at <= timedelta(
+            seconds=300
+        ):
             raise AnalyticsError("INVALID_COUNTED_EVENT_TIME")
 
     def envelope(self):
@@ -100,10 +114,22 @@ class Event:
         if not isinstance(value, dict):
             raise AnalyticsError("INVALID_SOURCE_RECORD")
         names = (
-            "event_id", "delivery_id", "ad_id", "creative_version", "placement",
-            "event_type", "occurred_at", "received_at", "result", "counted", "is_test",
+            "event_id",
+            "delivery_id",
+            "ad_id",
+            "creative_version",
+            "placement",
+            "event_type",
+            "occurred_at",
+            "received_at",
+            "result",
+            "counted",
+            "is_test",
         )
         if not set(names) <= value.keys() or "ads_policy_version" not in value:
             raise AnalyticsError("MISSING_SOURCE_FIELDS")
-        return cls(**{name: value[name] for name in names}, media_id=media_id,
-                   source_policy_version=value["ads_policy_version"])
+        return cls(
+            **{name: value[name] for name in names},
+            media_id=media_id,
+            source_policy_version=value["ads_policy_version"],
+        )

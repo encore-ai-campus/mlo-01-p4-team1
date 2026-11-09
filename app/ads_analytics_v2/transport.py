@@ -7,6 +7,7 @@ from .events import Event, canonical
 
 class MemoryBroker:
     """Deliberately permits duplicate delivery, like an at-least-once transport."""
+
     def __init__(self):
         self.messages = []
 
@@ -24,9 +25,11 @@ def publish_once(store, broker, *, clock=time.time, limit=100, lease_seconds=60,
             break
         counts["claimed"] += 1
         try:
-            broker.publish(key=claim.event.delivery_id.encode("utf-8"),
-                           value=canonical(claim.event.envelope()).encode("utf-8"))
-        except Exception:
+            broker.publish(
+                key=claim.event.delivery_id.encode("utf-8"),
+                value=canonical(claim.event.envelope()).encode("utf-8"),
+            )
+        except Exception:  # noqa: BLE001 - An arbitrary broker failure must release the durable lease.
             counts["failed"] += 1
             try:
                 store.release(claim, now=clock(), delay=min(300, 2 ** min(claim.attempt, 8)))
