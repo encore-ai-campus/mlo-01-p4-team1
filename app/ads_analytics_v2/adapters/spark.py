@@ -2,7 +2,8 @@
 
 The streaming source is Kafka. Only bounded micro-batches and aggregate results
 cross the Control Driver boundary; no executor connects to MongoDB. The retained
-event staging scan is capped and is a prototype, not an unbounded production lake.
+event scan uses a disposable disk spool with bounded chunks and result rows;
+full-history time and temporary disk cost remain proportional to retained input.
 """
 
 from datetime import UTC, datetime
@@ -12,7 +13,7 @@ from ..pipeline import consume_and_materialize
 from ..reporting import COUNTERS, assemble, prepare, validate_query
 
 
-def report_with_spark(
+def _report_chunk_with_spark(
     spark, events, *, cutoff, settled_through=None, max_events=100_000, max_rows=5_000, **scope
 ):
     from pyspark.sql import functions as f
@@ -84,6 +85,17 @@ def report_with_spark(
     return assemble(visible, rows, cutoff, settled, scope)
 
 
+
+def report_with_spark(spark, events, *, cutoff, settled_through=None, max_events=None,
+                      batch_size=1000, max_rows=5000, work_dir=None, **scope):
+    from ..streaming_report import report_streaming
+
+    return report_streaming(events, cutoff=cutoff, settled_through=settled_through,
+        max_events=max_events, batch_size=batch_size, max_rows=max_rows, work_dir=work_dir,
+        renderer=lambda chunk, **options: _report_chunk_with_spark(
+            spark, chunk, max_rows=max_rows, **options), **scope)
+
+
 def stream_from_kafka(
     spark,
     *,
@@ -93,7 +105,7 @@ def stream_from_kafka(
     checkpoint,
     security_options,
     max_batch=1_000,
-    max_events=100_000,
+    max_events=None,
 ):
     """Run explicitly on the Control Driver, with reviewed network and DB permissions.
 
@@ -106,7 +118,7 @@ def stream_from_kafka(
         or not topic
         or not checkpoint.startswith("s3a://")
         or not 1 <= max_batch <= 10_000
-        or max_events < max_batch
+        or (max_events is not None and (type(max_events) is not int or max_events < 1))
     ):
         raise AnalyticsError("INVALID_STREAM_CONFIGURATION")
     if (
@@ -129,13 +141,14 @@ def stream_from_kafka(
             "kafka.sasl.mechanism",
             "kafka.sasl.jaas.config",
             "kafka.ssl.truststore.location",
+            "kafka.ssl.truststore.certificates",
             "kafka.ssl.truststore.password",
             "kafka.ssl.truststore.type",
             "kafka.ssl.endpoint.identification.algorithm",
         }:
             raise AnalyticsError("UNSUPPORTED_KAFKA_OPTION")
         reader = reader.option(key, value)
-    spark.conf.set("spark.redaction.regex", "(?i)secret|password|token|jaas|access[.]key")
+    spark.conf.set("spark.redaction.regex", "(?i)secret|password|token|jaas|access[.]key|certificates")
     rows = reader.load().selectExpr("key", "value")
 
     def save(batch, batch_id):

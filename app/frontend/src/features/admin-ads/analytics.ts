@@ -1,3 +1,4 @@
+import {ApiError} from '../../shared/api';
 export type AnalyticsCounts={impressions:number|null;matched_clicks:number|null;early_clicks:number|null;unmatched_clicks:number|null;pending_clicks:number|null;ctr_percent:number|null};
 export type AnalyticsRow={date_kst:string;ad_id:string;placement:'top'|'bottom';media_id:string}&AnalyticsCounts;
 export type AnalyticsReport={enabled?:boolean;report_available:boolean;report_id?:string|null;as_of:string|null;status:'PROVISIONAL'|'PENDING';policy_confirmed:boolean;report_policy_version?:string;is_stale:boolean;scope:Record<string,string>;rows:AnalyticsRow[];totals:AnalyticsCounts;source_snapshot?:{report_id:string;as_of:string;scope:Record<string,string>}|null;aggregation_interval_seconds?:number};
@@ -33,4 +34,28 @@ export function dailyAnalytics(rows:AnalyticsRow[]){
     value.ctr=value.impressions?value.clicks*100/value.impressions:null;byDay.set(value.day,value);
   }
   return [...byDay.values()].sort((a,b)=>a.day.localeCompare(b.day));
+}
+
+function record(value:unknown):value is Record<string,unknown>{return value!==null&&typeof value==='object'&&!Array.isArray(value);}
+function stringScope(value:unknown){return record(value)&&Object.values(value).every(item=>typeof item==='string');}
+function validInstant(value:unknown):value is string{return typeof value==='string'&&/(?:Z|[+-]\d{2}:\d{2})$/.test(value)&&Number.isFinite(Date.parse(value));}
+const counterNames=['impressions','matched_clicks','early_clicks','unmatched_clicks','pending_clicks'] as const;
+function validCounts(value:unknown,available:boolean){
+  return record(value)&&counterNames.every(name=>available?Number.isSafeInteger(value[name])&&Number(value[name])>=0:value[name]===null)
+    &&(available?(value.ctr_percent===null||(typeof value.ctr_percent==='number'&&Number.isFinite(value.ctr_percent)&&value.ctr_percent>=0)):value.ctr_percent===null);
+}
+export function parseAnalyticsReport(value:unknown):AnalyticsReport{
+  const fail=()=>{throw new ApiError('INVALID_RESPONSE','성과 리포트 응답 형식을 확인해 주세요.');};
+  if(!record(value)||typeof value.report_available!=='boolean'||typeof value.is_stale!=='boolean'||typeof value.policy_confirmed!=='boolean'||(value.enabled!==undefined&&typeof value.enabled!=='boolean')||!stringScope(value.scope)||!Array.isArray(value.rows)||!validCounts(value.totals,value.report_available))return fail();
+  if(value.report_policy_version!==undefined&&typeof value.report_policy_version!=='string')return fail();
+  if(!value.report_available){
+    if(value.status!=='PENDING'||value.as_of!==null||value.rows.length!==0)return fail();
+  }else{
+    const snapshot=value.source_snapshot;
+    if(value.status!=='PROVISIONAL'||!validInstant(value.as_of)||typeof value.report_id!=='string'||!value.report_id||!record(snapshot)||typeof snapshot.report_id!=='string'||!snapshot.report_id||!validInstant(snapshot.as_of)||!stringScope(snapshot.scope))return fail();
+    for(const row of value.rows){
+      if(!record(row)||!validDay(String(row.date_kst))||typeof row.ad_id!=='string'||!row.ad_id||typeof row.media_id!=='string'||!row.media_id||!['top','bottom'].includes(String(row.placement))||!validCounts(row,true))return fail();
+    }
+  }
+  return value as AnalyticsReport;
 }

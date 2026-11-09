@@ -103,3 +103,36 @@ GET /api/admin/ads/analytics는 기존 활성 ADMIN·광고 권한을 검사합�
 원본을 요청 시 재집계하지 않고 cutoff 이하 최신 전체 materialized snapshot을 읽습니다. report_available=false는 미집계, true와 0 카운터는 빈 실적입니다. DB/설정 오류는 별도 오류이며 응답은 no-store입니다.
 
 실제 브라우저→공통 인증→광고 DB→Kafka→Spark→리포트 통합은 수행 전입니다. 기존 AWS 광고→PostgreSQL 접속 허용 누락도 이 앱 변경으로 해결됐다고 간주하지 않습니다. 최신 4차 인프라 계약을 우선하고 실환경 통신·권한을 별도로 검증합니다. 과거 이관 기록과 현재 개선 결과는 PORTING에서 날짜별로 구분합니다.
+
+## 6. 2026-11-09 후속 수정과 재검증
+
+67f230f 이후 사용자 요청으로 등록·수정·공개 노출·성과 조회의 오류를 수정했습니다.
+앞 절의 최초 관측과 현재 결과는 [후속 검증 기록](FEEDBACK.md#4-2026-11-09-후속-오류-수정과-기능별-재검증)을 구분합니다.
+
+- CSRF는 설정된 플랫폼/기존 쿠키만 요청별로 검사하며 Origin/Referer·토큰 검사를 유지합니다.
+- 등록 실패 재시도는 같은 멱등 키, 성공 후 새 등록은 새 요청으로 구분합니다. 수정하지 않은 게시 시각의 초·밀리초는 보존합니다.
+- 브라우저가 정확하게 표현하지 못하는 정수는 저장 전에 거부합니다. 백엔드 int64·운영 예산 상한을 새 정책으로 바꾸지 않습니다.
+- 일반 요청은 본문 포함 15초, 배너 한 시도는 5초입니다. 배너 3회·전체 5분 수명·Retry-After는 유지합니다.
+- Mongo 스냅샷은 마이크로초 정밀도 UTC 키를 사용하며 기존 BSON 자료는 본문·해시를 덮어쓰지 않고 호환 조회합니다.
+- 생산 materialization은 iter_events와 임시 SQLite spool을 사용합니다. 누적 100,001건 이후에도 전체 해시와 같은 delivery의 노출·클릭 연결을 보존합니다.
+- 생산 경로의 암묵적인 전체 사건 100,000건 상한을 제거했습니다. 참조용 report/read_events 및 CLI/audit의 명시 입력 방어는 별도입니다.
+- 최종 집계 5,000행 제한은 유지합니다. 전체 사건에 비례하는 처리 시간·임시 디스크가 필요하므로 OS 임시 경로의 여유·권한을 확인합니다. 무제한 확장·운영 처리량 보장이 아닙니다.
+- 수집 다음 페이지·가득 찬 발행 batch는 짧은 대기 후 계속합니다. 순회 완료·완전 idle만 설정 주기 대기, 지연 발행은 1초 이내 재확인합니다.
+- Kafka 공개 CA는 검증한 PEM 본문으로 driver/executor에 전달합니다. 인증서 개인키·실제 CA 파일·자격증명은 Git에 넣지 않습니다.
+- Docker 광고 프로필은 기존 스키마 준비와 필수 예산 worker를 연결합니다. [실행 안내](../../docker/README.md)를 따릅니다.
+
+### 재실행 명령
+
+~~~text
+# 광고 backend의 기존 Python 환경. 설치된 mongod, 새 loopback 포트·UUID DB 사용
+python -B tests/run_ads_mongo_regression.py
+
+# app/frontend. 설치된 Chromium 브라우저, 합성 API만 사용
+pnpm test:ads-browser
+pnpm test
+pnpm build
+~~~
+
+브라우저 경로는 ADS_TEST_BROWSER_PATH로 지정할 수 있으며 자동 다운로드하지 않습니다.
+Mongo 검증은 임시 DB·프로세스를 정리하고 app/.local에 비공개 로컬 결과를 남깁니다.
+이번 DB 관측은 설치된 MongoDB 8.3.7이며 Docker 후보 8.0.17의 이미지 검증을 대신하지 않습니다.

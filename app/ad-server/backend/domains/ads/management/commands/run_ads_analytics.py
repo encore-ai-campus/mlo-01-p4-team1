@@ -109,6 +109,17 @@ def mongo(uri):
     )
 
 
+def next_delay(stage, result, counts, *, interval, publish_limit):
+    """Drain bounded work fairly; only idle/sweep-complete cycles wait a full interval."""
+    if stage == "collect":
+        return interval if result["sweep_complete"] else 0.01
+    if result["claimed"] >= publish_limit:
+        return 0.01
+    if counts.get("PENDING", 0) or counts.get("SENDING", 0):
+        return min(interval, 1)
+    return interval
+
+
 class Command(BaseCommand):
     help = (
         "광고 V2 수집·전송·Spark 집계를 명시 실행합니다. 기존 원장과 합성 자료는 변경하지 않습니다."
@@ -216,7 +227,20 @@ class Command(BaseCommand):
                 )
                 if not options["watch"]:
                     break
-                time.sleep(settings.ADS_V2_INTERVAL_SECONDS)
+                counts = (
+                    store.queue_counts()
+                    if stage == "publish" and result["claimed"] < options["publish_limit"]
+                    else {}
+                )
+                time.sleep(
+                    next_delay(
+                        stage,
+                        result,
+                        counts,
+                        interval=settings.ADS_V2_INTERVAL_SECONDS,
+                        publish_limit=options["publish_limit"],
+                    )
+                )
         finally:
             if broker:
                 broker.close()

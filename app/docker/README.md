@@ -18,7 +18,7 @@
 | `ads` 프로필 | `mongo`, `mongo-init` | MongoDB 8.0.17, 단일 노드 Replica Set `ads-rs` | 없음 (Docker 내부 27017) |
 | `ads` 프로필 | `ads` | 광고 Django 5.2.18, 별도 Python 잠금 | 127.0.0.1:8000 |
 | `workers` 프로필 | `recommendation-worker` | 공통 Django 이미지 재사용 | 없음 |
-| `ads-workers` 프로필 | `ads-worker` | 광고 이미지 재사용 | 없음 |
+| ads / ads-workers 프로필 | ads-worker | 필수 5분 예산 검증·통계, heartbeat health | 없음 |
 | `tests` / `ads-tests` | `api-test` / `ads-test` | 소스 포함 이미지에서 분리 실행, 종료 후 제거 | 없음 |
 
 ### 1. 초기 준비
@@ -59,8 +59,8 @@ python3 docker/smoke_test.py
 ### 3. 광고 API와 MongoDB 통합
 
 ```bash
-docker compose --profile ads build ads
-docker compose --profile ads up -d --wait mongo mongo-init ads
+docker compose --profile ads build ads ads-worker ads-runtime-init
+docker compose --profile ads up -d --wait mongo mongo-init ads ads-worker
 docker compose --profile ads exec -T ads python manage.py migrate --noinput
 
 docker compose --profile ads ps
@@ -73,6 +73,13 @@ docker compose --profile ads exec -T mongo mongosh \
 ```
 
 Mongo `mongo-init`는 단일 서버가 준비되면 `ads-rs`를 초기화하고 **기존 데이터가 있는 경우 재구성하지 않고 설정을 검증**합니다. 기존 3차 광고 MongoDB·호스트 포트 27017은 공유하지 않습니다.
+
+광고 프로필은 mongo-init → ads-runtime-init → ads → ads-worker 순서로 연결합니다.
+ads-runtime-init는 기존 prepare_ads_runtime --apply로 누락 컬렉션·인덱스만 준비하며,
+기존 validator가 다르면 변경 전에 실패합니다. 기존 문서·원장·예산값을 지우거나 덮어쓰지 않습니다.
+서비스 이름을 직접 나열하는 up 명령에는 ads-worker도 포함해야 합니다.
+worker health는 최근 heartbeat와 최근 정책 작업 성공을 확인합니다. 등록 후 최초 예산 검증까지는
+공개 후보에서 보류될 수 있으며, 미설정 예산·stale·수동 중단을 우회하지 않습니다.
 
 ### 4. 코드 수정과 컨테이너 실행
 

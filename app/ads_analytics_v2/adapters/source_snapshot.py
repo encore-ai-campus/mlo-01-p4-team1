@@ -73,6 +73,9 @@ def capture_v1_page(
     ):
         raise AnalyticsError("INVALID_SOURCE_CAPTURE")
     validate_claim(now, 60, 8)
+    from ..events import identifier
+
+    identifier(media_id)
     requested_cutoff = timestamp(cutoff)
     previous = target_store.capture_state(source_id)
     if previous and (
@@ -98,8 +101,6 @@ def capture_v1_page(
         )
         upper = ceiling[0]["event_id"] if ceiling else None
         if upper is not None:
-            from ..events import identifier
-
             identifier(upper)
     query = {"received_at": {"$lte": sweep_cutoff}}
     if upper is not None:

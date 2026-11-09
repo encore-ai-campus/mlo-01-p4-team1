@@ -129,6 +129,20 @@ class SQLiteStore:
             )
         return added
 
+    def iter_events(self, *, batch_size=1000):
+        if type(batch_size) is not int or not 1 <= batch_size <= 10_000:
+            raise AnalyticsError("INVALID_EVENT_BATCH_SIZE")
+        cursor = self.connection.execute("SELECT body FROM events ORDER BY event_id")
+        try:
+            while True:
+                rows = cursor.fetchmany(batch_size)
+                if not rows:
+                    return
+                for row in rows:
+                    yield Event.from_envelope(json.loads(row[0]))
+        finally:
+            cursor.close()
+
     def read_events(self, *, limit=100_000):
         rows = self.connection.execute(
             "SELECT body FROM events ORDER BY event_id LIMIT ?", (limit + 1,)
