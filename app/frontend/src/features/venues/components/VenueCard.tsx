@@ -137,13 +137,17 @@ export const VenueCard: React.FC<VenueCardProps> = ({ venue, onSelectVenue, onSe
         </span>
       </div>
 
-      <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
         <span>{venue.category === 'CAFE' ? '☕ 카페' : '🍺 주점'}</span>
         <span>•</span>
         <span>{venue.sub_category || '로컬'}</span>
         <span>•</span>
         <span style={{ color: '#eab308', fontWeight: 700 }}>★ {venue.rating.toFixed(1)}</span>
         <span>({venue.review_count})</span>
+        <span>•</span>
+        <span style={{ color: '#0f172a', fontWeight: 700 }}>
+          💰 1인 평균 {venue.avg_price.toLocaleString()}원
+        </span>
       </div>
 
       {/* 3. 점주 실시간 타임 이벤트 배지 (종료 후 5분 유예 처리 포함) */}
