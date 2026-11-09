@@ -91,7 +91,7 @@ export const VenueFilterBar: React.FC<VenueFilterBarProps> = ({
             ))}
           </select>
           <span style={{ fontSize: '14px', color: '#64748b' }}>
-            검색 결과 <strong>{totalCount}</strong>개 매장
+            검색 결과 <strong>{totalCount.toLocaleString()}</strong>개 매장
           </span>
         </div>
 

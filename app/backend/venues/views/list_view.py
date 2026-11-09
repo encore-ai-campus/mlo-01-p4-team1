@@ -42,8 +42,8 @@ def venue_list_api(request):
     elif store_type_raw.upper() in ('체인', '체인점', '프랜차이즈', 'CHAIN'):
         prefer_local = False
 
-    # 랭킹 서비스 호출
-    results = filter_and_rank_venues(
+    # 랭킹 서비스 호출 (조건에 부합하는 전체 후보 매장 추출 후 동/검색어/파트너 필터까지 적용하여 정확한 전수 카운트 산출)
+    results, _ = filter_and_rank_venues(
         gu=gu,
         user_id=user_id,
         category=cat,
@@ -53,7 +53,8 @@ def venue_list_api(request):
         only_with_events=event_only,
         only_open_now=open_now,
         prefer_local=prefer_local,
-        limit=50,
+        limit=5000,
+        return_total=True,
     )
 
     # 추가 메모리 필터: 동 단위 & 검색어(q) & 파트너 전용
@@ -77,12 +78,18 @@ def venue_list_api(request):
 
         filtered_results.append(item)
 
+    total_matched_count = len(filtered_results)
+    try:
+        display_limit = int(request.GET.get('limit', '100'))
+    except ValueError:
+        display_limit = 100
+
     # 유저 동네 탐색 시 당일 주변 이벤트 프로모 알림 자동 체크
     check_and_send_nearby_event_promo(user_id=user_id, gu_name=gu)
 
     return JsonResponse({
         'success': True,
         'gu': gu,
-        'total_count': len(filtered_results),
-        'venues': filtered_results,
+        'total_count': total_matched_count,
+        'venues': filtered_results[:display_limit],
     })
