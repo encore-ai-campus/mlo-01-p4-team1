@@ -23,7 +23,8 @@ def filter_and_rank_venues(
     prefer_local: Optional[bool] = None,
     mood_tags: Optional[List[str]] = None,
     limit: int = 30,
-) -> List[Dict[str, Any]]:
+    return_total: bool = False,
+) -> Union[List[Dict[str, Any]], tuple[List[Dict[str, Any]], int]]:
     """
     Track 2 매장 탐색, 필터링 및 Two-Tower 결합 랭킹 서비스.
     - PA 5단계 가격 필터 적용
@@ -39,7 +40,7 @@ def filter_and_rank_venues(
     # 1. 구 단위 매장 목록 지연 로딩
     raw_venues = repo.get_venues_by_gu(gu)
     if not raw_venues:
-        return []
+        return ([], 0) if return_total else []
 
     # 2. 폐업 상태 오버레이 일괄 조회
     venue_ids = [v['venue_id'] for v in raw_venues]
@@ -186,6 +187,8 @@ def filter_and_rank_venues(
 
     # 9. 최종 점수 내림차순 정렬
     candidates.sort(key=lambda x: x['match_score'], reverse=True)
+    if return_total:
+        return candidates[:limit], len(candidates)
     return candidates[:limit]
 
 
