@@ -91,10 +91,9 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
         zoomControl: true,
       });
 
-      // OpenStreetMap / CartoDB Voyager 고해상도 한글 도로명 타일 레이어 (API 키 불필요)
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-        subdomains: 'abcd',
+      // OpenStreetMap 공식 한글 도로명 타일 레이어 (API 키 불필요, 무제한 무료)
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19,
       }).addTo(map);
 

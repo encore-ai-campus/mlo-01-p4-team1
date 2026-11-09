@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# 프로젝트 루트 및 app/ 경로 기준 (app/analysis, 루트 analysis, 패키지 내 sample_data 모두 자동 지원)
+# 프로젝트 루트 및 app/ 경로 기준 (app/analysis, 루트 analysis, 워크트리 analysis, 패키지 내 sample_data 모두 자동 지원)
 APP_ROOT_DIR = Path(__file__).resolve().parents[3]
 REPO_ROOT_DIR = APP_ROOT_DIR.parent
 PACKAGE_SAMPLE_DIR = Path(__file__).resolve().parents[1] / 'sample_data'
@@ -16,12 +16,22 @@ PACKAGE_SAMPLE_DIR = Path(__file__).resolve().parents[1] / 'sample_data'
 _ANALYSIS_CANDIDATES = [
     APP_ROOT_DIR / 'analysis',
     REPO_ROOT_DIR / 'analysis',
+    Path(__file__).resolve().parents[4] / 'analysis',
 ]
-ANALYSIS_DIR = next((d for d in _ANALYSIS_CANDIDATES if d.exists()), APP_ROOT_DIR / 'analysis')
+# 25개 구 전수 CSV(50개 파일)가 모두 들어있는 by_gu 폴더를 최우선으로 선택
 BY_GU_DIR = next(
-    (d / 'seoul_venues_20261106' / 'by_gu' for d in _ANALYSIS_CANDIDATES if (d / 'seoul_venues_20261106' / 'by_gu').exists()),
-    ANALYSIS_DIR / 'seoul_venues_20261106' / 'by_gu',
+    (
+        d / 'seoul_venues_20261106' / 'by_gu'
+        for d in _ANALYSIS_CANDIDATES
+        if (d / 'seoul_venues_20261106' / 'by_gu').exists()
+        and len(list((d / 'seoul_venues_20261106' / 'by_gu').glob('*_venues.csv'))) >= 25
+    ),
+    next(
+        (d / 'seoul_venues_20261106' / 'by_gu' for d in _ANALYSIS_CANDIDATES if (d / 'seoul_venues_20261106' / 'by_gu').exists()),
+        APP_ROOT_DIR / 'analysis' / 'seoul_venues_20261106' / 'by_gu',
+    ),
 )
+ANALYSIS_DIR = BY_GU_DIR.parent.parent if BY_GU_DIR.exists() else (APP_ROOT_DIR / 'analysis')
 
 # 폴백 경로 (패키지 내 sample_data/, 루트 analysis/ 및 seoul_venues_20261106/ 하위 모두 지원)
 FALLBACK_VENUES_CANDIDATES = [
