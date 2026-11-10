@@ -1843,7 +1843,7 @@
         ]
       }
     },
-    "s3_grants": "${{for name,n in local.topology:name=>flatten([for purpose,prefixes in lookup(local.storage_grants,n.role,{}) : [{Effect=\"Allow\",Action=[\"s3:ListBucket\",\"s3:ListBucketMultipartUploads\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names[purpose]}\"],Condition={StringLike={\"s3:prefix\"=prefixes}}},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:GetObjectVersion\",\"s3:PutObject\",\"s3:AbortMultipartUpload\",\"s3:ListMultipartUploadParts\"],Resource=[for p in prefixes:\"arn:aws:s3:::${var.binding.bucket_names[purpose]}/${p}\"]}]] )}}",
+    "s3_grants": "${{for name,n in local.topology:name=>flatten([for purpose,prefixes in lookup(local.storage_grants,n.role,{}) : [{Effect=\"Allow\",Action=[\"s3:ListBucket\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names[purpose]}\"],Condition={StringLike={\"s3:prefix\"=prefixes}}},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:GetObjectVersion\",\"s3:PutObject\",\"s3:AbortMultipartUpload\",\"s3:ListMultipartUploadParts\"],Resource=[for p in prefixes:\"arn:aws:s3:::${var.binding.bucket_names[purpose]}/${p}\"]}]] )}}",
     "lake_cleanup": "${{for name,n in local.topology:name=>(contains([\"control\",\"spark\"],n.role) ? [{Effect=\"Allow\",Action=[\"s3:DeleteObject\"],Resource=concat([\"arn:aws:s3:::${var.binding.bucket_names.lake}/lake/feedback/*\"],n.role==\"control\" ? [for q in [\"weather-stream\",\"feedback-postgresql\",\"feedback-analytics-batch\"]:\"arn:aws:s3:::${var.binding.bucket_names.lake}/aws/${var.binding.environment}/${var.binding.generation}/${q}/checkpoint/*\"] : [])}] : [])}}",
     "artifact_enabled": "${length(var.binding.artifact)>0}",
     "artifact_key": "${try(var.binding.artifact.key,\"UNBOUND\")}",
