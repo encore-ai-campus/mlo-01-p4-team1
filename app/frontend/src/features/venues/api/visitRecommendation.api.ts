@@ -1,7 +1,5 @@
 import type { VenueBudgetExample } from '../types/venue.types';
 
-export type OutdoorPreference = 'ANY' | 'PREFER_OUTDOOR' | 'REQUIRE_OUTDOOR';
-
 export interface VenueTag {
   id: string;
   kind: 'MOOD' | 'CUISINE' | 'MENU_TYPE';
@@ -18,7 +16,6 @@ export interface VisitConditions {
   visit_at?: string;
   preferred_moods?: string[];
   orders?: Array<{ cuisine: string } | { types: string[] }>;
-  outdoor?: OutdoorPreference;
   query?: string;
   budget?: { min_krw: number; max_krw: number };
   limit?: number;
@@ -33,10 +30,9 @@ export interface VisitVenue {
   budget_example?: VenueBudgetExample;
   representative_menus?: string[];
   distance_m?: number;
-  weather_match?: { label: string; source: 'DEMO_CSV' | 'SEAT_EVIDENCE' };
+  weather_match?: { label: string; source: 'TAG_MATCH' };
   matched_moods: Array<{ id: string; label: string }>;
   matched_orders: Array<Array<{ menu_id: string; name: string }>>;
-  seat: { label: string };
   forecast: {
     provider: string;
     state: 'DRY' | 'RAIN' | 'NO_FORECAST';
@@ -64,7 +60,6 @@ export interface VisitRecommendation {
   location_candidates?: Array<{ label: string; query: string }>;
   counts: { ranked: number };
   ranked: VisitVenue[];
-  pending: VisitVenue[];
 }
 
 const endpoint = '/api/venues/ai-concierge';

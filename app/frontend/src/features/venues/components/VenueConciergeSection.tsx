@@ -27,9 +27,7 @@ function noMatchText(result: VisitRecommendation, area: string) {
     }
     case 'NO_MOOD': return area + '에서 입력한 분위기가 등록된 매장을 찾지 못했습니다.';
     case 'NO_BUDGET': return area + '에서 확인된 1인 예산이 입력 범위에 드는 매장을 찾지 못했습니다.';
-    case 'NO_OUTDOOR': return area + '에서 야외 좌석이 확인된 매장을 찾지 못했습니다.';
     case 'NO_MENU': return area + '에서 입력한 메뉴가 확인된 매장을 찾지 못했습니다.';
-    case 'CHECK_WEATHER_SEATING': return '방문 시간대 날씨를 기준으로 야외 좌석 이용을 확인한 매장이 없습니다.';
     default: return area + '에서 입력한 조건에 맞는 매장을 찾지 못했습니다.';
   }
 }

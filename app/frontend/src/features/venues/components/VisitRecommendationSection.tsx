@@ -2,7 +2,6 @@ import { useEffect, useState, type FormEvent } from 'react';
 import {
   fetchVisitOptions,
   postVisitRecommendation,
-  type OutdoorPreference,
   type VisitOptions,
   type VisitRecommendation,
   type VisitVenue,
@@ -36,20 +35,18 @@ function forecastText(forecast: VisitVenue['forecast']) {
   return [source, condition, range].filter(Boolean).join(' · ');
 }
 
-export function VisitCards({ venues, onOpenVenue, ranked = true, distanceFrom }: {
+export function VisitCards({ venues, onOpenVenue, distanceFrom }: {
   venues: VisitVenue[];
   onOpenVenue: (venueId: string) => void;
-  ranked?: boolean;
   distanceFrom?: string;
 }) {
-  const List = ranked ? 'ol' : 'ul';
-  return <List className="visit-recs__cards">
+  return <ol className="visit-recs__cards">
     {venues.map((venue, index) => {
       const menuNames = [...new Set(venue.matched_orders.flat().map(menu => menu.name))];
       return <li key={venue.venue_id}>
         <button type="button" className="visit-recs__card"
           aria-label={venue.name + ' 매장 상세 보기'} onClick={() => onOpenVenue(venue.venue_id)}>
-          <strong>{ranked && <span className="visit-recs__rank">{index + 1}위</span>}{venue.name}</strong>
+          <strong><span className="visit-recs__rank">{index + 1}위</span>{venue.name}</strong>
           <span>{venue.address}</span>
           {venue.distance_m != null && <span>{distanceFrom && distanceFrom + '에서 '}직선 약 {won.format(venue.distance_m)}m</span>}
           {venue.sub_category && <span>{venue.sub_category}</span>}
@@ -57,10 +54,7 @@ export function VisitCards({ venues, onOpenVenue, ranked = true, distanceFrom }:
             ? <span>1인 주문 예시 {won.format(venue.budget_example.amount_krw)}원</span>
             : venue.avg_budget_krw != null && <span>1인 평균 예산 약 {won.format(venue.avg_budget_krw)}원</span>}
           <span className="visit-recs__forecast">{forecastText(venue.forecast)}</span>
-          {venue.weather_match && <span>
-            {venue.weather_match.source === 'DEMO_CSV' && '시연 자료의 날씨 태그 · '}{venue.weather_match.label}
-          </span>}
-          <span>{venue.seat.label}</span>
+          {venue.weather_match && <span>{venue.weather_match.label}</span>}
           {venue.matched_moods.length > 0 && <span>{venue.matched_moods.map(mood => mood.label).join(' · ')}</span>}
           {menuNames.length > 0
             ? <span>추천 메뉴 · {menuNames.join(', ')}</span>
@@ -69,7 +63,7 @@ export function VisitCards({ venues, onOpenVenue, ranked = true, distanceFrom }:
         </button>
       </li>;
     })}
-  </List>;
+  </ol>;
 }
 
 export function VisitRecommendationSection({ onOpenVenue }: { onOpenVenue: (venueId: string) => void }) {
@@ -80,7 +74,6 @@ export function VisitRecommendationSection({ onOpenVenue }: { onOpenVenue: (venu
   const [initialVisitAt] = useState(() => seoulInputTime(Date.now() + hourInMs));
   const [mood, setMood] = useState('');
   const [menuIds, setMenuIds] = useState<string[]>([]);
-  const [outdoor, setOutdoor] = useState<OutdoorPreference>('ANY');
   const [result, setResult] = useState<VisitRecommendation | null>(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -116,7 +109,7 @@ export function VisitRecommendationSection({ onOpenVenue }: { onOpenVenue: (venu
         ? { cuisine: id }
         : { types: [id] });
       const recommendation = await postVisitRecommendation({
-        region, visit_at: visitAt + '+09:00', preferred_moods: mood ? [mood] : [], orders, outdoor,
+        region, visit_at: visitAt + '+09:00', preferred_moods: mood ? [mood] : [], orders,
         budget: budget > 0 ? { min_krw: budget, max_krw: budget } : undefined,
       });
       setResult(recommendation);
@@ -164,13 +157,6 @@ export function VisitRecommendationSection({ onOpenVenue }: { onOpenVenue: (venu
                 <option key={tag.id} value={tag.id}>{tag.label}</option>)}
             </select>
           </label>
-          <label>좌석 선호
-            <select value={outdoor} onChange={event => setOutdoor(event.target.value as OutdoorPreference)}>
-              <option value="ANY">상관없음</option>
-              <option value="PREFER_OUTDOOR">야외석 선호</option>
-              <option value="REQUIRE_OUTDOOR">야외석 필수</option>
-            </select>
-          </label>
           <label>1인 예산 (선택)
             <input name="budget" type="number" min="1" max="1000000" placeholder="원" />
           </label>
@@ -196,11 +182,7 @@ export function VisitRecommendationSection({ onOpenVenue }: { onOpenVenue: (venu
       <h3>추천 결과</h3>
       <p>{seoulDateTime.format(new Date(result.request.visit_at))} 방문 기준</p>
       {result.ranked.length > 0 && <VisitCards venues={result.ranked} onOpenVenue={onOpenVenue} />}
-      {result.pending.length > 0 && <>
-        <h4>좌석 확인이 필요한 매장</h4>
-        <VisitCards venues={result.pending} onOpenVenue={onOpenVenue} ranked={false} />
-      </>}
-      {result.ranked.length === 0 && result.pending.length === 0 && <p>선택한 조건에 맞는 매장이 없습니다.</p>}
+      {result.ranked.length === 0 && <p>선택한 조건에 맞는 매장이 없습니다.</p>}
     </div>}
   </section>;
 }

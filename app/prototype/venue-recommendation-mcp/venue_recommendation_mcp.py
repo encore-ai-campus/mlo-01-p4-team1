@@ -17,7 +17,7 @@ from venue_csv_catalog import add_csv_venues
 from venue_forecast import KST, fetch_forecasts, project_endpoint, timestamp
 from venue_nearby import RADIUS_M, SeoulPlaceIndex, station_label
 from venue_search_intent import BudgetBand, VenueCategory, budget_from_text, query_tags
-from verify_tag_weather import SEAT_LABELS, expand, normalize, read_tags, recommend, resolve, seat_result, verify_pilot
+from verify_tag_weather import expand, match_venues, normalize, read_tags, resolve, verify_pilot
 
 
 ROOT = Path(__file__).resolve().parent
@@ -25,9 +25,18 @@ DEFAULT_CATALOG = ROOT / "실매장_태그_날씨_시범_v0.2.json"
 DEFAULT_LOCATIONS = ROOT / "venue_weather_regions_v0.2.json"
 TAG_FILE = ROOT / "공통_태그_목록_v0.2.csv"
 TagValue = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
-Outdoor = Literal["ANY", "PREFER_OUTDOOR", "REQUIRE_OUTDOOR"]
-DEMO_WEATHER_LABELS = {"CLEAR": "맑은 날", "RAIN": "비 오는 날", "CLOUDY": "흐린 날", "OVERCAST": "흐린 날"}
-RAIN_READY_SEATS = {"OUTDOOR", "INDOOR_CONFIRMED", "INDOOR_FALLBACK", "INDOOR_OUTDOOR_UNVERIFIED"}
+WEATHER_PREFERENCES = {
+    "CLEAR": (
+        "맑은 날",
+        {"mood_daylight", "mood_garden", "mood_urban_view", "mood_relaxed", "mood_lively"},
+        {"menu_ade", "menu_cold_brew", "menu_iced_tea", "menu_bingsu", "menu_draft_beer"},
+    ),
+    "RAIN": (
+        "비 오는 날",
+        {"mood_cozy", "mood_calm", "mood_dim_lighting", "mood_gallery"},
+        {"menu_soup", "menu_traditional_tea", "menu_hand_drip", "menu_filter_coffee", "menu_pajeon"},
+    ),
+}
 
 
 class MenuOrder(BaseModel):
@@ -103,6 +112,11 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
     catalog_source = "PUBLIC_SOURCE_PILOT" if catalog_path.resolve() == DEFAULT_CATALOG else "CONFIGURED_PUBLIC_CATALOG"
     venues = {row["venue_id"]: row for row in catalog["venues"]}
     menus = {row["menu_id"]: row for row in catalog["menus"]}
+    menu_ids_by_venue = {}
+    expanded_menu_types = {}
+    for menu_id, menu in menus.items():
+        menu_ids_by_venue.setdefault(menu["venue_id"], []).append(menu_id)
+        expanded_menu_types[menu_id] = expand(menu["menu_type_tag_ids"], ancestors)
     place_index = SeoulPlaceIndex()
     seoul_districts = set(place_index.districts.values())
     server = FastMCP("venue-recommendation")
@@ -144,7 +158,6 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
         )] = None,
         preferred_moods: Annotated[list[TagValue], Field(max_length=12)] | None = None,
         orders: Annotated[list[MenuOrder], Field(max_length=8)] | None = None,
-        outdoor: Outdoor = "ANY",
         limit: Annotated[StrictInt, Field(ge=1, le=20)] = 10,
         venue_category: VenueCategory | None = None,
         required_moods: Annotated[list[TagValue], Field(max_length=12)] | None = None,
@@ -243,51 +256,42 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
             ]
             if not scoped_venues:
                 empty_reason = "NO_BUDGET"
-        if scoped_venues and outdoor == "REQUIRE_OUTDOOR":
-            scoped_venues = [row for row in scoped_venues if row["seats"]["outdoor"] == "CONFIRMED"]
-            if not scoped_venues:
-                empty_reason = "NO_OUTDOOR"
-
         conditions = {
-            "district": None, "preferred_moods": sorted(preferred | required),
-            "orders": menu_orders,
-            "seating": "ANY", "weather": "NO_FORECAST",
+            "district": None, "preferred_moods": sorted(preferred | required), "orders": menu_orders,
         }
-        # v0.2 is the single source for tag ancestry and the same-menu matching rule.
-        base = recommend({**catalog, "venues": scoped_venues}, conditions, labels, ancestors)["ranked"]
+        base = list(match_venues({**catalog, "venues": scoped_venues}, conditions, labels, ancestors))
         if scoped_venues and not base:
             empty_reason = "NO_MENU"
         by_venue = await fetch_forecasts(
-            {row["venue_id"]: locations.get(row["venue_id"]) for row in base}, visit,
+            {venue["venue_id"]: locations.get(venue["venue_id"]) for venue, _ in base}, visit,
             project_url=project_url, demo_open_meteo=demo_open_meteo,
         )
 
-        decisions = {"ranked": [], "pending": [], "excluded": []}
-        for matched in base:
-            venue_id = matched["venue_id"]
-            venue = venues[venue_id]
+        ranked = []
+        for venue, matched in base:
+            venue_id = venue["venue_id"]
             forecast = by_venue[venue_id]
-            bucket, seat, outdoor_priority = seat_result(venue["seats"], outdoor, forecast.seating_weather)
-            if bucket is None:
-                continue
-
             location = locations.get(venue_id, {})
             distance = distances.get(venue_id)
             budget_example = venue.get("budget_example")
             price = listed_budget(venue)
             budget_distance = budget.distance(price) if budget and price is not None else None
-            clear_outdoor = forecast.condition == "CLEAR" and venue["seats"]["outdoor"] == "CONFIRMED"
-            rain_ready = forecast.state == "RAIN" and seat in RAIN_READY_SEATS
+
+            weather_score = 0
             weather_match = None
-            if forecast.state != "NO_FORECAST":
-                label = DEMO_WEATHER_LABELS.get(forecast.condition)
-                if clear_outdoor:
-                    weather_match = {"label": "맑은 날 · 야외 좌석 확인", "source": "SEAT_EVIDENCE"}
-                elif rain_ready:
-                    seating_label = "우천 이용 가능한 야외석 확인" if seat == "OUTDOOR" else "비 오는 날 · 실내 좌석 확인"
-                    weather_match = {"label": seating_label, "source": "SEAT_EVIDENCE"}
-                elif label and normalize(label) in venue.get("demo_weather_tags", ()):
-                    weather_match = {"label": label, "source": "DEMO_CSV"}
+            if forecast.state != "NO_FORECAST" and (weather := WEATHER_PREFERENCES.get(forecast.condition)):
+                weather_label, weather_moods, weather_menu_types = weather
+                mood_matches = sorted(weather_moods & set(venue["mood_tag_ids"]))
+                # A requested menu uses the same verified items that satisfied the search.
+                requested_items = {menu_id for group in matched["matched_menu_groups"] for menu_id in group}
+                menu_matches = sorted(
+                    menus[menu_id]["name"] for menu_id in (requested_items or menu_ids_by_venue.get(venue_id, ()))
+                    if expanded_menu_types[menu_id] & weather_menu_types
+                )
+                reasons = [tags[tag_id]["label_ko"] for tag_id in mood_matches[:1]] + menu_matches[:1]
+                weather_score = len(reasons)
+                if reasons:
+                    weather_match = {"label": " · ".join([weather_label, *reasons]), "source": "TAG_MATCH"}
             result = {
                 "venue_id": venue_id, "name": venue["name"], "address": venue["address"],
                 "district": venue["district"], "admin_dong": venue.get("admin_dong") or location.get("admin_dong"),
@@ -306,7 +310,6 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
                      for menu_id in group]
                     for group in matched["matched_menu_groups"]
                 ],
-                "seat": {"code": seat, "label": SEAT_LABELS[seat]},
                 "forecast": {**asdict(forecast), "region_id": location.get("region_id"),
                              "grid": [location["nx"], location["ny"]] if location else None},
             }
@@ -316,11 +319,9 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
                 distance if distance is not None else 0, venue_id,
             )
             mood_priority = -len(result["matched_moods"])
-            rank = (-outdoor_priority, -(clear_outdoor or rain_ready),
-                    weather_match is None, mood_priority, *tie_breakers)
-            decisions[bucket].append((rank, result))
+            ranked.append(((-weather_score, mood_priority, *tie_breakers), result))
 
-        counts = {bucket: len(rows) for bucket, rows in decisions.items()}
+        counts = {"ranked": len(ranked), "pending": 0, "excluded": 0}
         forecast_count = sum(value.state != "NO_FORECAST" for value in by_venue.values())
         if not by_venue:
             forecast_status = "NOT_NEEDED"
@@ -330,15 +331,13 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
             forecast_status = "PARTIAL"
         else:
             forecast_status = "NO_FORECAST"
-        status = "OK" if counts["ranked"] else ("NEEDS_CHECK" if counts["pending"] or place.choices else "NO_MATCH")
-        if status != "OK" and not empty_reason and counts["pending"] + counts["excluded"]:
-            empty_reason = "CHECK_WEATHER_SEATING"
+        status = "OK" if ranked else ("NEEDS_CHECK" if place.choices else "NO_MATCH")
         return {
             "status": status,
             **({"empty_reason": empty_reason} if empty_reason else {}),
             **({"location_candidates": place.choices} if place.choices else {}),
             "request": {
-                "region": region, "visit_at": visit.isoformat(), "outdoor": outdoor,
+                "region": region, "visit_at": visit.isoformat(),
                 "venue_category": venue_category, "required_moods": sorted(required),
                 "budget": budget.model_dump() if budget else None,
                 **({"budget_mode": "REQUIRE" if strict_budget else "PREFER"} if budget else {}),
@@ -347,7 +346,7 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
             "tag_version": "0.2", "catalog_version": catalog["version"], "catalog_source": catalog_source,
             "weather_mapping_version": mapping_version,
             "forecast_status": forecast_status, "counts": counts,
-            **{bucket: [row for _, row in sorted(items)[:limit]] for bucket, items in decisions.items()},
+            "ranked": [row for _, row in sorted(ranked)[:limit]], "pending": [], "excluded": [],
         }
 
     return server

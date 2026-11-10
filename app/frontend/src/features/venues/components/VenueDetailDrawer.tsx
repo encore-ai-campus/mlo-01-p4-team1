@@ -184,7 +184,6 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({
           {venue.curated_listing ? <section aria-label="공개 자료로 확인한 매장 정보">
             <h3>확인한 매장 정보</h3>
             {!!venue.curated_listing.moods.length && <p>{venue.curated_listing.moods.join(' · ')}</p>}
-            {venue.curated_listing.seat_summary && <p>{venue.curated_listing.seat_summary}</p>}
             <h4>대표 메뉴</h4>
             <p>{venue.curated_listing.representative_menus.join(' · ')}</p>
             {venue.curated_listing.budget_example ? <div>

@@ -1,4 +1,4 @@
-"""시연 CSV를 원본 venue_id로 추가합니다. 메뉴와 좌석은 검증 카탈로그에서만 읽습니다."""
+"""시연 CSV를 원본 venue_id로 추가합니다. 메뉴는 검증 카탈로그에서 읽습니다."""
 
 import csv
 import re
@@ -66,14 +66,10 @@ def add_csv_venues(catalog, locations, path, mood_labels):
             venue = dict(verified) if verified else {
                 "venue_id": venue_id, "name": row["매장명"], "district": row["자치구"],
                 "admin_dong": row["행정동"], "address": row["도로명주소"], "mood_tag_ids": mood_ids,
-                "seats": {"indoor": "UNKNOWN", "outdoor": "UNKNOWN", "outdoor_in_rain": "UNKNOWN"},
             }
             venue.setdefault("venue_category", csv_category(row))
             venue.setdefault("sub_category", row["세부카테고리"])
             venue.setdefault("avg_budget_krw", positive_won(row["1인_평균예산(원)"]))
-            venue.setdefault("demo_weather_tags", {
-                normalize(value) for value in row.get("추천날씨", "").split("|") if value.strip()
-            })
             coordinates = csv_coordinates(row)
             if coordinates:
                 venue["coordinates"] = coordinates
