@@ -1,5 +1,10 @@
+import os
+import tempfile
 import time
+from pathlib import Path
+from unittest.mock import patch
 from django.test import TestCase
+from backend.common.data_paths import discover_analysis_dirs
 from backend.venues.repositories.csv_lazy_repo import get_venue_repo, CsvLazyRepository
 
 
@@ -53,3 +58,13 @@ class TestCsvLazyRepository(TestCase):
         venue = self.repo.get_venue_by_id(target['venue_id'])
         self.assertIsNotNone(venue)
         self.assertEqual(venue['venue_name'], target['venue_name'])
+
+    def test_env_data_dir_priority(self):
+        """VENUE_DATA_DIR 환경변수가 지정되면 최우선 탐색 경로로 포함되어야 함"""
+        with tempfile.TemporaryDirectory() as tmp:
+            custom_dir = Path(tmp) / 'custom_analysis'
+            custom_dir.mkdir()
+            with patch.dict(os.environ, {'VENUE_DATA_DIR': str(custom_dir)}, clear=False):
+                candidates = discover_analysis_dirs()
+            self.assertGreaterEqual(len(candidates), 1)
+            self.assertEqual(candidates[0].resolve(), custom_dir.resolve())

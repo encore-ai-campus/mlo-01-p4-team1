@@ -6,18 +6,16 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from backend.common.data_paths import discover_analysis_dirs
+
 logger = logging.getLogger(__name__)
 
-# 프로젝트 루트 및 app/ 경로 기준 (app/analysis, 루트 analysis, 워크트리 analysis, 패키지 내 sample_data 모두 자동 지원)
+# 프로젝트 루트, app/, 환경변수(VENUE_DATA_DIR), Google Drive 마운트 경로 모두 자동 지원
 APP_ROOT_DIR = Path(__file__).resolve().parents[3]
 REPO_ROOT_DIR = APP_ROOT_DIR.parent
 PACKAGE_SAMPLE_DIR = Path(__file__).resolve().parents[1] / 'sample_data'
 
-_ANALYSIS_CANDIDATES = [
-    APP_ROOT_DIR / 'analysis',
-    REPO_ROOT_DIR / 'analysis',
-    Path(__file__).resolve().parents[4] / 'analysis',
-]
+_ANALYSIS_CANDIDATES = discover_analysis_dirs(app_root=APP_ROOT_DIR, repo_root=REPO_ROOT_DIR)
 
 # 서울 25개 구 전수 CSV(50개 파일)가 들어있는 by_gu 폴더 탐색
 BY_GU_DIR = next(
@@ -60,15 +58,13 @@ REGION_CSV_DIRS = _discover_region_csv_dirs()
 # 폴백 및 실시간 수집(Live Naver Place) 메뉴 CSV 후보 경로
 FALLBACK_VENUES_CANDIDATES = [
     PACKAGE_SAMPLE_DIR / 'seoul_venues_demo_sample.csv',
-    ANALYSIS_DIR / 'seoul_venues_20261106' / 'seoul_venues_demo_sample.csv',
-    ANALYSIS_DIR / 'seoul_venues_demo_sample.csv',
-    REPO_ROOT_DIR / 'analysis' / 'seoul_venues_20261106' / 'seoul_venues_demo_sample.csv',
+    *(d / 'seoul_venues_20261106' / 'seoul_venues_demo_sample.csv' for d in _ANALYSIS_CANDIDATES),
+    *(d / 'seoul_venues_demo_sample.csv' for d in _ANALYSIS_CANDIDATES),
 ]
 FALLBACK_MENUS_CANDIDATES = [
     PACKAGE_SAMPLE_DIR / 'seoul_venue_menus_demo_sample.csv',
-    ANALYSIS_DIR / 'seoul_venues_20261106' / 'seoul_venue_menus_demo_sample.csv',
-    ANALYSIS_DIR / 'seoul_venue_menus_demo_sample.csv',
-    REPO_ROOT_DIR / 'analysis' / 'seoul_venues_20261106' / 'seoul_venue_menus_demo_sample.csv',
+    *(d / 'seoul_venues_20261106' / 'seoul_venue_menus_demo_sample.csv' for d in _ANALYSIS_CANDIDATES),
+    *(d / 'seoul_venue_menus_demo_sample.csv' for d in _ANALYSIS_CANDIDATES),
 ]
 
 # 수도권(서울 25개 구 + 경기 30개 시·군 + 인천 10개 구·군 = 총 65개 시·군·구) 중심 좌표 사전
