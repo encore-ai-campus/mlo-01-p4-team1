@@ -112,6 +112,17 @@ class ExportTests(unittest.TestCase):
         with self.assertRaises(ContractError):export(self.paths)
 
 class SourceSafetyTests(unittest.TestCase):
+    def test_native_target_is_review_metadata_not_bootstrap_execution(self):
+        configuration=account_module()
+        host=configuration['resource']['aws_instance']['host']
+        self.assertIn('native-systemd-v1',host['tags']['DataExecutionTarget'])
+        self.assertNotIn('user_data',host)
+        design=configuration['output']['foundation']['value']['native_host_design']
+        self.assertEqual(design['profile'],'native-data-systemd-v1')
+        self.assertFalse(design['ready_for_aws'])
+        self.assertIn('real native installer/start/protocol-health/config-rollback acceptance',design['deployment_blockers'])
+        self.assertEqual(design['os']['version'],'24.04')
+
     def test_destroy_protection_and_no_formatting(self):
         a=account_module()['resource'];b=bucket_module()['resource']
         for kind in ['aws_vpc','aws_network_interface','aws_ebs_volume']:

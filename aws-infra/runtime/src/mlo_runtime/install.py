@@ -35,6 +35,37 @@ def require(value, message):
         raise InstallError(message)
 
 
+def require_native_acceptance(binding):
+    """Do not deploy the old Docker data/driver backend after native redesign.
+
+    Local legacy fixtures remain available for regression evidence. Production
+    native installation, health, rollback and fencing need separate acceptance;
+    a JSON 'ready' flag must not bypass this migration boundary.
+    """
+    if binding.get("lab") is not True and binding.get("role") == "control":
+        native_path = Path("/etc/mlo/native-execution.json")
+        supervisor_path = Path("/etc/mlo/supervisor.json")
+        if binding.get("native_execution_contract_sha256"):
+            for path in (native_path, supervisor_path):
+                require(path.is_file() and not path.is_symlink() and path.stat().st_uid == 0
+                        and path.stat().st_mode & 0o077 == 0, "protected native Control contract required")
+            require(sha(native_path) == binding["native_execution_contract_sha256"], "native Control contract checksum mismatch")
+            native, supervisor = read(native_path), read(supervisor_path)
+            require(native.get("accepted") is True and native.get("example_only") is False, "native Control contract unaccepted/fixture")
+            require(native.get("execution_backend") == supervisor.get("execution", {}).get("execution_backend") == "native-systemd-v1", "native Control/Supervisor backend mismatch")
+            require((native.get("owner"), native.get("generation")) == (binding["node"], binding["generation"])
+                    == (supervisor.get("owner"), supervisor.get("generation")), "native Control identity mismatch")
+            require(native.get("accepted_driver_specs") and native.get("continuous_drivers"), "native Control accepted driver closure required")
+            return
+    if binding.get("lab") is not True and binding.get("role") in {
+        "kafka", "spark", "elasticsearch", "control"
+    }:
+        raise InstallError(
+            "native-systemd redesign pending: legacy Compose data/driver deployment disabled; "
+            "native installer/health/rollback/fencing acceptance required"
+        )
+
+
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
@@ -81,7 +112,7 @@ def deployment_lock(path):
         os.close(fd)
 
 
-def protected_binding(path):
+def protected_binding(path, *, native=False):
     path = Path(path).absolute()
     require(path.is_file() and not path.is_symlink(), "protected binding file required")
     mode = path.stat().st_mode
@@ -143,6 +174,10 @@ def protected_binding(path):
         },
         "invalid protected node role",
     )
+    if native:
+        require(binding.get("execution_target") == "native-systemd-v1" and binding["role"] in {"kafka", "spark", "elasticsearch"}, "native protected execution target mismatch")
+    else:
+        require_native_acceptance(binding)
     return binding
 
 

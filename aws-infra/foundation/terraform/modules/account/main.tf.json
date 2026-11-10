@@ -2133,7 +2133,8 @@
         "tags": {
           "Name": "${each.key}",
           "Generation": "${var.binding.generation}",
-          "Project": "mlo-p4"
+          "Project": "mlo-p4",
+          "DataExecutionTarget": "${contains([\"kafka\",\"spark\",\"elasticsearch\"],each.value.role) ? \"native-systemd-v1\" : (each.value.role==\"control\" ? \"native-drivers-compose-web\" : \"compose-v1\")}"
         },
         "lifecycle": {
           "precondition": [
@@ -2281,7 +2282,28 @@
         "nodes": "${[for name,n in local.nodes:merge(n,{instance_id=aws_instance.host[name].id,private_ip=local.addresses[name],az_id=var.binding.az_ids[n.az_slot],runtime_role_ref=\"role-ref:${name}\"})]}",
         "route_tables": "${{for k,r in aws_route_table.this:k=>r.id}}",
         "zones": "${{for k,z in aws_route53_zone.ssm:k=>z.zone_id}}",
-        "storage": "${merge({for k,v in var.binding.bucket_names:\"${k}_bucket_ref\"=>v},{state_bucket_ref=var.binding.state_bucket})}"
+        "storage": "${merge({for k,v in var.binding.bucket_names:\"${k}_bucket_ref\"=>v},{state_bucket_ref=var.binding.state_bucket})}",
+        "native_host_design": {
+          "profile": "native-data-systemd-v1",
+          "ready_for_aws": false,
+          "role_targets": "${{for name,n in local.nodes:name=>(contains([\"kafka\",\"spark\",\"elasticsearch\"],n.role) ? \"native-systemd\" : (n.role==\"control\" ? \"native-drivers-compose-web\" : \"compose\"))}}",
+          "os": {
+            "distribution": "Ubuntu",
+            "version": "24.04",
+            "architecture": "x86_64",
+            "service_manager": "systemd"
+          },
+          "installation": "accepted immutable AMI or offline artifact; Runtime owns installation",
+          "deployment_blockers": [
+            "detached signatures and complete offline OS/Python/connector closure",
+            "accepted AMI and real mount UUIDs/inventory/PKI/secrets",
+            "real native installer/start/protocol-health/config-rollback acceptance",
+            "remote native driver/lease fencing and signed cgroup stop evidence",
+            "actual PID1 systemd restart/data preservation and backup/restore acceptance",
+            "auxiliary observation/proxy transport and reboot secret delivery acceptance",
+            "48h capacity and growth measurements"
+          ]
+        }
       }
     },
     "runtime_artifact_boundary": {

@@ -25,6 +25,10 @@ from .contracts import (
 )
 
 from .queries import QUERIES, EXECUTOR_PORTS
+from .resources import (
+    SPARK_WORKER_CPUS, SPARK_WORKER_CORES, SPARK_WORKER_MEMORY,
+    spark_resource_conf, resource_profile,
+)
 from . import observability, track2
 TIMERS = {
     "control": {
@@ -115,6 +119,7 @@ def adapter(inventory):
             "ansible_aws_ssm_bucket_sse_mode": "AES256",
             "ansible_python_interpreter": "/usr/bin/python3",
             "runtime_node": node,
+            "runtime_execution_target": "native-systemd-v1" if node["role"] in {"kafka", "spark", "elasticsearch"} else "compose",
         }
     return {
         "all": {
@@ -147,6 +152,7 @@ def spark_defaults(inventory, node):
         "spark.hadoop.fs.s3a.path.style.access false\n"
         "spark.sql.extensions io.delta.sql.DeltaSparkSessionExtension\n"
         "spark.sql.catalog.spark_catalog org.apache.spark.sql.delta.catalog.DeltaCatalog\n"
+        + "".join(key + " " + value + "\n" for key, value in spark_resource_conf().items())
     )
 
 
@@ -486,9 +492,9 @@ def compose(node, inventory):
             if component == "worker":
                 cmd += [
                     "--cores",
-                    "2",
+                    str(SPARK_WORKER_CORES),
                     "--memory",
-                    "3g",
+                    SPARK_WORKER_MEMORY,
                     "--work-dir",
                     "/data/spark",
                     "spark://"
@@ -511,6 +517,8 @@ def compose(node, inventory):
             services["spark-" + component]["entrypoint"] = services[
                 "spark-" + component
             ].pop("command")
+            if component == "worker":
+                services["spark-worker"]["cpus"] = SPARK_WORKER_CPUS
     elif role == "elasticsearch":
         services[role] = svc(
             role,
@@ -618,6 +626,7 @@ def build(inventory, specification, foundation_track2=None):
         ],
         "nodes": {},
         "track2_bridge": bridge,
+        "resource_profile": resource_profile(inventory),
     }
     for node in inventory["nodes"]:
         selected = node_services(node, specification["services"])

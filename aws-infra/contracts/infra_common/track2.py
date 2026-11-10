@@ -50,7 +50,7 @@ def foundation_binding(sidecar, inventory):
         "archive": f"observability/{env}/{gen}/" if sidecar["archive_bucket_ref"] else None,
     }
     require(sidecar["paths"] == expected, "producer/consumer storage path mismatch")
-    require(sidecar["tls_status"] in {"CONFIGURED_NOT_VERIFIED", "UNRESOLVED_ORIGIN_NAME_CERTIFICATE"},
+    require(sidecar["tls_status"] in {"CONFIGURED_NOT_VERIFIED", "UNRESOLVED_ORIGIN_NAME_CERTIFICATE", "VIEWER_HTTPS_ORIGIN_HTTP"},
             "TLS configuration is not verification")
     for name in ("media_bucket_ref", "archive_bucket_ref"):
         bucket = sidecar[name]

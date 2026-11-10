@@ -69,6 +69,8 @@ Logstash PQ는 filter보다 앞에 있으므로 인수한 mTLS agent의 source-s
 | pressure/no-progress | queue80% 경고, 진행 없이 backlog120초면 STALE |
 
 이미지 상한은 host 전체 부하 보장이 아닙니다. OS·Spark·앱 예산과 디스크 여유는 실환경에서 측정합니다.
+
+저부하 48시간 프로파일에서는 `venues-catalog`의 `total_executor_cores`를 1로 제한합니다. 세 worker가 각각 1core를 광고하며 기존 상시 스트림 두 개가 먼저 자원을 확보합니다. catalog와 analytics 배치는 남은 1core 슬롯을 공유하고 완료 시 SparkContext를 종료해야 합니다. driver/executor heap은 각각 1GiB이며, 실제 제출 명령과 제안 manifest는 공통 `resources.py`를 소비합니다. 별도 앱/stop hook 인수 전 실행 차단은 유지합니다.
 ES 로그 보존은 미확정이며 TTL/ILM delete/VACUUM을 켜지 않습니다. ES disk watermark와 queue/spool 상한에서
 압력 상태를 보고하고 보존 정책 인수 전 무한 적재를 허용하지 않습니다. Control-b collector 단일 장애점은 남습니다.
 
@@ -116,11 +118,22 @@ Control query owner, dataset별 lake 세 계층 및 checkpoint 경로를 검증�
 
 ## Viewer/TLS readiness
 
-ALB 기본 DNS만으로 full origin TLS가 준비되었다고 표시하지 않습니다. `validate_edge`는 controlled origin
+`transport_profile`을 생략하면 기존 `full-tls` 계약입니다. ALB 기본 DNS만으로 full origin TLS가 준비되었다고 표시하지 않습니다. `validate_edge`는 controlled origin
 hostname·certificate verification 입력·Control TLS·fixed viewer/RP ID/CSRF·Secure cookie·제한된 proxy CIDR·
 edge가 덮어쓰는 CloudFront-Forwarded-Proto를 요구합니다. ALB X-Forwarded-Proto만으로 viewer protocol을 추측하지
 않습니다. `track2_execution_enabled=true` 설치는 이 gate를 통과해야 합니다. 기본은 미준비입니다.
 설정 검증은 실제 인증서 발급/TLS handshake/SG 인수를 대신하지 않습니다. 패스키 ceremony는 보류합니다.
+
+명시적인 `viewer-https-demo`는 dev·합성 데이터 시연에 한해 별도로 인수합니다.
+고정 `https://<distribution>.cloudfront.net` viewer/RP ID와 서울 ALB 기본 hostname을 사용하며,
+origin은 HTTP 80, Control은 HTTP 8000입니다. `demo_only=true`, `synthetic_data_only=true`,
+`origin_certificate_verified=false`, `control_tls_verified=false`를 요구하고 `full_tls=false`를 반환합니다.
+Secure cookie·CSRF origin·좁은 trusted proxy CIDR·CloudFront 생성 proto header의 덮어쓰기·edge 전용 ingress 조건은 그대로 필요합니다.
+이 값들은 앱의 실제 proxy 설정·header 위조 거부·로그인/CSRF 인수 시험을 대신하지 않습니다.
+
+CloudFront의 기본 viewer HTTPS는 장기 운영에도 사용할 수 있습니다. 이 프로젝트의 시연 제한은
+CloudFront 뒤 두 HTTP 구간과 합성 데이터 사용 범위에 적용합니다. 공개 운영으로 전환할 때는
+관리하는 origin 도메인·일치하는 공개 인증서·ALB HTTPS listener·Control TLS를 인수해 `full-tls`로 전환합니다.
 
 ## 로컬 수용
 
