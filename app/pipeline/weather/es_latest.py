@@ -7,7 +7,7 @@ from pipeline.weather.common import digest
 from pipeline.weather.es_current import request
 from pipeline.weather.latest_state import merge_rows
 from pipeline.weather.projection import project_grid
-from pipeline.weather.service_view import enrich
+from pipeline.weather.service_view import config, enrich
 
 
 def configuration():
@@ -40,12 +40,14 @@ def write_grid(nx, ny, incoming):
     identifier = grid_id(nx, ny)
     if any((row['nx'], row['ny']) != (nx, ny) for row in incoming):
         raise ValueError('mixed_weather_grids')
+    backfill_hours = config()['backfill_hours']
     for _ in range(8):
         previous = load(base, index, identifier)
         source = previous['_source'] if previous else None
         if source and source.get('schema_version') != 1:
             raise ValueError('weather_storage_schema')
-        rows = merge_rows(source['rows'] if source else [], incoming)
+        rows = merge_rows(source['rows'] if source else [], incoming,
+                          backfill_hours=backfill_hours)
         rows.sort(key=lambda row: (row['source'], row['issued_at'], row['target_at'], row['category']))
         state_hash = digest(rows)
         if not rows or source and source['state_hash'] == state_hash:
