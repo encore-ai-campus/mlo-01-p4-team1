@@ -49,7 +49,7 @@ def export_track2(paths, inventory):
         require(all(v.startswith('example-only-') for v in optional), 'fixture optional storage mixed with real values')
     else:
         require(not any('example-only-' in v for v in optional), 'real optional storage mixed with fixture')
-    require(first['tls_status'] in {'CONFIGURED_NOT_VERIFIED','UNRESOLVED_ORIGIN_NAME_CERTIFICATE'}, 'unknown TLS status')
+    require(first['tls_status'] in {'CONFIGURED_NOT_VERIFIED','UNRESOLVED_ORIGIN_NAME_CERTIFICATE','VIEWER_HTTPS_ORIGIN_HTTP'}, 'unknown TLS status')
     if first['enabled']:
         require(isinstance(first['dataset_version'], str) and re.fullmatch('[a-z0-9][a-z0-9-]{0,62}', first['dataset_version']), 'invalid output dataset')
         require(set(first['driver_queries']) <= {'control-a','control-b'} and bool(first['driver_queries']), 'invalid output Driver owners')

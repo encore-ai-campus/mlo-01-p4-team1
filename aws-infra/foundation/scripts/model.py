@@ -91,6 +91,14 @@ def validate_binding(b, *, real=False):
     if 'track2' in b:
         from track2 import validate_track2
         validate_track2(b['track2'], b)
+    if 'edge_profile' in b:
+        require(b['edge_profile'] in {'full-tls','viewer-https-demo'}, 'unknown edge transport profile')
+        tls_enabled=b.get('track2',{}).get('tls',{}).get('enabled',False)
+        if b['edge_profile']=='viewer-https-demo':
+            require(not tls_enabled,
+                    'viewer-only HTTPS must not be reported as full origin TLS')
+        else:
+            require(tls_enabled, 'full TLS profile requires the origin and Control TLS inputs')
     return b
 
 def flows():

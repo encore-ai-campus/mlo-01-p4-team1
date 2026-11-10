@@ -41,6 +41,19 @@ SSM private DNS는 Endpoint 기본 Private DNS 자동 공유 대신 서비스 �
 
 기본 구성의 CloudFront viewer는 기본 인증서 HTTPS이고 ALB origin은 HTTP입니다. 전 구간 TLS라고 주장하지 않습니다. ALB ingress는 CloudFront origin prefix list, listener default 403과 비공개 origin header 조건으로 제한합니다. 기본 및 명시적인 `/api/*` behavior는 `Cache-Control: no-store, private`를 강제하고 cache TTL은 0이며 header/cookie/query 및 7개 HTTP method를 전달합니다. CloudFront가 생성하는 `CloudFront-Forwarded-Proto`도 전달합니다. B는 제한된 origin 경계에서 이 헤더의 신뢰·덮어쓰기와 Secure cookie/CSRF/redirect 처리를 인수해야 합니다. `/ops/`·Kibana 인증, CSRF·Host·Authorization·광고 proof 전달과 실제 cache 동작은 runtime 및 실환경 검수 대상입니다. Origin header는 state에 남는 민감값으로 취급하며 HTTP origin 구간의 한계가 남습니다. 아래 선택 media 경로만 별도 캐시 정책을 사용합니다.
 
+명시적인 `binding.edge_profile="viewer-https-demo"`는 합성 데이터 시연에서 위 HTTP origin 구간을
+정확히 표시하는 선택값입니다. 기존 sidecar 필드를 유지하면서 edge output의
+`tls_status=VIEWER_HTTPS_ORIGIN_HTTP`로 구분하며 full origin TLS와 함께 켤 수 없습니다.
+CloudFront viewer HTTPS 자체는 장기 운영에 사용할 수 있습니다. 시연 제한은 암호화하지 않는
+origin/Control 구간에 적용합니다. `edge_profile="full-tls"`는 기존 `track2.tls` 인증서·Control TLS 입력을 요구합니다.
+프로필 생략 시 기존 unresolved 동작을 유지합니다. 앱의 Secure cookie·CSRF·제한된 proxy 신뢰 설정은 별도 인수입니다.
+
+## EC2 직접 설치 설계 경계
+
+Kafka·Spark·Elasticsearch는 [native host 계약](../contracts/native-host.v1.json)에 따라 호스트 OS/systemd로 전환합니다. EC2 수·종류, VPC/AZ, 보안그룹 포트, EBS 크기·보존 설정은 이번 재설계에서 유지합니다. EC2의 `DataExecutionTarget` 태그와 `foundation.native_host_design` output은 목표 실행 방식과 Ubuntu 24.04/x86_64 요구사항, `ready_for_aws=false` 및 차단 항목을 전달합니다. 태그가 프로그램을 설치하거나 서비스를 기동하지는 않습니다.
+
+실제 AMI는 native binary/JDK/Python·커넥터 및 systemd 환경의 검증된 버전이 필요합니다. 설치는 Runtime의 불변 artifact/AMI와 Ansible 경계에서 수행하며 Terraform user_data·remote-exec에 인터넷 설치 명령·secret·포맷을 넣지 않습니다. 기존 image digest를 native 배포물 checksum으로 재사용하지 않습니다. 실행 전 새 artifact/저장 plan을 다시 생성해야 하며 기존 Docker 설치 adapter로 native 목표를 충족했다고 간주하지 않습니다.
+
 ## Exporter와 runtime 연결
 
 ```bash

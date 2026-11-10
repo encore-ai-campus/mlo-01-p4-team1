@@ -190,6 +190,36 @@ class Track2Acceptance(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(UnsafeTransition):
                 validate_edge({**binding, **change})
 
+    def test_viewer_https_demo_is_explicit_and_never_full_tls(self):
+        binding = {
+            "accepted": True, "transport_profile": "viewer-https-demo",
+            "environment": "dev", "demo_only": True, "synthetic_data_only": True,
+            "origin_hostname": "p4-control-123.ap-northeast-2.elb.amazonaws.com",
+            "origin_protocol": "http", "origin_port": 80,
+            "control_protocol": "http", "control_port": 8000,
+            "origin_tls_name": "", "origin_certificate_verified": False,
+            "control_tls_verified": False,
+            "viewer_origin": "https://d123example.cloudfront.net",
+            "rp_id": "d123example.cloudfront.net", "secure_cookies": True,
+            "csrf_origin": "https://d123example.cloudfront.net",
+            "viewer_protocol_header": "CloudFront-Forwarded-Proto",
+            "viewer_protocol": "https", "edge_overwrites_viewer_header": True,
+            "trusted_proxy_cidrs": ["10.210.1.0/24"], "ingress_restricted": True,
+        }
+        result = validate_edge(binding)
+        self.assertTrue(result["ready"])
+        self.assertFalse(result["full_tls"])
+        for change in (
+            {"transport_profile": "full-tls"}, {"demo_only": False},
+            {"environment": "prod"}, {"synthetic_data_only": False},
+            {"origin_certificate_verified": True}, {"control_tls_verified": True},
+            {"origin_hostname": "unrelated.example.org"}, {"control_port": 8443},
+            {"secure_cookies": False}, {"viewer_protocol_header": "X-Forwarded-Proto"},
+            {"ingress_restricted": False}, {"trusted_proxy_cidrs": ["0.0.0.0/0"]},
+        ):
+            with self.subTest(change=change), self.assertRaises(UnsafeTransition):
+                validate_edge({**binding, **change})
+
 
 class Observations(unittest.TestCase):
     def test_secrets_and_pii_removed_and_values_fail_closed(self):

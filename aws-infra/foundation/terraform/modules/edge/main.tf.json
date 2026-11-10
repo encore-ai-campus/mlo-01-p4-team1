@@ -74,6 +74,16 @@
     },
     "account_id": {
       "type": "string"
+    },
+    "viewer_https_demo": {
+      "type": "bool",
+      "default": false,
+      "validation": [
+        {
+          "condition": "${!var.viewer_https_demo || !var.track2.tls.enabled}",
+          "error_message": "Viewer HTTPS demo and full origin TLS are distinct profiles."
+        }
+      ]
     }
   },
   "data": {
@@ -478,7 +488,7 @@
       "value": {
         "media_bucket_ref": "${var.track2.enabled && var.track2.media.enabled ? var.track2.media.bucket : null}",
         "distribution_arn": "${aws_cloudfront_distribution.this.arn}",
-        "tls_status": "${var.track2.enabled && var.track2.tls.enabled ? \"CONFIGURED_NOT_VERIFIED\" : \"UNRESOLVED_ORIGIN_NAME_CERTIFICATE\"}",
+        "tls_status": "${var.viewer_https_demo ? \"VIEWER_HTTPS_ORIGIN_HTTP\" : (var.track2.enabled && var.track2.tls.enabled ? \"CONFIGURED_NOT_VERIFIED\" : \"UNRESOLVED_ORIGIN_NAME_CERTIFICATE\")}",
         "ready_for_aws": false
       }
     }

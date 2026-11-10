@@ -164,6 +164,9 @@ def extend_edge(module):
     from build_config import ex
     module['variable']['track2'] = variable()
     module['variable']['account_id'] = {'type':'string'}
+    module['variable']['viewer_https_demo'] = {'type':'bool','default':False,
+        'validation':[{'condition':ex('!var.viewer_https_demo || !var.track2.tls.enabled'),
+                       'error_message':'Viewer HTTPS demo and full origin TLS are distinct profiles.'}]}
     r = module['resource']
     tls = 'var.track2.enabled && var.track2.tls.enabled'
     port = ex(tls+' ? 8443 : 8000')
@@ -215,6 +218,6 @@ def extend_edge(module):
     module['output'] = {'foundation_track2_edge':{'value':{
         'media_bucket_ref':ex(media_on+' ? var.track2.media.bucket : null'),
         'distribution_arn':ex('aws_cloudfront_distribution.this.arn'),
-        'tls_status':ex(tls+' ? "CONFIGURED_NOT_VERIFIED" : "UNRESOLVED_ORIGIN_NAME_CERTIFICATE"'),
+        'tls_status':ex('var.viewer_https_demo ? "VIEWER_HTTPS_ORIGIN_HTTP" : ('+tls+' ? "CONFIGURED_NOT_VERIFIED" : "UNRESOLVED_ORIGIN_NAME_CERTIFICATE")'),
         'ready_for_aws':False}}}
     return module

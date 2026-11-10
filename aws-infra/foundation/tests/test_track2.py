@@ -66,6 +66,21 @@ class Track2InputTests(unittest.TestCase):
         self.assertIn('AWS:SourceArn',edge['module']['media']['statements'])
         self.assertIn('media/venues/approved/*',edge['module']['media']['statements'])
 
+    def test_viewer_https_profile_cannot_claim_origin_tls(self):
+        self.binding['edge_profile']='full-tls'
+        with self.assertRaises(ContractError):validate_binding(self.binding)
+        self.binding['edge_profile']='viewer-https-demo'
+        validate_binding(self.binding)
+        self.binding['track2']['tls'].update(enabled=True,origin_name='origin.example.org',
+            certificate_arn='arn:aws:acm:ap-northeast-2:111111111111:certificate/12345678-1234-1234-1234-123456789abc',
+            control_tls_ready=True)
+        with self.assertRaises(ContractError):validate_binding(self.binding)
+        self.binding['edge_profile']='full-tls'
+        validate_binding(self.binding)
+        edge=extend_edge(edge_module())
+        self.assertIn('VIEWER_HTTPS_ORIGIN_HTTP',edge['output']['foundation_track2_edge']['value']['tls_status'])
+        self.assertIn('var.viewer_https_demo',edge['variable']['viewer_https_demo']['validation'][0]['condition'])
+
 class LocalPolicyModelTests(unittest.TestCase):
     def test_explicit_deny_overrides_allow_and_missing_endpoint(self):
         statements=[{'Effect':'Allow','Action':['s3:GetObject'],'Resource':['arn:aws:s3:::test/raw/*']},
