@@ -9,11 +9,11 @@ export const GatewayRoleTabs: React.FC<GatewayRoleTabsProps> = ({ currentTab = '
   return (
     <div style={{
       display: 'flex',
-      backgroundColor: '#f1f5f9',
+      backgroundColor: '#faf8f5',
       padding: '4px',
       borderRadius: '12px',
       marginBottom: '20px',
-      border: '1px solid #e2e8f0',
+      border: '1px solid #e8e4e0',
     }}>
       <button
         type="button"
@@ -29,8 +29,8 @@ export const GatewayRoleTabs: React.FC<GatewayRoleTabsProps> = ({ currentTab = '
           cursor: 'pointer',
           fontWeight: 600,
           fontSize: '14px',
-          backgroundColor: currentTab === 'USER' ? '#2563eb' : 'transparent',
-          color: currentTab === 'USER' ? '#ffffff' : '#64748b',
+          backgroundColor: currentTab === 'USER' ? '#ff383e' : 'transparent',
+          color: currentTab === 'USER' ? '#ffffff' : '#77736f',
           transition: 'all 0.2s',
           display: 'flex',
           alignItems: 'center',
@@ -38,8 +38,8 @@ export const GatewayRoleTabs: React.FC<GatewayRoleTabsProps> = ({ currentTab = '
           gap: '8px',
         }}
       >
-        <span>☕🍺</span>
-        <span>일반 사용자 (카페·주점 탐색)</span>
+        <span></span>
+        <span>일반 사용자</span>
       </button>
 
       <button
@@ -56,8 +56,8 @@ export const GatewayRoleTabs: React.FC<GatewayRoleTabsProps> = ({ currentTab = '
           cursor: 'pointer',
           fontWeight: 600,
           fontSize: '14px',
-          backgroundColor: currentTab === 'ADMIN' ? '#2563eb' : 'transparent',
-          color: currentTab === 'ADMIN' ? '#ffffff' : '#64748b',
+          backgroundColor: currentTab === 'ADMIN' ? '#ff383e' : 'transparent',
+          color: currentTab === 'ADMIN' ? '#ffffff' : '#77736f',
           transition: 'all 0.2s',
           display: 'flex',
           alignItems: 'center',
@@ -65,8 +65,8 @@ export const GatewayRoleTabs: React.FC<GatewayRoleTabsProps> = ({ currentTab = '
           gap: '8px',
         }}
       >
-        <span>🎵📊</span>
-        <span>매장 관리자 (음악·이벤트 관리)</span>
+        <span></span>
+        <span>매장 관리자</span>
       </button>
     </div>
   );

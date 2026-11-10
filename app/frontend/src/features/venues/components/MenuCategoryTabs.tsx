@@ -21,7 +21,7 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
 
   return (
     <div>
-      <h4 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 12px 0', color: '#0f172a' }}>
+      <h4 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 12px 0', color: '#242424' }}>
         📋 전체 메뉴판 (16종)
       </h4>
 
@@ -32,7 +32,7 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
         gap: '6px',
         marginBottom: '16px',
         paddingBottom: '10px',
-        borderBottom: '1px solid #e2e8f0',
+        borderBottom: '1px solid #e8e4e0',
       }}>
         {menuTabs.map((tab, idx) => {
           const isActive = idx === activeTabIdx;
@@ -43,10 +43,10 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
               onClick={() => setActiveTabIdx(idx)}
               style={{
                 padding: '7px 12px',
-                border: isActive ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
-                backgroundColor: isActive ? '#eff6ff' : '#ffffff',
+                border: isActive ? '1.5px solid #ff383e' : '1px solid #e8e4e0',
+                backgroundColor: isActive ? '#fff0ef' : '#ffffff',
                 borderRadius: '9999px',
-                color: isActive ? '#1d4ed8' : '#334155',
+                color: isActive ? '#ff383e' : '#334155',
                 fontWeight: isActive ? 800 : 600,
                 fontSize: '12.5px',
                 cursor: 'pointer',
@@ -54,7 +54,7 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
                 transition: 'all 0.15s',
               }}
             >
-              {tab.tab_name} <span style={{ color: isActive ? '#2563eb' : '#64748b' }}>({tab.items.length})</span>
+              {tab.tab_name} <span style={{ color: isActive ? '#ff383e' : '#77736f' }}>({tab.items.length})</span>
             </button>
           );
         })}
@@ -68,7 +68,7 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
             onClick={() => onSelectMenu && onSelectMenu(menu)}
             style={{
               backgroundColor: '#f8fafc',
-              border: '1px solid #e2e8f0',
+              border: '1px solid #e8e4e0',
               borderRadius: '10px',
               padding: '12px 14px',
               cursor: 'pointer',
@@ -77,7 +77,7 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
               flexDirection: 'column',
               justifyContent: 'space-between',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#faf8f5')}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
           >
             <div>
@@ -103,14 +103,14 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px' }}>
-              <span style={{ fontSize: '14px', fontWeight: 900, color: '#1d4ed8' }}>
+              <span style={{ fontSize: '14px', fontWeight: 900, color: '#ff383e' }}>
                 {menu.price.toLocaleString()}원
               </span>
               <span style={{
                 fontSize: '11px',
                 fontWeight: 700,
                 color: '#475569',
-                backgroundColor: '#e2e8f0',
+                backgroundColor: '#e8e4e0',
                 padding: '2px 6px',
                 borderRadius: '4px',
               }}>

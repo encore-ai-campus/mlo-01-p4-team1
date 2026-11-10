@@ -44,8 +44,8 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
   };
 
   return (
-    <div style={{
-      background: 'linear-gradient(135deg, #0f172a, #1e1b4b)',
+    <div className="fitplace-concierge" style={{
+      background: 'linear-gradient(135deg, #242424, #1e1b4b)',
       color: '#f8fafc',
       borderRadius: '16px',
       padding: '22px',
@@ -55,23 +55,23 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '24px' }}>✨</span>
+
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontWeight: 800, fontSize: '17px' }}>Gemini 3.8 Flash AI 매장 & 미식 컨시어지</span>
+              <span style={{ fontWeight: 800, fontSize: '17px' }}>어떤 분위기를 찾고 있나요?</span>
               <span style={{
-                backgroundColor: '#3b82f6',
+                backgroundColor: '#ff383e',
                 color: '#ffffff',
                 padding: '2px 8px',
                 borderRadius: '6px',
                 fontSize: '11px',
                 fontWeight: 700,
               }}>
-                gemini-3.8-flash
+                AI 추천
               </span>
             </div>
             <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '2px' }}>
-              오늘 {gu}의 날씨({weather})와 예산, 기분에 딱 맞는 최적의 매장과 베스트 메뉴 조합을 브리핑해 드립니다.
+              AI 매장·메뉴 추천 · 질문을 고르거나 직접 입력해 보세요.
             </div>
           </div>
         </div>
@@ -89,7 +89,7 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
             }}
             style={{
               backgroundColor: '#1e293b',
-              border: '1px solid #6366f1',
+              border: '1px solid #ff7775',
               color: '#ffffff',
               padding: '7px 14px',
               borderRadius: '9999px',
@@ -98,8 +98,8 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
               cursor: 'pointer',
               transition: 'all 0.2s',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#312e81')}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#1e293b')}
+
+
           >
             {chip.label}
           </button>
@@ -107,7 +107,7 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
       </div>
 
       {/* 자유 입력 검색바 */}
-      <div style={{ display: 'flex', gap: '10px' }}>
+      <div className="fitplace-concierge-input" style={{ display: 'flex', gap: '10px' }}>
         <input
           type="text"
           value={query}
@@ -133,7 +133,7 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
           onClick={() => handleAsk(query)}
           style={{
             padding: '12px 20px',
-            backgroundColor: loading ? '#475569' : '#6366f1',
+            backgroundColor: loading ? '#475569' : '#ff7775',
             color: '#ffffff',
             border: 'none',
             borderRadius: '10px',
@@ -155,23 +155,23 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
 
       {/* AI 브리핑 카드 */}
       {briefing && (
-        <div style={{
-          backgroundColor: 'rgba(30, 27, 75, 0.8)',
-          border: '1px solid #6366f1',
+        <div className="fp-ai-result" style={{
+          backgroundColor: '#faf8f5',
+          border: '1px solid #ff7775',
           borderRadius: '12px',
           padding: '18px',
           marginTop: '16px',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontWeight: 800, fontSize: '16px', color: '#a5b4fc' }}>
+            <span style={{ fontWeight: 800, fontSize: '16px', color: '#242424' }}>
               💡 {briefing.concierge_title}
             </span>
-            <span style={{ fontSize: '11px', color: '#818cf8', backgroundColor: '#312e81', padding: '2px 8px', borderRadius: '4px' }}>
+            <span style={{ fontSize: '11px', color: '#77736f', backgroundColor: '#fff', padding: '2px 8px', borderRadius: '4px' }}>
               엔진: {briefing.model_used}
             </span>
           </div>
 
-          <p style={{ fontSize: '14px', lineHeight: 1.6, color: '#e2e8f0', margin: '0 0 12px 0' }}>
+          <p style={{ fontSize: '14px', lineHeight: 1.6, color: '#242424', margin: '0 0 12px 0' }}>
             {briefing.summary_briefing}
           </p>
 
@@ -180,13 +180,13 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              backgroundColor: '#0f172a',
+              backgroundColor: '#fff',
               padding: '12px 16px',
               borderRadius: '8px',
-              border: '1px solid #334155',
+              border: '1px solid #e8e4e0',
             }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: '15px', color: '#38bdf8' }}>
+                <div style={{ fontWeight: 700, fontSize: '15px', color: '#242424' }}>
                   🎯 엄선 추천 매장: {briefing.recommended_venue_name}
                 </div>
                 <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
@@ -198,8 +198,8 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
                   type="button"
                   onClick={() => onSelectVenue(briefing.recommended_venue_id!)}
                   style={{
-                    backgroundColor: '#2563eb',
-                    color: '#ffffff',
+                    backgroundColor: '#ff383e',
+                    color: '#fff0ef',
                     border: 'none',
                     padding: '8px 14px',
                     borderRadius: '6px',

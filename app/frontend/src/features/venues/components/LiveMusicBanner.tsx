@@ -23,7 +23,7 @@ export const LiveMusicBanner: React.FC<LiveMusicBannerProps> = ({ banner }) => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{
-            backgroundColor: '#6d28d9',
+            backgroundColor: '#ff7775',
             color: '#ffffff',
             fontWeight: 800,
             fontSize: '12px',

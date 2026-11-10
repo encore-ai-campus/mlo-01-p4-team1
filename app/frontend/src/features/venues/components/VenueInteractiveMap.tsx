@@ -4,6 +4,8 @@ import { MapBounds } from '../hooks/useVenueList';
 
 interface VenueInteractiveMapProps {
   gu: string;
+  weather: string;
+  temperature: number | null;
   venues: VenueItem[];
   selectedVenueId: string | null;
   onSelectVenue: (venueId: string) => void;
@@ -81,6 +83,8 @@ const GU_CENTER_COORDS: Record<string, [number, number]> = {
   '인천 중구': [37.4737, 126.6217],
 };
 
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character] || character));
+
 declare global {
   interface Window {
     L?: any;
@@ -135,6 +139,8 @@ function CoordinatePins({ venues, onSelectVenue }: Pick<VenueInteractiveMapProps
 
 export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
   gu,
+  weather,
+  temperature,
   venues,
   selectedVenueId,
   onSelectVenue,
@@ -147,6 +153,7 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
   const suppressMoveEventRef = useRef<boolean>(false);
   const onBoundsChangeRef = useRef(onBoundsChange);
   onBoundsChangeRef.current = onBoundsChange;
+  const [locationError, setLocationError] = useState('');
   const [leafletReady, setLeafletReady] = useState(Boolean(window.L));
   const [leafletUnavailable, setLeafletUnavailable] = useState(false);
   const moveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -205,7 +212,7 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
       const map = L.map(mapContainerRef.current, {
         center: defaultCenter,
         zoom: 14,
-        zoomControl: true,
+        zoomControl: false,
       });
 
       // OpenStreetMap 공식 한글 도로명 타일 레이어 (API 키 불필요, 무제한 무료)
@@ -214,6 +221,8 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
         maxZoom: 19,
       }).addTo(map);
 
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+      L.control.scale({ position: 'bottomright', imperial: false }).addTo(map);
       markersLayerRef.current = L.layerGroup().addTo(map);
       mapInstanceRef.current = map;
 
@@ -264,32 +273,27 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
 
     const boundsPoints: Array<[number, number]> = [];
 
-    validVenues.forEach((v) => {
-      const isCafe = v.category === 'CAFE';
-      const hasEvent = Boolean(v.active_event && !v.active_event.is_ended);
+    validVenues.forEach((v, index) => {
       const isSelected = v.venue_id === selectedVenueId;
 
-      const bgColor = hasEvent
-        ? '#dc2626'
-        : isCafe
-        ? '#2563eb'
-        : '#7c3aed';
+      const bgColor = isSelected ? '#ff383e' : '#ffffff';
 
-      const borderColor = isSelected ? '#facc15' : '#ffffff';
+      const borderColor = isSelected ? '#ff383e' : '#e8e4e0';
       const scale = isSelected ? 'scale(1.15)' : 'scale(1)';
-      const iconEmoji = hasEvent ? '🔥' : isCafe ? '☕' : '🍺';
+      const pinNumber = String(index + 1).padStart(2, '0');
       const shortName =
         v.venue_name.length > 8 ? `${v.venue_name.slice(0, 8)}…` : v.venue_name;
 
       const pin = document.createElement('span');
       Object.assign(pin.style, {
         display: 'inline-flex', alignItems: 'center', background: bgColor,
-        color: '#fff', padding: '4px 9px', borderRadius: '9999px',
+        color: isSelected ? '#fff0ef' : '#242424', padding: '4px 9px', borderRadius: '9999px',
         fontSize: '11px', fontWeight: '800', border: '2px solid ' + borderColor,
         boxShadow: '0 3px 8px rgba(15, 23, 42, 0.35)', whiteSpace: 'nowrap',
         transform: scale, transition: 'transform 0.15s ease',
       });
-      pin.textContent = iconEmoji + ' ' + shortName;
+      pin.className = 'fp-marker';
+      pin.textContent = pinNumber + ' ' + shortName;
 
       const customIcon = L.divIcon({
         className: 'custom-venue-pin',
@@ -332,26 +336,31 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
   }, [leafletReady, gu, venues, selectedVenueId, onSelectVenue]);
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '520px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
+    <div className="fitplace-map" style={{ position: 'relative', width: '100%', height: '520px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
       <div ref={mapContainerRef} role="region" aria-label="매장 지도" style={{ width: '100%', height: '100%' }} />
       {!leafletReady && leafletUnavailable && <CoordinatePins venues={venues} onSelectVenue={onSelectVenue} />}
+      <div className="fitplace-map-weather">{weather === 'RAIN' ? '☔ 비' : weather === 'SNOW' ? '❄ 눈' : '☀ 맑음'}<small>{typeof temperature === 'number' && Number.isFinite(temperature) ? `${temperature}℃` : '기온 정보 없음'}</small></div>
+      <button className="fitplace-location" type="button" aria-label="내 위치로 이동" onClick={() => {
+        if (!navigator.geolocation) { setLocationError('위치 기능을 사용할 수 없습니다.'); return; }
+        navigator.geolocation.getCurrentPosition((position) => { setLocationError(''); mapInstanceRef.current?.setView([position.coords.latitude, position.coords.longitude], 15); }, () => setLocationError('위치를 확인할 수 없습니다. 위치 권한을 확인해 주세요.'));
+      }}>⌖</button>
+      {locationError && <div className="fitplace-location-error" role="alert">{locationError}</div>}
       {pendingBounds && (
         <button
           type="button"
           onClick={() => {
-            if (onBoundsChange) {
-              onBoundsChange(pendingBounds.bounds, pendingBounds.nearestGu);
-            }
+            if (onBoundsChange) onBoundsChange(pendingBounds.bounds, pendingBounds.nearestGu);
+            setPendingBounds(null);
           }}
           style={{
             position: 'absolute',
-            top: '14px',
+            bottom: '20px',
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 550,
-            backgroundColor: '#0f172a',
-            color: '#ffffff',
-            border: '2px solid #38bdf8',
+            backgroundColor: '#ff383e',
+            color: '#fff0ef',
+            border: '1px solid #ff383e',
             borderRadius: '9999px',
             padding: '8px 16px',
             fontSize: '12px',
@@ -363,10 +372,10 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
             gap: '6px',
           }}
         >
-          <span>🔄 현 지도 영역 내 매장 탐색 중 ({pendingBounds.nearestGu} 일대)</span>
+          <span>⟳ 이 지역 재검색</span>
         </button>
       )}
-      <div
+      <div className="fitplace-map-legend"
         style={{
           position: 'absolute',
           bottom: '12px',
