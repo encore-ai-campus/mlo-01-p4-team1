@@ -285,9 +285,7 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
         transform: scale, transition: 'transform 0.15s ease',
       });
       pin.className = 'fp-marker';
-      const categoryIcon = v.category === 'CAFE' ? '☕' : '🍺';
-      const eventIcon = v.active_event && !v.active_event.is_ended ? ' 🔥' : '';
-      pin.textContent = pinNumber + ' ' + categoryIcon + ' ' + shortName + eventIcon;
+      pin.textContent = pinNumber + ' ' + shortName;
 
       const customIcon = L.divIcon({
         className: 'custom-venue-pin',
@@ -329,21 +327,32 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
     }
   }, [leafletReady, gu, venues, selectedVenueId, onSelectVenue]);
 
+  useEffect(() => {
+    const container = mapContainerRef.current;
+    if (!leafletReady || !container || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => mapInstanceRef.current?.invalidateSize({ pan: false }));
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [leafletReady]);
+
   return (
     <div className="fitplace-map" style={{ position: 'relative', width: '100%', height: '520px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
       <div ref={mapContainerRef} role="region" aria-label="매장 지도" style={{ width: '100%', height: '100%' }} />
       {!leafletReady && leafletUnavailable && <CoordinatePins venues={venues} onSelectVenue={onSelectVenue} />}
-      <div className="fitplace-map-weather">{weather === 'RAIN' ? '☔ 비' : weather === 'SNOW' ? '❄ 눈' : '☀ 맑음'}<small>{typeof temperature === 'number' && Number.isFinite(temperature) ? `${temperature}℃` : '기온 정보 없음'}</small></div>
+      <div className="fitplace-map-weather">{weather === 'RAIN' ? '비' : weather === 'SNOW' ? '눈' : '맑음'}<small>{typeof temperature === 'number' && Number.isFinite(temperature) ? `${temperature}℃` : '기온 정보 없음'}</small></div>
       <button className="fitplace-location" type="button" aria-label="내 위치로 이동" onClick={() => {
         if (!navigator.geolocation) { setLocationError('위치 기능을 사용할 수 없습니다.'); return; }
         navigator.geolocation.getCurrentPosition((position) => { setLocationError(''); mapInstanceRef.current?.setView([position.coords.latitude, position.coords.longitude], 15); }, () => setLocationError('위치를 확인할 수 없습니다. 위치 권한을 확인해 주세요.'));
       }}>⌖</button>
       {locationError && <div className="fitplace-location-error" role="alert">{locationError}</div>}
-      {pendingBounds && (
+      {
         <button
           type="button"
+          className="fp-map-research"
+          disabled={!pendingBounds}
+          title={!pendingBounds ? '지도를 이동하면 이 지역을 다시 검색할 수 있습니다' : undefined}
           onClick={() => {
-            if (onBoundsChange) onBoundsChange(pendingBounds.bounds, pendingBounds.nearestGu);
+            if (onBoundsChange && pendingBounds) onBoundsChange(pendingBounds.bounds, pendingBounds.nearestGu);
             setPendingBounds(null);
           }}
           style={{
@@ -368,7 +377,7 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
         >
           <span>⟳ 이 지역 재검색</span>
         </button>
-      )}
+      }
       <div className="fitplace-map-legend"
         style={{
           position: 'absolute',
