@@ -1,4 +1,4 @@
-export type YoutubeIframePlayer = {loadVideoById: (id: string) => void; playVideo: () => void; pauseVideo: () => void; destroy: () => void; getCurrentTime: () => number; getDuration: () => number};
+export type YoutubeIframePlayer = {loadVideoById: (id: string) => void; playVideo: () => void; pauseVideo: () => void; destroy: () => void; getCurrentTime: () => number; getDuration: () => number; mute?: () => void; unMute?: () => void; seekTo?: (seconds: number, allowSeekAhead: boolean) => void; getVideoData?: () => {video_id?: string}};
 export type YoutubeIframeOptions = {events: {onReady: () => void; onStateChange: (event: {data: number}) => void; onError: (event: {data: number}) => void; onAutoplayBlocked: () => void}};
 export type YoutubeIframeApi = {Player: new (element: HTMLIFrameElement, options: YoutubeIframeOptions) => YoutubeIframePlayer};
 type YoutubeWindow = Window & {YT?: YoutubeIframeApi; onYouTubeIframeAPIReady?: () => void};

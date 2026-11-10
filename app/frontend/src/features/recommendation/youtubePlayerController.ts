@@ -1,10 +1,15 @@
 export type PlaybackTrack = {track_id: string; track_name: string; artists_name: string};
-export type PlaybackCandidate = {video_id: string; title: string; channel_title: string; duration_seconds: number; source: 'CATALOG_MAPPING' | 'YOUTUBE_API' | 'MAPPING_REGISTRY'; match_status?: 'VERIFIED' | 'CANDIDATE'};
+export type PlaybackCandidate = {video_id: string; title: string; channel_title: string; duration_seconds: number; source: 'CATALOG_MAPPING' | 'YOUTUBE_API' | 'MAPPING_REGISTRY'; match_status?: 'VERIFIED' | 'CANDIDATE'; playback_hint?: 'AUDIO'};
 export type PlaybackResolution = {track_id: string; status: 'READY' | 'SEARCH_UNAVAILABLE' | 'NO_MATCH' | 'MAPPING_REQUIRED'; candidates: PlaybackCandidate[]; reason?: 'UNMAPPED' | 'PENDING' | 'BLOCKED'; message?: string};
 export type PlaybackPhase = 'idle' | 'resolving' | 'loading' | 'playing' | 'paused' | 'blocked' | 'unavailable' | 'complete' | 'error';
 export type PlaybackSnapshot = {index: number; phase: PlaybackPhase; message: string; candidate: PlaybackCandidate | null; skipped: {track_id: string; track_name: string; reason: string}[]; playedTrackIds: string[]};
-export type PlaybackAdapter = {load: (videoId: string) => void; play: () => void; pause: () => void};
+export type PlaybackAdapter = {load: (videoId: string) => void; play: () => void; pause: () => void; prepare?: (candidate: PlaybackCandidate, track: PlaybackTrack, signal: AbortSignal) => Promise<'ready' | 'unavailable' | 'unknown'>; discardPrepared?: () => void; preparedLifetimeMs?: () => number};
 export type PlaybackResolver = (trackId: string, excludedVideoIds: string[], signal: AbortSignal) => Promise<PlaybackResolution>;
+type NextPreparation = {owner: number; index: number; request: AbortController; resolution: PlaybackResolution | null; lookupResolution?: PlaybackResolution; attempted: string[]; preparedAt: number | null; validUntil: number | null};
+const PREPARED_REFRESH_MS = 90000;
+const PREPARED_TTL_MS = 120000;
+const PREPARED_EXPIRY_MARGIN_MS = 15000;
+const PREPARED_REFRESH_MARGIN_MS = 30000;
 
 // The controller only advances on a real ENDED event, explicit navigation, or a
 // recorded unavailable recording. A blocked autoplay never silently skips a song.
@@ -18,6 +23,10 @@ export class YoutubePlaybackController {
   private attempted: string[] = [];
   private requests = 0;
   private began = false;
+  private preparation: NextPreparation | null = null;
+  private preparationOwner = -1;
+  private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private expiryTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private tracks: PlaybackTrack[], private adapter: PlaybackAdapter, private resolve: PlaybackResolver, private publish: (state: PlaybackSnapshot) => void) {}
 
@@ -29,21 +38,145 @@ export class YoutubePlaybackController {
     this.publish(this.snapshot());
   }
 
-  private invalidate() {
+  private clearPreparationTimers() {
+    if (this.refreshTimer !== null) clearTimeout(this.refreshTimer);
+    if (this.expiryTimer !== null) clearTimeout(this.expiryTimer);
+    this.refreshTimer = null; this.expiryTimer = null;
+  }
+
+  private discardPreparation() {
+    this.clearPreparationTimers();
+    const previous = this.preparation; this.preparation = null;
+    previous?.request.abort();
+    this.adapter.discardPrepared?.();
+  }
+
+  private invalidate(preservePrepared = false) {
     this.sequence += 1;
     this.request?.abort();
     this.request = null;
     this.began = false;
+    this.preparationOwner = -1;
+    if (preservePrepared) {this.clearPreparationTimers(); this.preparation = null;}
+    else this.discardPreparation();
   }
 
   async start(index = 0) {
     if (this.stopped || this.blockReason) return;
-    this.invalidate();
+    const prepared = this.preparation;
+    const reuse = prepared?.index === index && prepared.owner === this.sequence && prepared.preparedAt !== null
+      && prepared.validUntil !== null && prepared.validUntil > Date.now() && !prepared.request.signal.aborted && ['READY', 'NO_MATCH'].includes(prepared.resolution?.status || '');
+    this.invalidate(!!reuse && prepared?.resolution?.status === 'READY');
     if (index >= this.tracks.length) {this.finish(); return;}
     this.adapter.pause();
     this.candidates = []; this.attempted = []; this.requests = 0;
     this.update({index: Math.max(0, index), candidate: null, phase: 'resolving', message: '이 곡의 재생 가능한 영상을 찾고 있어요.'});
+    if (reuse && prepared?.resolution) {
+      if (prepared.resolution.status === 'NO_MATCH') {
+        await this.skipUnavailable(prepared.resolution.message || '사전 확인한 모든 재생 후보를 사용할 수 없어 이 곡을 건너뛰었어요.');
+        return;
+      }
+      this.candidates = [...prepared.resolution.candidates];
+      this.attempted = [...prepared.attempted]; this.requests = 1;
+      // load() promotes the ready resource before any later prepared cleanup.
+      // Its adapter must detach the preparation signal from the promoted player.
+      this.loadNextCandidate();
+      return;
+    }
     await this.findCandidates();
+  }
+
+  private preparationIsCurrent(value: NextPreparation) {
+    return !this.stopped && !this.blockReason && this.preparation === value
+      && value.owner === this.sequence && !value.request.signal.aborted;
+  }
+
+  private prepareNext() {
+    if (!this.adapter.prepare || this.stopped || this.blockReason || this.preparationOwner === this.sequence) return;
+    const index = this.state.index + 1;
+    if (!this.tracks[index]) return;
+    this.preparationOwner = this.sequence;
+    const value: NextPreparation = {owner: this.sequence, index, request: new AbortController(), resolution: null, attempted: [], preparedAt: null, validUntil: null};
+    this.preparation = value;
+    void this.resolvePreparation(value);
+  }
+
+  private async resolvePreparation(value: NextPreparation) {
+    try {
+      const track = this.tracks[value.index];
+      const result = await this.resolve(track.track_id, [], value.request.signal);
+      if (!this.preparationIsCurrent(value)) return;
+      if (result.track_id !== track.track_id || result.status !== 'READY') {this.discardPreparation(); return;}
+      const candidates = result.candidates.filter((candidate, index, all) => /^[A-Za-z0-9_-]{11}$/.test(candidate.video_id) && all.findIndex(item => item.video_id === candidate.video_id) === index);
+      value.resolution = {...result, candidates};
+      value.lookupResolution = value.resolution;
+      await this.prepareCandidates(value);
+    } catch {
+      // A look-ahead lookup cannot fail, skip, or interrupt the current song.
+      if (this.preparationIsCurrent(value)) this.discardPreparation();
+    }
+  }
+
+  private async prepareCandidates(value: NextPreparation) {
+    if (!this.adapter.prepare || !value.resolution) return;
+    const candidates = value.resolution.candidates;
+    let index = 0;
+    for (; index < candidates.length && value.attempted.length < 5; index += 1) {
+      const candidate = candidates[index];
+      const status = await this.adapter.prepare(candidate, this.tracks[value.index], value.request.signal);
+      if (!this.preparationIsCurrent(value)) return;
+      if (status !== 'ready' && status !== 'unavailable') {this.discardPreparation(); return;}
+      if (status === 'unavailable') {
+        value.attempted.push(candidate.video_id);
+        this.adapter.discardPrepared?.();
+        continue;
+      }
+      value.resolution = {...value.resolution, candidates: candidates.slice(index)};
+      this.cachePreparation(value);
+      return;
+    }
+    if (this.preparationIsCurrent(value) && candidates.length > 0 && index === candidates.length) {
+      // Only actual media checks can create this negative cache. Unknown checks,
+      // lookup outages, and candidates beyond the bounded check remain unknown.
+      value.resolution = {...value.resolution, status: 'NO_MATCH', candidates: [], message: '사전 확인한 모든 재생 후보를 사용할 수 없어 이 곡을 건너뛰었어요.'};
+      this.cachePreparation(value);
+      return;
+    }
+    if (this.preparationIsCurrent(value)) this.discardPreparation();
+  }
+
+  private cachePreparation(value: NextPreparation) {
+    // A negative decision has no signed media URL. Only ready media needs an
+    // adapter-provided lifetime; iframe resources can report Infinity.
+    let remaining = Infinity;
+    if (value.resolution?.status === 'READY' && this.adapter.preparedLifetimeMs) {
+      try { remaining = this.adapter.preparedLifetimeMs(); }
+      catch { remaining = 0; }
+    }
+    const lifetime = remaining === Infinity ? PREPARED_TTL_MS
+      : Math.min(PREPARED_TTL_MS, Number.isFinite(remaining) ? remaining - PREPARED_EXPIRY_MARGIN_MS : 0);
+    if (lifetime <= 0) {this.discardPreparation(); return;}
+    const refresh = remaining === Infinity ? PREPARED_REFRESH_MS
+      : Math.max(1000, Math.min(PREPARED_REFRESH_MS, remaining - PREPARED_REFRESH_MARGIN_MS));
+    value.preparedAt = Date.now();
+    value.validUntil = value.preparedAt + lifetime;
+    this.refreshTimer = setTimeout(() => this.refreshPreparation(value), refresh);
+    this.expiryTimer = setTimeout(() => {
+      if (!this.preparationIsCurrent(value)) return;
+      this.discardPreparation(); this.preparationOwner = -1;
+    }, lifetime);
+  }
+
+  private refreshPreparation(previous: NextPreparation) {
+    if (!this.preparationIsCurrent(previous) || this.state.phase !== 'playing') return;
+    const resolution = previous.lookupResolution || previous.resolution;
+    this.discardPreparation();
+    if (!resolution) return;
+    const value: NextPreparation = {owner: this.sequence, index: previous.index, request: new AbortController(), resolution, lookupResolution: resolution, attempted: [], preparedAt: null, validUntil: null};
+    this.preparation = value;
+    void this.prepareCandidates(value).catch(() => {
+      if (this.preparationIsCurrent(value)) this.discardPreparation();
+    });
   }
 
   private async findCandidates() {
@@ -106,6 +239,7 @@ export class YoutubePlaybackController {
       this.began = true;
       const trackId = this.tracks[this.state.index].track_id;
       this.update({phase: 'playing', message: 'YouTube에서 재생 중이에요.', playedTrackIds: [...new Set([...this.state.playedTrackIds, trackId])]});
+      this.prepareNext();
     } else if (value === 0 && this.began) {
       this.began = false;
       void this.start(this.state.index + 1);
@@ -117,6 +251,7 @@ export class YoutubePlaybackController {
   onPlayerError(code: number) {
     if (this.stopped || this.blockReason || !this.state.candidate) return;
     this.began = false;
+    this.discardPreparation(); this.preparationOwner = -1;
     if ([2, 100, 101, 150].includes(code)) {
       if (this.candidates.length && this.attempted.length < 5) this.loadNextCandidate();
       else if (this.requests < 2 && this.attempted.length < 5) void this.findCandidates();

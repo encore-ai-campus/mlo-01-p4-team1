@@ -6,6 +6,7 @@ export function createApiProxy(env: Record<string, string> = {}): Record<string,
   const ads = env.VITE_ADS_API_TARGET || 'http://127.0.0.1:8000';
   const recommendation = env.VITE_RECOMMENDATION_API_TARGET || 'http://127.0.0.1:8001';
   return {
+    '^/api/playlists/[^/]+/youtube-audio$': {target: recommendation, proxyTimeout: 27000},
     '^/api/(?:ads(?:[/?]|$)|ad-events(?:[/?]|$)|ad-deliveries/|admin/(?:ads|ad-assets)(?:[/?]|$))': {
       target: ads, proxyTimeout: 5000,
     },
