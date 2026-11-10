@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
+from backend.common.data_paths import resolve_analysis_subpath
 from backend.recommendation.models import Catalog
 from backend.recommendation.policy import groups, weather_fit, WEATHER_SCORE_VERSION, precompute_scores
 from backend.recommendation.occasion import load_occasion_decisions
@@ -11,7 +12,7 @@ from backend.recommendation.youtube import load_verified_youtube_mappings
 from pipeline.music.normalize import convert, RAW_SCHEMA
 
 DEFAULT_SOURCE = Path(__file__).resolve().parents[4] / 'docs' / 'handoff' / 'music' / 'spotify_dataset.csv'
-DEFAULT_GENERAL = Path(__file__).resolve().parents[4] / 'analysis' / 'weather_music_20261016' / 'general'
+DEFAULT_GENERAL = resolve_analysis_subpath('weather_music_20261016', 'general')
 
 
 def load_playback_selection(path, source_sha256, general_rows):

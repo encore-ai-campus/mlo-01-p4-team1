@@ -18,7 +18,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("suite", choices=["unit", "integration", "all"])
     args = parser.parse_args()
-    modules = {"unit": ["test_unit", "test_safety", "test_contracts", "test_track2"],
+    modules = {"unit": ["test_unit", "test_safety", "test_contracts", "test_track2", "test_native"],
                "integration": ["test_integration", "test_cli_safety", "test_terraform", "test_track2_integration", "test_track2_engines"]}
     chosen = ["unit", "integration"] if args.suite == "all" else [args.suite]
     folder = BASE / ".artifacts" / (datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6])

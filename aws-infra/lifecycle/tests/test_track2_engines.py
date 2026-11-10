@@ -93,10 +93,13 @@ class Track2EngineIntegration(unittest.TestCase):
         self.containers.append(identity)
         self.command(["docker", "start", identity])
         for _ in range(90):
-            ready = (["pg_isready", "-U", "postgres", "-d", "mlo_lifecycle"] if node == "postgresql" else
+            # pg_isready can return success before POSTGRES_DB is initialized;
+            # require an actual query against the exact test database instead.
+            ready = (["psql", "-U", "postgres", "-d", "mlo_lifecycle", "-tAc", "SELECT 1"]
+                     if node == "postgresql" else
                      ["mongosh", "--quiet", "--eval", "quit(db.adminCommand({ping:1}).ok===1?0:1)"])
             result = subprocess.run(["docker", "exec", identity, *ready], capture_output=True, timeout=10)
-            if result.returncode == 0:
+            if result.returncode == 0 and (node != "postgresql" or result.stdout.strip() == b"1"):
                 break
             time.sleep(0.5)
         else:

@@ -15,6 +15,7 @@ from .queries import (
     TRACK2_EXECUTOR_PORTS,
     validate_ports,
 )
+from .resources import spark_submit_resources
 
 JOBS = {
     "raw-reconcile",
@@ -68,17 +69,9 @@ def spark_submit(query, app, masters, driver_ip, *, accepted_artifact=None):
         "--conf",
         "spark.port.maxRetries=0",
     ]
-    if query in TRACK2_QUERIES:
-        command += [
-            "--driver-memory",
-            "1g",
-            "--executor-memory",
-            "1g",
-            "--executor-cores",
-            "1",
-            "--total-executor-cores",
-            "2",
-        ]
+    # Bound legacy queries as well: otherwise one stream can claim the entire
+    # cluster and leave no executor for the other stream or either batch app.
+    command += spark_submit_resources()
     return [*command, str(app)]
 
 

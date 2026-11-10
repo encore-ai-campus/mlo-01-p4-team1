@@ -2,6 +2,7 @@
 import copy
 import json
 import subprocess
+import sys
 from model import ACCOUNTS, FOUNDATION, fixture_binding, require, ContractError, validate_binding
 from integration import run, state_from_test
 from export_inventory import export, write_inventory
@@ -57,6 +58,20 @@ def exercise(work,env,artifacts,tool,original_parts,base_binding):
         else:raise ContractError('missing/duplicate Track2 output accepted')
     require(export_track2(list(reversed(paths)),inventory)==sidecar,'sidecar order dependency')
     print('PASS: common inventory-v1 unchanged; Track2 sidecar missing/duplicate/metadata/fixture/endpoint/new-field drift refused')
+    # The explicitly accepted HTTP origin profile remains distinct all the way
+    # through the unchanged sidecar fields and the shared B/C consumer.
+    demo=copy.deepcopy(binding);demo['edge_profile']='viewer-https-demo';validate_binding(demo)
+    root=configure('encore1',demo)
+    raw=run([str(tool),'-chdir='+str(root),'test','-json','-verbose'],env,artifacts/'track2-viewer-https.jsonl')
+    demo_state=state_from_test(raw);audit_edge(demo_state,demo['track2'])
+    outputs=demo_state['values']['outputs']
+    paths[0].write_text(json.dumps({k:outputs[k] for k in ['foundation','foundation_track2']}))
+    demo_sidecar=export_track2(paths,inventory)
+    require(demo_sidecar['tls_status']=='VIEWER_HTTPS_ORIGIN_HTTP' and demo_sidecar['ready_for_aws'] is False,'viewer HTTPS misreported as full TLS')
+    sys.path.insert(0,str(FOUNDATION.parent/'contracts'))
+    from infra_common.track2 import foundation_binding
+    require(foundation_binding(demo_sidecar,inventory)['ready_for_aws'] is False,'HTTP origin sidecar overclaims readiness')
+    write_inventory(demo_sidecar,artifacts/'track2-viewer-https-sidecar.mock.json');paths[0].write_text(original)
     # TLS is a configuration candidate, never an AWS readiness claim.
     tls=copy.deepcopy(binding)
     tls['track2']['tls'].update(enabled=True,origin_name='origin.example.org',certificate_arn='arn:aws:acm:ap-northeast-2:111111111111:certificate/12345678-1234-1234-1234-123456789abc',control_tls_ready=True)
@@ -66,6 +81,7 @@ def exercise(work,env,artifacts,tool,original_parts,base_binding):
     full=state_from_test(raw); audit_edge(full,tls['track2'])
     require(full['values']['outputs']['foundation_track2']['value']['tls_status']=='CONFIGURED_NOT_VERIFIED','TLS readiness overclaimed')
     bad_cases=[('alb-default-dns',lambda b:b['track2']['tls'].update(origin_name='mock.ap-northeast-2.elb.amazonaws.com')),
+               ('conflicting-viewer-profile',lambda b:b.update(edge_profile='viewer-https-demo')),
                ('missing-certificate',lambda b:b['track2']['tls'].update(certificate_arn='')),
                ('control-tls-unready',lambda b:b['track2']['tls'].update(control_tls_ready=False)),
                ('certificate-account',lambda b:b['track2']['tls'].update(certificate_arn=b['track2']['tls']['certificate_arn'].replace('111111111111','999999999999'))),

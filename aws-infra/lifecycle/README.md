@@ -4,6 +4,14 @@ Track2 확장은 [종료·보존·격리 복구 계약](docs/TRACK2.md)을 따�
 
 Issue #10의 종료·백업·삭제 **로컬 simulator**입니다. `inspect`, `plan`, `execute`, `resume`, `verify`를 제공하며 모든 결과의 `ready_for_aws`는 false입니다. Foundation mock graph 검토·공통 실행 잠금·실제 로컬 PostgreSQL/MongoDB 종료 연계도 별도 통합 인터페이스로 검사합니다. 실제 AWS adapter와 backend 접근 경로는 제공하지 않습니다.
 
+## Native/systemd 재설계
+
+[native host 계약](../contracts/native-host.v1.json)에 따라 Kafka·Spark·Elasticsearch와 ZooKeeper, Control의 Spark driver를 systemd 종료·복구 대상으로 전환합니다. 종료 순서는 admission 차단 → driver/executor drain·fence → checkpoint/release 봉인 및 DB 백업·원격 사본/필요 snapshot 검증 → Kafka/ES → Spark worker/master → ZooKeeper → 실제 중지 재확인입니다.
+
+native 종료 증거에는 unit의 owner/generation/epoch, inactive 상태, cgroup 내 프로세스 부재, 모든 Spark master/worker의 driver/executor 부재를 함께 요구합니다. 재부팅·프로세스 PID 하나·`docker stop` 성공을 이 증거로 대체하지 않습니다. EBS UUID·KRaft UUID·ZooKeeper myid·ES UUID 및 S3 checkpoint를 보존하고 자동 포맷/삭제하지 않습니다.
+
+`mlo_lifecycle.native`에 9개 호스트의 단계별 종료·복구를 구현했습니다. worker/master 전체 중지 뒤 ZooKeeper를 내리며 복구 후 writer는 시작하지 않습니다. 기존 Docker 시험은 native 호스트에 대한 실행 인수가 아닙니다. 실제 원격 adapter·증빙 발급기·백업/복원·중단/재개 시험이 인수되기 전 EC2 종료/삭제를 활성화하지 않습니다. 상세 인계는 [Native 배포 문서](../runtime/docs/NATIVE-PREDEPLOY.md)를 따릅니다.
+
 ## 준비와 검사
 
 Python 3.14.8을 사용합니다. 저장소 루트에서 다음 순서로 준비합니다.

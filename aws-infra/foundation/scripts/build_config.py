@@ -122,6 +122,14 @@ def account_module():
     # Auto-assigned public IPv4 requires EC2 to create the primary interface.
     r['aws_network_interface']['host']['for_each']=ex('{for k,n in local.nodes:k=>n if n.subnet_kind=="private"}')
     host=r['aws_instance']['host']
+    # Architecture target only: native service installation is Runtime-owned.
+    # No downloads, secrets, disk formatting or service startup in Terraform.
+    host['tags']['DataExecutionTarget']=ex('contains(["kafka","spark","elasticsearch"],each.value.role) ? "native-systemd-v1" : (each.value.role=="control" ? "native-drivers-compose-web" : "compose-v1")')
+    native=read_json(ROOT/'aws-infra/contracts/native-host.v1.json')
+    out['native_host_design']={'profile':native['profile'],'ready_for_aws':False,
+        'role_targets':ex('{for name,n in local.nodes:name=>(contains(["kafka","spark","elasticsearch"],n.role) ? "native-systemd" : (n.role=="control" ? "native-drivers-compose-web" : "compose"))}'),
+        'os':native['os'],'installation':'accepted immutable AMI or offline artifact; Runtime owns installation',
+        'deployment_blockers':native['deployment_blockers']}
     interface=host.pop('network_interface')
     host['dynamic']={'network_interface':{'for_each':ex('each.value.subnet_kind=="private" ? [1] : []'),'content':interface[0]}}
     host.update(subnet_id=ex('each.value.subnet_kind=="public" ? aws_subnet.this["public-${each.value.az_slot}"].id : null'),
@@ -188,7 +196,7 @@ def roots():
     sizes={name:({'kafka':40,'spark':40,'elasticsearch':40,'postgresql':30,'mongodb':30}.get(n['role'],16)) for name,n in NODES.items()}
     for a in ACCOUNTS:
         root={'terraform':dict(V,backend={'s3':{}}),'variable':common,'provider':{'aws':{'region':'ap-northeast-2','allowed_account_ids':ex('[var.binding.account_ids.'+a+']')}},'module':{'account':{'source':'../../../modules/account','account':a,'binding':ex('var.binding'),'data_sizes':sizes,'track2':ex('try(var.binding.track2,'+json.dumps(__import__('track2').DEFAULT)+')')},'identity':{'source':'../../../modules/identity','account':a,'binding':ex('var.binding')}},'output':{'foundation':{'value':ex('module.account.foundation')}}}
-        if a=='encore1':root['module']['edge']={'source':'../../../modules/edge','inputs':ex('module.account.edge_inputs'),'origin_header':ex('var.binding.origin_header'),'track2':ex('try(var.binding.track2,'+json.dumps(__import__('track2').DEFAULT)+')'),'account_id':ex('var.binding.account_ids.encore1')}
+        if a=='encore1':root['module']['edge']={'source':'../../../modules/edge','inputs':ex('module.account.edge_inputs'),'origin_header':ex('var.binding.origin_header'),'track2':ex('try(var.binding.track2,'+json.dumps(__import__('track2').DEFAULT)+')'),'account_id':ex('var.binding.account_ids.encore1'),'viewer_https_demo':ex('try(var.binding.edge_profile=="viewer-https-demo",false)')}
         root['output']['foundation_track2']={'value':ex('merge(module.account.foundation_track2_account,'+('module.edge.foundation_track2_edge' if a=='encore1' else '{}')+')')}
         root['output']['runtime_artifact_boundary']={'value':ex('module.account.runtime_artifact_boundary')}
         put(TF/f'environments/dev/{a}/main.tf.json',root)

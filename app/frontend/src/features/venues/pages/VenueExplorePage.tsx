@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import '../venue-design.css';
 import { useVenueList } from '../hooks/useVenueList';
 import { useVenueDetail } from '../hooks/useVenueDetail';
 import { GatewayRoleTabs } from '../components/GatewayRoleTabs';
@@ -264,6 +265,8 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
 
           <p className="fp-map-hint">핀을 선택하면 매장 상세를 확인해요.</p>
           <VenueInteractiveMap
+            temperature={null}
+            weather={weather}
             gu={gu}
             venues={venues}
             selectedVenueId={detailVenueId}
@@ -295,6 +298,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
           {!loading && !error && venues.map((venue) => (
             <div key={venue.venue_id}>
               <VenueCard
+                selected={detailVenueId === venue.venue_id}
                 venue={venue}
                 userId={currentUserId}
                 readOnly={readOnly}

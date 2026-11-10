@@ -168,6 +168,8 @@ def filter_and_rank_venues(
             'gu_name': v.get('gu_name'),
             'dong_name': v.get('dong_name'),
             'road_address': v.get('road_address'),
+            'thumbnail_url': v.get('thumbnail_url') or '',
+            'interior_photos': v.get('interior_photos') or [],
             'category': v.get('category'),
             'sub_category': v.get('sub_category'),
             'price_tier': v.get('price_tier'),

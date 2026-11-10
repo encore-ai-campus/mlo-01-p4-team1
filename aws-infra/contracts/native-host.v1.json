@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0.0",
+  "profile": "native-data-systemd-v1",
+  "status": "implemented-local-validation-awaiting-host-acceptance",
+  "ready_for_aws": false,
+  "os": {"distribution": "Ubuntu", "version": "24.04", "architecture": "x86_64", "service_manager": "systemd"},
+  "native_roles": ["kafka", "spark", "elasticsearch"],
+  "control_driver_mode": "fenced-systemd-services",
+  "other_services": "existing Compose unless separately redesigned",
+  "service_hours": 48,
+  "planned_billable_hours": 52,
+  "services": {
+    "kafka": {"version": "4.1.2", "java": "accepted Java 21", "units": ["mlo-kafka.service"], "data_directory": "kafka", "memory_max": "2G", "heap": "768m", "cpu_quota": "100%", "identity": "preserve node.id and KRaft cluster UUID; never auto-format"},
+    "spark": {"version": "4.1.3", "java": "accepted Java 21 and locked Python/connectors", "units": ["mlo-zookeeper.service", "mlo-spark-master.service", "mlo-spark-worker.service"], "data_directory": "spark", "worker_memory_max": "5G", "worker_advertised_memory": "3g", "worker_cpu_quota": "100%", "worker_advertised_cores": 1, "application_max_cores": 1, "checkpoint": "existing query-specific S3 prefixes"},
+    "zookeeper": {"version": "3.9.4", "java": "accepted Java 21", "data_directory": "zookeeper", "memory_max": "512M", "identity": "preserve myid and existing quorum"},
+    "elasticsearch": {"version": "8.19.23", "java": "release-bundled JDK", "units": ["mlo-elasticsearch.service"], "data_directory": "elasticsearch", "memory_max": "5G", "heap": "2g", "cpu_quota": "100%", "identity": "retain cluster UUID; initial_master_nodes only for accepted first bootstrap"}
+  },
+  "installation": {
+    "prefix": "/opt/mlo/native",
+    "config_prefix": "/etc/mlo-native",
+    "user": "mlo",
+    "uid": 2000,
+    "strategy": "verified immutable AMI or offline release artifact via accepted S3 path",
+    "release_lock_status": "five publisher-checksum-pinned archives verified locally; detached signatures, offline OS/Python and full connectors await acceptance",
+    "no_latest_download_on_boot": true,
+    "terraform_remote_exec": false,
+    "secrets_in_user_data": false
+  },
+  "persistence": {"mount": "/srv/mlo", "verify_uuid_before_activation": true, "generation_scoped_directories": true, "automatic_format": false, "automatic_recursive_chown": false, "automatic_checkpoint_reset": false, "automatic_data_delete": false},
+  "lifecycle": {
+    "restart_policy": "data daemons on-failure; lease-owned drivers Restart=no",
+    "kill_mode": "control-group",
+    "driver_stop_proof": "accepted owner/generation/epoch unit identity + inactive units + empty cgroups + all Spark masters/workers observed",
+    "planned_stop_order": ["close admission", "drain and fence all drivers/executors", "seal checkpoints and releases", "verify DB backups/remote copies and required snapshots", "stop Kafka and Elasticsearch", "stop Spark workers and masters", "stop ZooKeeper quorum", "observe stopped before EC2 stop or removal"],
+    "recovery": "preserve EBS and IDs; validate release and mount; ZooKeeper, Spark quorum, Kafka/ES recovery; health and data verification before lease-owned writers"
+  },
+  "deployment_blockers": ["detached signatures and complete offline OS/Python/connector closure", "accepted AMI and real mount UUIDs/inventory/PKI/secrets", "real native installer/start/protocol-health/config-rollback acceptance", "remote native driver/lease fencing and signed cgroup stop evidence", "actual PID1 systemd restart/data preservation and backup/restore acceptance", "auxiliary observation/proxy transport and reboot secret delivery acceptance", "48h capacity and growth measurements"]
+}

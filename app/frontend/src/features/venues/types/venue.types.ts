@@ -67,6 +67,8 @@ export interface VenueItem {
   music_banner?: MusicBanner | null;
   active_event?: VenueEventSummary | null;
   active_events?: VenueEventSummary[];
+  thumbnail_url?: string;
+  interior_photos?: string[];
   matched_menus_preview: MenuItem[];
   match_score: number;
   dl_similarity?: number;
