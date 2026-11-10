@@ -1,0 +1,149 @@
+﻿tag_id,kind,parent_tag_id,label_ko,aliases,reason,source_example
+mood_retro,MOOD,,레트로 감성,레트로|복고풍|복고 감성,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 레트로 감성
+mood_cozy,MOOD,,아늑한,아늑함,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 아늑한
+mood_relaxed,MOOD,,여유로운,여유로운 분위기,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 여유로운
+mood_lively,MOOD,,활기찬,활기참,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 활기찬
+mood_spacious,MOOD,,넓고 쾌적한,넓고 쾌적함,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venues_demo_sample.csv / 매장분위기 / 넓고 쾌적한
+mood_daylight,MOOD,,채광이 좋은,채광 좋은|감성 채광,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venues_demo_sample.csv / 매장분위기 / 감성 채광
+mood_conversation,MOOD,,대화하기 편한,대화하기 좋은,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venues_demo_sample.csv / 매장분위기 / 대화하기 편한
+mood_work_friendly,MOOD,,카공하기 좋은,카공|작업하기 좋은,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venues_demo_sample.csv / 매장분위기 / 카공하기 좋은
+mood_calm,MOOD,,차분한,차분함,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 차분한
+mood_dim_lighting,MOOD,,은은한 조명,은은한 조명의,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 은은한 조명
+mood_bustling,MOOD,,북적이는,북적임,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 북적이는
+mood_intimate,MOOD,,아담한,아담함,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 아담한
+mood_factory,MOOD,,공장 감성,공장 분위기,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 공장 감성
+mood_gallery,MOOD,,전시 감성,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 전시 감성
+mood_garden,MOOD,,정원 감성,정원 분위기,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 정원 감성
+mood_hanok,MOOD,,한옥 감성,한옥 분위기,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 한옥 감성
+mood_tranquil,MOOD,,고즈넉한,고즈넉함,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 고즈넉한
+mood_neon,MOOD,,네온 감성,네온 조명,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 네온 감성
+mood_jazz,MOOD,,재즈 감성,재즈 분위기,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 재즈 감성
+mood_music,MOOD,,음악 듣기 좋은,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 음악 듣기 좋은
+mood_book,MOOD,,책 읽기 좋은,독서하기 좋은,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 책 읽기 좋은
+mood_urban_view,MOOD,,도심 뷰,도시 전망,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 도심 뷰
+mood_green,MOOD,,식물이 있는,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 식물이 있는
+mood_modern,MOOD,,모던한,현대적인,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 분위기태그 / 모던한
+cuisine_korean,CUISINE,,한식,한국식,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 제철 한식 코스(매운돼지갈비찜·들기름 낙지젓 카펠리니 등)
+cuisine_chinese,CUISINE,,중식,중국식,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 직화마라탕
+cuisine_japanese,CUISINE,,일식,일본식,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,"seoul_venue_menus_demo_sample.csv / 메뉴설명_및_특징 / 일본식 대창전골. 양배추, 고추, 마늘 등을 넣고 팔팔 끊여 시원한 국물맛이 일품입니다."
+cuisine_western,CUISINE,,양식,서양식,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,"seoul_venue_menus_demo_sample.csv / 메뉴설명_및_특징 / 가슴살, 안심, 다리살을 섞어 마리네이드한 닭고기를 초벌하여 큼직하게 썰은 채소와 함께 오랜시간 푹 끓여 낸 서양식 탕요리"
+cuisine_french,CUISINE,cuisine_western,프랑스식,프렌치 요리,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv / 메뉴_확인값 / 프렌치 어니언 수프
+cuisine_italian,CUISINE,cuisine_western,이탈리아식,이탈리안,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 카치오 에 페페
+cuisine_american,CUISINE,cuisine_western,미국식,아메리칸 요리,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 디트로이트 페퍼로니
+cuisine_czech,CUISINE,cuisine_western,체코식,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,실매장_태그_시범_v0.1.json / menus.name / 체코식 다크 라거 굴라쉬
+cuisine_spanish,CUISINE,cuisine_western,스페인식,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 감바스알아히요
+cuisine_mexican,CUISINE,,멕시코식,멕시칸,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 멕시칸 나초
+menu_soup,MENU_TYPE,,국물 요리,국물|국물류,육수가 중심인 탕·찌개·나베·수프 등에 적용합니다. 스튜는 별도 유형입니다.,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 국물 요리
+menu_malatang,MENU_TYPE,menu_soup,마라탕,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 직화마라탕
+menu_jjigae,MENU_TYPE,menu_soup,찌개,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 투다리 부대찌개
+menu_jeongol,MENU_TYPE,menu_soup,전골,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 교자전골
+menu_nabe,MENU_TYPE,menu_soup,나베,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 차돌짬뽕나베
+menu_fishcake_soup,MENU_TYPE,menu_soup,어묵탕,오뎅탕,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 홀리 세트(모둠 오뎅)
+menu_gomtang,MENU_TYPE,menu_soup,곰탕,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / (점심) 능이닭곰탕
+menu_egg_soup,MENU_TYPE,menu_soup,계란탕,달걀탕,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv / 메뉴_확인값 / 명품 해물계란탕
+menu_gopdoritang,MENU_TYPE,menu_soup,곱도리탕,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 곱도리탕
+menu_western_soup,MENU_TYPE,menu_soup,수프,스프,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,"손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv / 1인_주문_예시 / 트러플 감자 크림 수프 16,000원 + 필수 글라스(단가 미확인)"
+menu_stew,MENU_TYPE,,스튜,스튜 요리,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,실매장_태그_시범_v0.1.json / menus.name / 체코식 다크 라거 굴라쉬
+menu_goulash,MENU_TYPE,menu_stew,굴라쉬,굴라시,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,실매장_태그_시범_v0.1.json / menus.name / 체코식 다크 라거 굴라쉬
+menu_noodle,MENU_TYPE,,면 요리,면류,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 깻잎 페스토 두부 리코타 파스타
+menu_pasta,MENU_TYPE,menu_noodle,파스타,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 파스타
+menu_ramen,MENU_TYPE,menu_noodle,라멘,,라멘 유형입니다. 국물 요리는 육수가 확인된 메뉴에 함께 붙입니다.,손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv / 1인_주문_예시 / 시오라멘 1그릇
+menu_kalguksu,MENU_TYPE,menu_noodle,칼국수,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv / 메뉴_확인값 / 닭구이 칼국수
+menu_udon,MENU_TYPE,menu_noodle,우동,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 김치우동
+menu_somyeon,MENU_TYPE,menu_noodle,소면,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 골뱅이소면
+menu_naengmyeon,MENU_TYPE,menu_noodle,냉면,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 물냉면
+menu_soba,MENU_TYPE,menu_noodle,소바,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 들기름소바
+menu_rice,MENU_TYPE,,밥 요리,밥류,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 밥 요리
+menu_fried_rice,MENU_TYPE,menu_rice,볶음밥,프라이드 라이스,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 옥앤수 김치 프라이드 라이스
+menu_rice_ball,MENU_TYPE,menu_rice,주먹밥,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 국물닭발과 주먹밥
+menu_grilled,MENU_TYPE,,구이,,확인된 하위 태그 menu_skewer를 함께 검색하는 상위값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 꼬치구이
+menu_skewer,MENU_TYPE,menu_grilled,꼬치구이,구운 꼬치,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 꼬치구이
+menu_yakitori,MENU_TYPE,menu_skewer,야키토리,야끼토리,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 야키토리 10종 세트
+menu_lamb_skewer,MENU_TYPE,menu_skewer,양꼬치,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 양꼬치1인분
+menu_steak,MENU_TYPE,,스테이크,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 함박스테이크
+menu_fried,MENU_TYPE,,튀김,튀김 요리,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 튀김
+menu_tangsuyuk,MENU_TYPE,menu_fried,탕수육,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 탕수육
+menu_tempura,MENU_TYPE,menu_fried,덴뿌라,덴푸라|텐푸라,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 꽃 덴뿌라 모둠튀김
+menu_fries,MENU_TYPE,menu_fried,감자튀김,프렌치프라이,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 감자튀김
+menu_croquette,MENU_TYPE,menu_fried,고로케,크로켓,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 카망베르 고로케
+menu_chicken,MENU_TYPE,,치킨,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 치킨
+menu_fried_chicken,MENU_TYPE,menu_chicken,프라이드 치킨,후라이드치킨|후라이드 치킨,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 서울브루어리 프라이드 치킨
+menu_stir_fry,MENU_TYPE,,볶음 요리,볶음,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 제육볶음
+menu_jeyuk,MENU_TYPE,menu_stir_fry,제육볶음,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 제육볶음
+menu_jeon,MENU_TYPE,,전·부침개,부침개,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 전·부침개
+menu_pajeon,MENU_TYPE,menu_jeon,파전,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 해물파전
+menu_potato_pancake,MENU_TYPE,menu_jeon,감자전,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 치즈 감자전
+menu_braised,MENU_TYPE,,찜 요리,찜,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 제철 한식 코스(매운돼지갈비찜·들기름 낙지젓 카펠리니 등)
+menu_galbijjim,MENU_TYPE,menu_braised,갈비찜,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 갈비찜
+menu_raw_fish,MENU_TYPE,,회,생선회,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 회
+menu_sashimi,MENU_TYPE,menu_raw_fish,사시미,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 모듬 새우사시미 + 새우머리 짬뽕탕면
+menu_salad,MENU_TYPE,,샐러드,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 샐러드
+menu_tteokbokki,MENU_TYPE,,떡볶이,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 떡볶이
+menu_dumpling,MENU_TYPE,,만두,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 쫄면&군만두
+menu_takoyaki,MENU_TYPE,,타코야키,타코야끼,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,"손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv / 1인_주문_예시 / 마츠다 비어 7,500원 + 오사카 타코야끼 12,000원"
+menu_rolled_omelette,MENU_TYPE,,계란말이,달걀말이,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 계란말이
+menu_chicken_feet,MENU_TYPE,,닭발,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 닭발
+menu_pizza,MENU_TYPE,,피자,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 피자
+menu_sandwich,MENU_TYPE,,샌드위치,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 후르츠산도
+menu_sando,MENU_TYPE,menu_sandwich,산도,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 산도
+menu_panini,MENU_TYPE,menu_sandwich,파니니,파니니 샌드위치,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 파니니
+menu_hotdog,MENU_TYPE,,핫도그,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 핫도그
+menu_toast,MENU_TYPE,,토스트,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 토스트
+menu_eggs_benedict,MENU_TYPE,,에그 베네딕트,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 에그 베네딕트
+menu_sausage,MENU_TYPE,,소시지,소세지,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 소시지
+menu_charcuterie,MENU_TYPE,,샤퀴테리,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 샤퀴테리
+menu_cheese_plate,MENU_TYPE,,치즈 플래터,치즈 플레이트,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 치즈 플래터
+menu_nachos,MENU_TYPE,,나초,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 나초
+menu_dried_snack,MENU_TYPE,,마른안주,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 마른안주
+menu_bread,MENU_TYPE,,빵,브레드,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 빵
+menu_salt_bread,MENU_TYPE,menu_bread,소금빵,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 소금빵
+menu_croissant,MENU_TYPE,menu_bread,크루아상,크로와상|크루와상,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 시나몬크림 크리스피 크루아상
+menu_bagel,MENU_TYPE,menu_bread,베이글,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 페페로니 치즈 베이글
+menu_dessert,MENU_TYPE,,디저트,,확인된 하위 태그 menu_ice_cream를 함께 검색하는 상위값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 요거트 아이스크림 플레인
+menu_cake,MENU_TYPE,menu_dessert,케이크,케잌,케이크류입니다. 케이크 맛 음료는 음료 자체의 유형을 사용합니다.,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 케이크
+menu_cheesecake,MENU_TYPE,menu_cake,치즈케이크,치즈케잌,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 피스타치오 치즈케이크
+menu_cookie,MENU_TYPE,menu_dessert,쿠키,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 쿠키
+menu_tart,MENU_TYPE,menu_dessert,타르트,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 타르트
+menu_financier,MENU_TYPE,menu_dessert,휘낭시에,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 휘낭시에
+menu_donut,MENU_TYPE,menu_dessert,도넛,도너츠|도나스,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 도넛
+menu_bingsu,MENU_TYPE,menu_dessert,빙수,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 빙수
+menu_yanggaeng,MENU_TYPE,menu_dessert,양갱,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 양갱
+menu_rice_cake,MENU_TYPE,,떡,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 떡
+menu_ice_cream,MENU_TYPE,menu_dessert,아이스크림,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 요거트 아이스크림 플레인
+menu_gelato,MENU_TYPE,menu_ice_cream,젤라토,젤라또,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 브라운치즈 크로플 & 바닐라 젤라또
+menu_coffee,MENU_TYPE,,커피,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 커피
+menu_americano,MENU_TYPE,menu_coffee,아메리카노,americano,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 아메리카노
+menu_espresso,MENU_TYPE,menu_coffee,에스프레소,espresso,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv / 메뉴_확인값 / 에스프레소
+menu_cafe_latte,MENU_TYPE,menu_coffee,카페라떼,카페라테|café latte|cafe latte,커피가 들어간 카페라떼에 적용합니다.,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 카페라테
+menu_hand_drip,MENU_TYPE,menu_coffee,핸드드립,핸드드립 커피,손으로 추출한 핸드드립 메뉴입니다. 추출 방식이 확인된 메뉴에 적용합니다.,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 핸드드립 커피
+menu_filter_coffee,MENU_TYPE,menu_coffee,필터 커피,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 필터커피
+menu_cold_brew,MENU_TYPE,menu_coffee,콜드브루,콜드브루 커피,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 콜드브루커피
+menu_flat_white,MENU_TYPE,menu_coffee,플랫화이트,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 챔프커피(플랫화이트)
+menu_cappuccino,MENU_TYPE,menu_coffee,카푸치노,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 카푸치노
+menu_tea,MENU_TYPE,,차,티|잎차,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 차
+menu_milk_tea,MENU_TYPE,menu_tea,밀크티,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 밀크티
+menu_iced_tea,MENU_TYPE,menu_tea,아이스티,아이스 티,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 아이스티
+menu_traditional_tea,MENU_TYPE,menu_tea,전통차,한국 전통차,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 대추차
+menu_green_tea,MENU_TYPE,menu_tea,녹차,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 목련현미녹차
+menu_black_tea,MENU_TYPE,menu_tea,홍차,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 얼그레이 잎차
+menu_ade,MENU_TYPE,,에이드,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 에이드
+menu_juice,MENU_TYPE,,주스,쥬스,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 한라봉주스
+menu_smoothie,MENU_TYPE,,스무디,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 요거트 스무디 플레인
+menu_frappe,MENU_TYPE,,프라페,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,seoul_venue_menus_demo_sample.csv / 메뉴명 / 쿠키프라페
+menu_chocolate_drink,MENU_TYPE,,초콜릿 음료,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 초콜릿 음료
+menu_grain_drink,MENU_TYPE,,곡물 음료,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 곡물 음료
+menu_alcohol,MENU_TYPE,,주류,술,확인된 하위 태그 menu_traditional_liquor를 함께 검색하는 상위값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 전통주
+menu_beer,MENU_TYPE,menu_alcohol,맥주,비어|beer,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 맥주
+menu_draft_beer,MENU_TYPE,menu_beer,생맥주,드래프트 맥주|draft beer,드래프트 제공이 확인되는 맥주입니다.,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 일본 생맥주
+menu_craft_beer,MENU_TYPE,menu_beer,수제맥주,크래프트 맥주|크래프트 비어,수제·크래프트 맥주임을 확인한 메뉴입니다.,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 끽비어 수제맥주
+menu_wine,MENU_TYPE,menu_alcohol,와인,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 와인
+menu_natural_wine,MENU_TYPE,menu_wine,내추럴 와인,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 대표메뉴 / 내추럴 와인
+menu_cocktail,MENU_TYPE,menu_alcohol,칵테일,,알코올 칵테일입니다. 무알코올 메뉴에는 논알코올 칵테일 태그를 사용합니다.,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 칵테일
+menu_highball,MENU_TYPE,menu_cocktail,하이볼,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 하이볼
+menu_mocktail,MENU_TYPE,,논알코올 칵테일,목테일|논알콜 칵테일|무알코올 칵테일,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,"손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv / 1인_주문_예시 / 프렌치 어니언 수프 17,000원 + 논알콜 칵테일 10,000원"
+menu_whisky,MENU_TYPE,menu_alcohol,위스키,whisky|whiskey,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 위스키
+menu_soju,MENU_TYPE,menu_alcohol,소주,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 소주
+menu_sake,MENU_TYPE,menu_alcohol,사케,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 사케
+menu_gaoliang,MENU_TYPE,menu_alcohol,고량주,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 고량주
+menu_traditional_liquor,MENU_TYPE,menu_alcohol,전통주,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 전통주
+menu_makgeolli,MENU_TYPE,menu_traditional_liquor,막걸리,,수집된 구체적 표현 또는 메뉴 사례가 있는 독립 선택값,서울_매장_확장_검증_38곳.csv / 메뉴태그 / 막걸리
