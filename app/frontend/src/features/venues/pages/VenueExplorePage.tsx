@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import '../venue-design.css';
 import { useVenueList } from '../hooks/useVenueList';
 import { useVenueDetail } from '../hooks/useVenueDetail';
 import { GatewayRoleTabs } from '../components/GatewayRoleTabs';
@@ -86,7 +87,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
   };
 
   return (
-    <div style={{
+    <div className="fitplace" style={{
       maxWidth: '1280px',
       margin: '0 auto',
       padding: '24px 20px',
@@ -95,10 +96,10 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
     }}>
       {!readOnly && (
         <>
-          {/* 1. 최상단 네비게이션 바: 게이트웨이 탭 + 마이페이지 + 알림벨 + 점주 전용 버튼 */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+          <div className="fitplace-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+            <a className="fitplace-logo" href="/venues">핏플레이스</a>
             <div style={{ flex: 1, minWidth: '320px' }}>
-              <GatewayRoleTabs currentTab="USER" />
+              <GatewayRoleTabs currentTab="USER" /><span className="fitplace-header-title">카페·주점 탐색</span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -203,10 +204,11 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
         totalCount={totalCount}
       />
 
+      <div className="fitplace-results-heading"><h2>{gu}, 오늘의 발견</h2><p>매장 정보를 살펴보고 취향에 맞는 장소를 찾아보세요.</p></div>
       {/* 5. 메인 레이아웃: 좌측 인터랙티브 지도 + 우측 추천 매장 리스트 */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'start' }}>
+      <div className="fitplace-results" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'start' }}>
         {/* 좌측 인터랙티브 매장 핀 지도 */}
-        <div style={{
+        <div className="fitplace-map-card" style={{
           backgroundColor: '#ffffff',
           borderRadius: '16px',
           padding: '20px',
@@ -217,7 +219,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
             <div style={{ fontWeight: 800, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>🗺️ {gu} 매장 인터랙티브 지도</span>
+              <span>지도에서 매장 찾기</span><span className="fp-map-count">{totalCount.toLocaleString()}곳</span>
               {mapBounds && (
                 <button
                   type="button"
@@ -244,7 +246,10 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
             )}
           </div>
 
+          <p className="fp-map-hint">핀을 선택하면 매장 상세를 확인해요.</p>
           <VenueInteractiveMap
+            temperature={null}
+            weather={weather}
             gu={gu}
             venues={venues}
             selectedVenueId={detailVenueId}
@@ -256,7 +261,8 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
         </div>
 
         {/* 우측: 추천 매장 리스트 */}
-        <div>
+        <div className="fitplace-list">
+          <p className="fitplace-count">매장 {totalCount.toLocaleString()}곳 {detailVenueId && <span> · 선택한 매장: {venues.find(v => v.venue_id === detailVenueId)?.venue_name || ''}</span>}</p>
           {loading && (
             <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
               매장 및 Two-Tower 딥러닝 추천 결과를 불러오는 중입니다...
@@ -269,9 +275,11 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
             </div>
           )}
 
+          {!loading && !error && venues.length === 0 && <p className="fitplace-empty">조건에 맞는 매장이 없습니다. 검색 조건을 바꿔 보세요.</p>}
           {!loading && !error && venues.map((venue) => (
             <div key={venue.venue_id}>
               <VenueCard
+                selected={detailVenueId === venue.venue_id}
                 venue={venue}
                 userId={currentUserId}
                 readOnly={readOnly}

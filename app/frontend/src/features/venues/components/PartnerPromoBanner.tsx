@@ -33,8 +33,8 @@ export const PartnerPromoBanner: React.FC<PartnerPromoBannerProps> = ({ gu, onSe
 
   if (events.length === 0) {
     return (
-      <div style={{
-        background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+      <div className="fitplace-banner" style={{
+        background: 'linear-gradient(135deg, #1e293b, #242424)',
         color: '#f8fafc',
         padding: '14px 20px',
         borderRadius: '14px',
@@ -45,26 +45,17 @@ export const PartnerPromoBanner: React.FC<PartnerPromoBannerProps> = ({ gu, onSe
         boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '24px' }}>🎧</span>
+
           <div>
             <div style={{ fontWeight: 700, fontSize: '15px' }}>
-              {gu} 매장 분위기 & 오늘 날씨 맞춤 추천 음악 큐레이션
+              날씨에 어울리는, 오늘의 취향
             </div>
             <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-              각 매장의 무드와 실시간 날씨에 가장 잘 어울리는 추천 BGM 스타일을 함께 확인해보세요.
+              {gu}의 카페·주점과 추천 음악을 함께 둘러보세요.
             </div>
           </div>
         </div>
-        <span style={{
-          backgroundColor: '#334155',
-          color: '#38bdf8',
-          padding: '4px 10px',
-          borderRadius: '9999px',
-          fontSize: '11px',
-          fontWeight: 600,
-        }}>
-          WEATHER BGM
-        </span>
+        <a className="fp-banner-link" href="/">음악 큐레이션 보기</a>
       </div>
     );
   }
@@ -75,7 +66,7 @@ export const PartnerPromoBanner: React.FC<PartnerPromoBannerProps> = ({ gu, onSe
     <div
       onClick={() => onSelectEvent && onSelectEvent(currentEv)}
       style={{
-        background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+        background: 'linear-gradient(135deg, #4f46e5, #ff383e)',
         color: '#ffffff',
         padding: '16px 22px',
         borderRadius: '14px',
