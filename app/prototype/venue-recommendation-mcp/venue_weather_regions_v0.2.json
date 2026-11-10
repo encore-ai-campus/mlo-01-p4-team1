@@ -1,0 +1,145 @@
+{
+  "mapping_version": "2026-07-01",
+  "locations": {
+    "pilot_v_MA0101202504A0054143": {
+      "district": "성동구",
+      "admin_dong": "성수2가3동",
+      "region_id": "region:1120069000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5441873258679,
+      "longitude": 127.059033657371,
+      "source": "서울_매장_확장_검증_38곳.csv"
+    },
+    "pilot_v_MA0101202308A0047504": {
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "region_id": "region:1120067000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5382516163598,
+      "longitude": 127.055148023493,
+      "source": "손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv"
+    },
+    "pilot_v_MA0101202504A0007790": {
+      "district": "성동구",
+      "admin_dong": "성수1가1동",
+      "region_id": "region:1120065000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5459955263389,
+      "longitude": 127.044946780752,
+      "source": "손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv"
+    },
+    "pilot_v_MA010120220811763793": {
+      "district": "성동구",
+      "admin_dong": "성수1가1동",
+      "region_id": "region:1120065000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.543031027162,
+      "longitude": 127.045499458425,
+      "source": "손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv"
+    },
+    "pilot_v_MA010120220812594063": {
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "region_id": "region:1120067000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.54163866784,
+      "longitude": 127.056644130739,
+      "source": "서울_매장_확장_검증_38곳.csv"
+    },
+    "pilot_v_MA010120220812374911": {
+      "district": "성동구",
+      "admin_dong": "성수1가2동",
+      "region_id": "region:1120066000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5469429926014,
+      "longitude": 127.041054628691,
+      "source": "서울_매장_확장_검증_38곳.csv"
+    },
+    "pilot_v_MA0101202305A0080350": {
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "region_id": "region:1120067000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5430642610056,
+      "longitude": 127.052277440785,
+      "source": "손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv"
+    },
+    "pilot_v_MA0101202508A0037997": {
+      "district": "성동구",
+      "admin_dong": "성수2가3동",
+      "region_id": "region:1120069000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5417263100345,
+      "longitude": 127.061555019888,
+      "source": "서울_매장_확장_검증_38곳.csv"
+    },
+    "pilot_v_MA010120220803881868": {
+      "district": "성북구",
+      "admin_dong": "성북동",
+      "region_id": "region:1129052500",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.595054153809,
+      "longitude": 126.994836560839,
+      "source": "서울_매장_확장_검증_38곳.csv"
+    },
+    "pilot_v_MA010120220813167101": {
+      "district": "중구",
+      "admin_dong": "명동",
+      "region_id": "region:1114055000",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.5664912382563,
+      "longitude": 126.981018026167,
+      "source": "서울_매장_확장_검증_38곳.csv"
+    },
+    "pilot_v_MA010120220800186207": {
+      "district": "마포구",
+      "admin_dong": "서강동",
+      "region_id": "region:1144065500",
+      "nx": 59,
+      "ny": 126,
+      "latitude": 37.5546422349158,
+      "longitude": 126.930523626816,
+      "source": "서울_매장_확장_검증_38곳.csv"
+    },
+    "pilot_v_MA010120220813733429": {
+      "district": "강남구",
+      "admin_dong": "압구정동",
+      "region_id": "region:1168054500",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5253225865643,
+      "longitude": 127.028870223286,
+      "source": "손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv"
+    },
+    "pilot_v_MA010120220800146919": {
+      "district": "강남구",
+      "admin_dong": "논현2동",
+      "region_id": "region:1168053100",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5156360988541,
+      "longitude": 127.031626453656,
+      "source": "손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv"
+    },
+    "pilot_v_public_royal_mile": {
+      "district": "강서구",
+      "admin_dong": "발산1동",
+      "region_id": "region:1150061100",
+      "nx": 57,
+      "ny": 126,
+      "latitude": 37.5478933979819,
+      "longitude": 126.819518103788,
+      "source": "공공 상가 2026-09-30의 방화대로 94 주소 좌표 및 운영사 본관 1층 안내"
+    }
+  }
+}

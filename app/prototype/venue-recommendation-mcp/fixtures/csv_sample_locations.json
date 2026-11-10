@@ -1,0 +1,14 @@
+{
+  "mapping_version": "2026-07-01",
+  "locations": {
+    "VN_SL_033264": {
+      "region_id": "region:1111051500",
+      "district": "종로구",
+      "admin_dong": "청운효자동",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.578742,
+      "longitude": 126.968788
+    }
+  }
+}

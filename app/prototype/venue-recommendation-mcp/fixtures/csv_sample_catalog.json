@@ -1,0 +1,87 @@
+{
+  "version": "0.2-karrella-csv-one-venue",
+  "venues": [
+    {
+      "venue_id": "VN_SL_033264",
+      "name": "파스텔서촌점",
+      "district": "종로구",
+      "admin_dong": "청운효자동",
+      "address": "서울특별시 종로구 필운대로3길 2",
+      "mood_tag_ids": [
+        "mood_daylight"
+      ],
+      "mood_evidence": {
+        "mood_daylight": {
+          "urls": [
+            "https://github.com/encore-ai-campus/mlo-01-p4-team1/blob/07f6f1c/app/backend/venues/sample_data/seoul_venues_demo_sample.csv"
+          ]
+        }
+      },
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "CONFIRMED",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=MbhAFpGh10v7",
+              "https://pastelcoffee.com/article/%EC%95%84%EC%B9%B4%EC%9D%B4%EB%B8%8C/8/7510/"
+            ]
+          },
+          "outdoor": {
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=MbhAFpGh10v7"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "menus": [
+    {
+      "menu_id": "MN_DEMO_03581",
+      "venue_id": "VN_SL_033264",
+      "name": "콜드브루",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_cold_brew"
+      ],
+      "evidence": {
+        "urls": [
+          "https://github.com/encore-ai-campus/mlo-01-p4-team1/blob/07f6f1c/app/backend/venues/sample_data/seoul_venue_menus_demo_sample.csv",
+          "https://www.diningcode.com/profile.php?rid=MbhAFpGh10v7"
+        ]
+      }
+    },
+    {
+      "menu_id": "MN_DEMO_03582",
+      "venue_id": "VN_SL_033264",
+      "name": "아메리카노",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_americano"
+      ],
+      "evidence": {
+        "urls": [
+          "https://github.com/encore-ai-campus/mlo-01-p4-team1/blob/07f6f1c/app/backend/venues/sample_data/seoul_venue_menus_demo_sample.csv",
+          "https://www.diningcode.com/profile.php?rid=MbhAFpGh10v7"
+        ]
+      }
+    },
+    {
+      "menu_id": "MN_DEMO_03579",
+      "venue_id": "VN_SL_033264",
+      "name": "초코청크쿠키",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_cookie"
+      ],
+      "evidence": {
+        "urls": [
+          "https://github.com/encore-ai-campus/mlo-01-p4-team1/blob/07f6f1c/app/backend/venues/sample_data/seoul_venue_menus_demo_sample.csv",
+          "https://www.diningcode.com/profile.php?rid=MbhAFpGh10v7"
+        ]
+      }
+    }
+  ]
+}
