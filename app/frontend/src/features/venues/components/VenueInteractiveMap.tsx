@@ -87,6 +87,52 @@ declare global {
   }
 }
 
+function pinLabel(venue: VenueItem) {
+  return '지도에서 ' + venue.venue_name + ' 상세 보기';
+}
+
+function CoordinatePins({ venues, onSelectVenue }: Pick<VenueInteractiveMapProps, 'venues' | 'onSelectVenue'>) {
+  const pins = venues.filter(({ latitude, longitude }) => Number.isFinite(latitude) && Number.isFinite(longitude)).slice(0, 40);
+  if (!pins.length) return null;
+
+  const latitudes = pins.map(({ latitude }) => latitude);
+  const longitudes = pins.map(({ longitude }) => longitude);
+  const south = Math.min(...latitudes);
+  const north = Math.max(...latitudes);
+  const west = Math.min(...longitudes);
+  const east = Math.max(...longitudes);
+  const latRange = Math.max(north - south, 0.002);
+  const lngRange = Math.max(east - west, 0.002);
+
+  return (
+    <div aria-label="좌표로 표시한 매장 위치" role="group" style={{
+      position: 'absolute', inset: 0, backgroundColor: '#e8eef5',
+      backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)',
+      backgroundSize: '36px 36px',
+    }}>
+      <p style={{ margin: '12px', fontSize: '12px', color: '#334155' }}>지도 타일 연결 대기 · 매장 위치 핀</p>
+      {pins.map((venue) => (
+        <button
+          key={venue.venue_id}
+          type="button"
+          aria-label={pinLabel(venue)}
+          data-venue-id={venue.venue_id}
+          onClick={() => onSelectVenue(venue.venue_id)}
+          style={{
+            position: 'absolute', transform: 'translate(-50%, -50%)',
+            left: 50 + (venue.longitude - (east + west) / 2) / lngRange * 80 + '%',
+            top: 50 - (venue.latitude - (north + south) / 2) / latRange * 76 + '%',
+            borderRadius: '999px', border: '1px solid #ffffff', padding: '4px 9px',
+            backgroundColor: '#2563eb', color: '#ffffff', cursor: 'pointer', fontSize: '11px',
+          }}
+        >
+          {venue.venue_name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
   gu,
   venues,
@@ -101,7 +147,10 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
   const suppressMoveEventRef = useRef<boolean>(false);
   const onBoundsChangeRef = useRef(onBoundsChange);
   onBoundsChangeRef.current = onBoundsChange;
-  const [leafletReady, setLeafletReady] = useState<boolean>(Boolean(window.L));
+  const [leafletReady, setLeafletReady] = useState(Boolean(window.L));
+  const [leafletUnavailable, setLeafletUnavailable] = useState(false);
+  const moveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const cameraTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [pendingBounds, setPendingBounds] = useState<{ bounds: MapBounds; nearestGu: string } | null>(null);
 
   useEffect(() => {
@@ -116,16 +165,34 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
       link.crossOrigin = '';
       document.head.appendChild(link);
     }
-    let script = document.querySelector('script[src*="leaflet.js"]') as HTMLScriptElement | null;
-    if (!script) {
-      script = document.createElement('script');
+    const existing = document.querySelector<HTMLScriptElement>('script[src*="leaflet.js"]');
+    const script = existing ?? document.createElement('script');
+    const ready = () => setLeafletReady(Boolean(window.L));
+    const unavailable = () => setLeafletUnavailable(true);
+    script.addEventListener('load', ready);
+    script.addEventListener('error', unavailable);
+    const fallback = setTimeout(unavailable, 3500);
+
+    if (!existing) {
       script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
       script.crossOrigin = '';
-      script.onload = () => setLeafletReady(true);
       document.head.appendChild(script);
-    } else {
-      script.addEventListener('load', () => setLeafletReady(true));
     }
+    return () => {
+      clearTimeout(fallback);
+      script.removeEventListener('load', ready);
+      script.removeEventListener('error', unavailable);
+    };
+  }, []);
+
+  useEffect(() => () => {
+    clearTimeout(moveTimerRef.current);
+    clearTimeout(cameraTimerRef.current);
+    mapInstanceRef.current?.remove();
+    mapInstanceRef.current = null;
+    markersLayerRef.current = null;
+    lastGuRef.current = '';
+    suppressMoveEventRef.current = false;
   }, []);
 
   useEffect(() => {
@@ -151,7 +218,6 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
       mapInstanceRef.current = map;
 
       // 사용자가 지도를 드래그(Pan)하거나 줌(Zoom)했을 때 현재 보고 있는 맵 영역(BBox) 기준으로 매장 자동 갱신
-      let debounceTimer: any = null;
       const handleUserMapMove = () => {
         if (suppressMoveEventRef.current) return;
         const b = map.getBounds();
@@ -175,8 +241,8 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
         });
 
         setPendingBounds({ bounds: newBounds, nearestGu });
-        if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
+        clearTimeout(moveTimerRef.current);
+        moveTimerRef.current = setTimeout(() => {
           if (onBoundsChangeRef.current) {
             onBoundsChangeRef.current(newBounds, nearestGu);
           }
@@ -215,47 +281,33 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
       const shortName =
         v.venue_name.length > 8 ? `${v.venue_name.slice(0, 8)}…` : v.venue_name;
 
+      const pin = document.createElement('span');
+      Object.assign(pin.style, {
+        display: 'inline-flex', alignItems: 'center', background: bgColor,
+        color: '#fff', padding: '4px 9px', borderRadius: '9999px',
+        fontSize: '11px', fontWeight: '800', border: '2px solid ' + borderColor,
+        boxShadow: '0 3px 8px rgba(15, 23, 42, 0.35)', whiteSpace: 'nowrap',
+        transform: scale, transition: 'transform 0.15s ease',
+      });
+      pin.textContent = iconEmoji + ' ' + shortName;
+
       const customIcon = L.divIcon({
         className: 'custom-venue-pin',
-        html: `
-          <div style="
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            background: ${bgColor};
-            color: #ffffff;
-            padding: 4px 9px;
-            border-radius: 9999px;
-            font-size: 11px;
-            font-weight: 800;
-            border: 2px solid ${borderColor};
-            box-shadow: 0 3px 8px rgba(15, 23, 42, 0.35);
-            white-space: nowrap;
-            transform: ${scale};
-            transition: transform 0.15s ease;
-          ">
-            <span>${iconEmoji}</span>
-            <span>${shortName}</span>
-          </div>
-        `,
+        html: pin,
         iconSize: [90, 26],
         iconAnchor: [45, 13],
       });
+      const marker = L.marker([v.latitude, v.longitude], { icon: customIcon, title: pinLabel(v) });
+      marker.on('click', () => onSelectVenue(v.venue_id));
 
-      const marker = L.marker([v.latitude, v.longitude], { icon: customIcon });
-      marker.on('click', () => {
-        onSelectVenue(v.venue_id);
-      });
-
-      marker.bindTooltip(
-        `<div style="font-size:12px;font-weight:700;">
-          ${v.venue_name} (${v.dong_name})<br/>
-          <span style="color:#2563eb;">🎯 ${v.match_score}% 매칭</span> · 1인 평균 ${(v.avg_price || 10000).toLocaleString()}원
-        </div>`,
-        { direction: 'top', offset: [0, -10] }
-      );
-
+      const tooltip = document.createElement('div');
+      tooltip.textContent = v.venue_name + ' (' + v.dong_name + ') · ' + v.match_score + '% 매칭 · 1인 평균 ' +
+        (v.avg_price || 10000).toLocaleString() + '원';
+      marker.bindTooltip(tooltip, { direction: 'top', offset: [0, -10] });
       marker.addTo(markersLayer);
+      const markerElement = marker.getElement();
+      markerElement?.setAttribute('aria-label', pinLabel(v));
+      markerElement?.setAttribute('data-venue-id', v.venue_id);
       boundsPoints.push([v.latitude, v.longitude]);
     });
 
@@ -272,15 +324,17 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
         const fallbackCenter = GU_CENTER_COORDS[gu] || [37.5172, 127.0286];
         map.setView(fallbackCenter, 14);
       }
-      setTimeout(() => {
+      clearTimeout(cameraTimerRef.current);
+      cameraTimerRef.current = setTimeout(() => {
         suppressMoveEventRef.current = false;
       }, 450);
     }
-  }, [leafletReady, gu, venues, selectedVenueId]);
+  }, [leafletReady, gu, venues, selectedVenueId, onSelectVenue]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '520px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
-      <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+      <div ref={mapContainerRef} role="region" aria-label="매장 지도" style={{ width: '100%', height: '100%' }} />
+      {!leafletReady && leafletUnavailable && <CoordinatePins venues={venues} onSelectVenue={onSelectVenue} />}
       {pendingBounds && (
         <button
           type="button"
