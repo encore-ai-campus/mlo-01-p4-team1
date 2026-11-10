@@ -68,7 +68,7 @@ export const LiveMusicBanner: React.FC<LiveMusicBannerProps> = ({ banner }) => {
         color: '#5b21b6',
       }}>
         <span>💿</span>
-        <span>매장 스피커에서 현재 날씨 맞춤 선곡표가 스트리밍되고 있습니다.</span>
+        <span>방문객을 위해 매장 분위기와 오늘 날씨에 맞춰 큐레이션된 추천 BGM 스타일입니다.</span>
       </div>
     </div>
   );
