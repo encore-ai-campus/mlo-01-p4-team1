@@ -216,9 +216,9 @@ class AdsSandboxTests(SimpleTestCase):
             repository.assert_not_called()
 
     def test_expired_admin_cookie_is_rejected(self):
-        with patch("django.core.signing.time.time", return_value=1_700_000_000):
+        with patch("django.core.signing.time", Mock(time=Mock(return_value=1_700_000_000))):
             self.client.cookies["ads_sandbox_admin"] = self.signed_admin()
-        with patch("django.core.signing.time.time", return_value=1_700_028_801):
+        with patch("django.core.signing.time", Mock(time=Mock(return_value=1_700_028_801))):
             self.assertEqual(self.client.get("/api/admin/ads", **self.transport).status_code, 401)
 
     def test_local_guard_blocks_remote_ip_and_host_and_ignores_forwarded_headers(self):

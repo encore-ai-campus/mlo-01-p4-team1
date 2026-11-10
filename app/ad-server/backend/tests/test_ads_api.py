@@ -150,6 +150,92 @@ class AdsApiTests(SimpleTestCase):
         self.assert_error(response, 403, "FORBIDDEN")
         self.repository_provider.assert_not_called()
 
+    def test_platform_csrf_cookie_allows_registration_without_legacy_cookie(self):
+        secret = self.client.cookies.pop(settings.CSRF_COOKIE_NAME).value
+        self.client.cookies["platform_csrf"] = secret
+        response = self.post_json("/api/admin/ads", self.data)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(len(self.repository.ads), 1)
+
+    def test_platform_cookie_supports_asset_create_preview_edit_and_stop(self):
+        secret = self.client.cookies.pop(settings.CSRF_COOKIE_NAME).value
+        self.client.cookies["platform_csrf"] = secret
+        image = SimpleUploadedFile("platform.png", image_bytes(), content_type="image/png")
+        uploaded = self.client.post(
+            "/api/admin/ad-assets",
+            {"image": image},
+            **{**self.headers, "HTTP_IDEMPOTENCY_KEY": "platform-asset"},
+        )
+        self.assertEqual(uploaded.status_code, 201)
+        data = {**self.data, "asset_id": uploaded.json()["asset_id"]}
+        preview = self.post_json("/api/admin/ads/preview", data)
+        self.assertEqual(preview.status_code, 200)
+        self.assertFalse(self.repository.ads)
+        created = self.post_json("/api/admin/ads", data, HTTP_IDEMPOTENCY_KEY="platform-create")
+        self.assertEqual(created.status_code, 201)
+        path = "/api/admin/ads/" + created.json()["ad_id"]
+        edited = self.client.put(
+            path,
+            {**data, "title": "플랫폼 수정", "version": 1},
+            format="json",
+            **{**self.headers, "HTTP_IDEMPOTENCY_KEY": "platform-edit"},
+        )
+        self.assertEqual(edited.status_code, 200)
+        self.assertEqual(edited.json()["version"], 2)
+        stopped = self.post_json(
+            path + "/stop",
+            {"version": 2},
+            HTTP_IDEMPOTENCY_KEY="platform-stop",
+        )
+        self.assertEqual(stopped.status_code, 200)
+        self.assertEqual(stopped.json()["status"], "STOPPED")
+        self.assertEqual(len(self.repository.ads), 1)
+
+    def test_platform_csrf_header_can_match_platform_cookie_with_stale_legacy_cookie(self):
+        secret = self.client.cookies[settings.CSRF_COOKIE_NAME].value
+        self.client.cookies["platform_csrf"] = secret
+        self.client.cookies[settings.CSRF_COOKIE_NAME] = "x" * 32
+        response = self.post_json("/api/admin/ads", self.data)
+        self.assertEqual(response.status_code, 201)
+
+    def test_platform_csrf_still_requires_matching_token_and_trusted_origin(self):
+        secret = self.client.cookies.pop(settings.CSRF_COOKIE_NAME).value
+        self.client.cookies["platform_csrf"] = secret
+        for headers in (
+            {"HTTP_X_CSRFTOKEN": ""},
+            {"HTTP_X_CSRFTOKEN": "x" * 32},
+            {"HTTP_ORIGIN": "https://untrusted.example"},
+        ):
+            with self.subTest(headers=headers):
+                response = self.post_json("/api/admin/ads", self.data, **headers)
+                self.assert_error(response, 403, "FORBIDDEN")
+        self.assertFalse(self.repository.ads)
+
+    @override_settings(ADS_CSRF_COOKIE_ALIASES=())
+    def test_platform_cookie_is_not_accepted_when_alias_is_disabled(self):
+        secret = self.client.cookies.pop(settings.CSRF_COOKIE_NAME).value
+        self.client.cookies["platform_csrf"] = secret
+        self.assert_error(self.post_json("/api/admin/ads", self.data), 403, "FORBIDDEN")
+
+    def test_csrf_alias_does_not_mutate_request_cookie_or_metadata(self):
+        from api.ads_auth import enforce_admin_csrf
+
+        request = RequestFactory().post(
+            "/",
+            data="{}",
+            content_type="application/json",
+            HTTP_HOST="testserver",
+            HTTP_ORIGIN="http://testserver",
+            HTTP_X_CSRFTOKEN=self.csrf_token,
+        )
+        request.COOKIES = {"platform_csrf": self.client.cookies[settings.CSRF_COOKIE_NAME].value}
+        original_cookies = request.COOKIES
+        enforce_admin_csrf(request)
+        self.assertIs(request.COOKIES, original_cookies)
+        self.assertNotIn(settings.CSRF_COOKIE_NAME, request.COOKIES)
+        self.assertNotIn("CSRF_COOKIE", request.META)
+        self.assertNotIn("CSRF_COOKIE_NEEDS_UPDATE", request.META)
+
     def test_untrusted_origin_rejects_before_malformed_json_even_with_csrf(self):
         response = self.client.generic(
             "POST",

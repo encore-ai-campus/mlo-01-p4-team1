@@ -7,6 +7,7 @@ import threading
 from django.core.management.base import BaseCommand, CommandError
 
 from workers.ads_jobs import AdsWorkerGroup, configured_jobs
+from workers.ads_worker_health import write_health
 
 
 class Command(BaseCommand):
@@ -45,9 +46,9 @@ class Command(BaseCommand):
             try:
                 group.start()
                 # 시작/초기 오류 상태를 첫30초 출력까지 숨기지 않습니다.
-                self.stdout.write(json.dumps(group.snapshot(), ensure_ascii=False))
+                self.emit(group.snapshot())
                 while not stop.wait(30):
-                    self.stdout.write(json.dumps(group.snapshot(), ensure_ascii=False))
+                    self.emit(group.snapshot())
             except KeyboardInterrupt:
                 pass
             finally:
@@ -58,3 +59,7 @@ class Command(BaseCommand):
         finally:
             if manages_signals:
                 signal.signal(signal.SIGTERM, previous_handler)
+
+    def emit(self, snapshot):
+        write_health(snapshot)
+        self.stdout.write(json.dumps(snapshot, ensure_ascii=False))
