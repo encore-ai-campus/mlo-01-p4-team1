@@ -170,7 +170,7 @@ def extend_edge(module):
     r = module['resource']
     tls = 'var.track2.enabled && var.track2.tls.enabled'
     port = ex(tls+' ? 8443 : 8000')
-    r['aws_security_group']['alb']['ingress'][0].update(from_port=ex(tls+' ? 443 : 80'), to_port=ex(tls+' ? 443 : 80'))
+    r['aws_security_group_rule']['viewer_in'].update(from_port=ex(tls+' ? 443 : 80'), to_port=ex(tls+' ? 443 : 80'))
     for name in ['target_in', 'target_out']:
         r['aws_security_group_rule'][name].update(from_port=port, to_port=port)
     r['aws_lb_target_group']['web'].update(port=port, protocol=ex(tls+' ? "HTTPS" : "HTTP"'))

@@ -77,8 +77,7 @@ def audit_edge(state, config):
         if resource['type']=='aws_security_group_rule' and '.target_' in resource['address']:
             require(resource['values']['from_port']==target['port']==resource['values']['to_port'], 'Control TLS security group port mismatch')
     alb=select('aws_security_group')[0]
-    alb=next(v for v in select('aws_security_group') if v.get('name')=='p4-control-alb' or any(x.get('description')=='CloudFront origin only' for x in v.get('ingress',[])))
-    rule=alb['ingress'][0]
+    rule=next(v for v in select('aws_security_group_rule') if v.get('description')=='CloudFront origin only')
     require(rule['from_port']==listener['port'] and rule['to_port']==listener['port'] and rule['prefix_list_ids']==['pl-00000002'] and not rule['cidr_blocks'], 'ALB ingress widened')
     if config['media']['enabled']:
         photos=next(v for v in ordered if v['path_pattern']=='/media/venues/approved/*')

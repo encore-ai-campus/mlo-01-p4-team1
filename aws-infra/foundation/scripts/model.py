@@ -69,6 +69,9 @@ def validate_binding(b, *, real=False):
                 require(s.get('Condition',{}).get('StringEquals',{}).get('iam:PassedToService')=='ec2.amazonaws.com','PassRole service condition required')
                 runtime_arns={f'arn:aws:iam::{b["account_ids"][node["account"]]}:role/p4-runtime-{name}' for name,node in NODES.items()}
                 require(all(v in runtime_arns for v in resources),'PassRole exact topology runtime roles only')
+    if 'existing_edge_viewer_rule_import_id' in b:
+        value=b['existing_edge_viewer_rule_import_id']
+        require(isinstance(value,str) and (value=='' or re.fullmatch(r'sg-[0-9a-f]{17}_ingress_tcp_80_80_pl-[0-9a-f]{8,17}',value)), 'only an exact existing CloudFront HTTP viewer rule may be adopted')
     if b['artifact']:
         artifact=b['artifact']
         require(set(artifact)=={'key','version','sha256','manifest_sha256'},'artifact key/version/archive+manifest hashes required')
