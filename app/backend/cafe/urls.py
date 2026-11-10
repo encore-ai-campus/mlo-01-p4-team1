@@ -7,6 +7,7 @@ from backend.common import frontend
 
 from backend.recommendation import youtube_review_api as review
 from backend.recommendation.youtube_queue_api import YoutubeQueue
+from backend.recommendation.youtube_audio_api import YoutubeAudio
 
 urlpatterns = [
     path('', include('backend.workspaces.urls')),
@@ -57,6 +58,7 @@ urlpatterns = [
     path('api/playlists/<str:pk>',api.PlaylistDetail.as_view()),
     path('api/playlists/<str:pk>/youtube-playback',api.YoutubePlayback.as_view()),
     path('api/playlists/<str:pk>/youtube-queue',YoutubeQueue.as_view()),
+    path('api/playlists/<str:pk>/youtube-audio',YoutubeAudio.as_view()),
     path('api/playlists/<str:pk>/regenerations',api.Regenerate.as_view()),
     path('api/playlists/<str:pk>/weather-refresh',api.WeatherRefresh.as_view()),
     path('api/playlists/<str:pk>/approval',api.Approve.as_view()),
