@@ -1,6 +1,5 @@
 from typing import Any, Dict, List
 from django.http import JsonResponse
-from django.views.decorators.http import require_GET
 
 from backend.venues.repositories.csv_lazy_repo import get_venue_repo
 from backend.venues.models.status_overlay import VenueStatusOverlay
@@ -9,9 +8,12 @@ from backend.venues.services.open_hours_service import is_venue_open_now
 from backend.venues.services.music_banner_service import get_venue_music_banner
 from backend.venues.services.event_service import get_visible_events_for_venue
 
+from backend.workspaces.music import public_applied_playlist
+from .access import consumer_get
 
-@require_GET
-def venue_detail_api(request, venue_id: str):
+
+@consumer_get
+def venue_detail_api(request, venue_id: str, *, consumer):
     """
     GET /api/venues/<venue_id>
     - 매장 상세 정보, 5개 탭 전체 메뉴판, 음악 배너, 실시간 이벤트 정보 반환
@@ -25,8 +27,11 @@ def venue_detail_api(request, venue_id: str):
             'message': '매장을 찾을 수 없습니다.',
         }, status=404)
 
-    # 1. 영업 상태 오버레이
-    overlay = VenueStatusOverlay.objects.filter(venue_id=venue_id).first()
+    canonical_id = venue['venue_id']
+    overlay = VenueStatusOverlay.objects.filter(venue_id=canonical_id if consumer else venue_id).first()
+    if consumer and overlay and overlay.status == 'CLOSED_HIDDEN':
+        return JsonResponse({'success': False, 'message': '매장을 찾을 수 없습니다.'}, status=404)
+
     status_code = overlay.status if overlay else 'OPEN'
     status_label = overlay.get_status_display() if overlay else '정상 영업'
 
@@ -34,7 +39,7 @@ def venue_detail_api(request, venue_id: str):
     is_open = is_venue_open_now(venue)
 
     # 3. 16종 전체 메뉴판 조회 및 5개 탭 분류 (배민 스타일)
-    all_menus = repo.get_menus_by_venue(venue_id)
+    all_menus = repo.get_menus_by_venue(canonical_id if consumer else venue_id)
     cat = venue.get('category', 'CAFE').upper()
 
     tabs_dict: Dict[str, List[Dict[str, Any]]] = {}
@@ -64,23 +69,25 @@ def venue_detail_api(request, venue_id: str):
     # 5. 실시간 진행 중(또는 5분 이내 종료) 이벤트 목록
     visible_events = get_visible_events_for_venue(venue_id)
 
-    # 6. 최근 날씨 스냅샷 리뷰 목록
-    recent_reviews = list(VenueInteraction.objects.filter(
-        venue_id=venue_id,
-        interaction_type='REVIEW',
-    ).order_by('-created_at')[:10].values(
-        'interaction_id', 'user_id', 'content', 'rating', 'weather_condition', 'weather_temp', 'created_at'
-    ))
-    for r in recent_reviews:
-        if hasattr(r['created_at'], 'isoformat'):
-            r['created_at'] = r['created_at'].isoformat()
+    recent_reviews = []
+    if consumer is None:
+        recent_reviews = list(VenueInteraction.objects.filter(
+            venue_id=venue_id,
+            interaction_type='REVIEW',
+        ).order_by('-created_at')[:10].values(
+            'interaction_id', 'user_id', 'content', 'rating', 'weather_condition', 'weather_temp', 'created_at'
+        ))
+        for review in recent_reviews:
+            if hasattr(review['created_at'], 'isoformat'):
+                review['created_at'] = review['created_at'].isoformat()
 
     return JsonResponse({
         'success': True,
         'venue': {
             **venue,
             'venue_id': venue_id,
-            'canonical_venue_id': venue.get('venue_id', venue_id),
+            'canonical_venue_id': canonical_id,
+            'applied_playlist': public_applied_playlist(canonical_id) if consumer else None,
             'status_code': status_code,
             'status_label': status_label,
             'is_open_now': is_open,

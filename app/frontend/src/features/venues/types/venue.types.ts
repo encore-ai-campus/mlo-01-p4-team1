@@ -100,6 +100,7 @@ export interface VenueReviewItem {
 export interface VenueDetail extends VenueItem {
   menu_tabs: MenuTab[];
   all_menus_count: number;
+  applied_playlist: { id: string; name: string } | null;
   recent_reviews?: VenueReviewItem[];
 }
 

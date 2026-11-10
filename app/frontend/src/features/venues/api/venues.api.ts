@@ -56,8 +56,9 @@ export async function fetchVenues(params: VenueSearchParams): Promise<{ success:
   return res.json();
 }
 
-export async function fetchVenueDetail(venueId: string, weather: string = 'CLEAR'): Promise<{ success: boolean; venue: VenueDetail }> {
-  const res = await fetch(`/api/venues/${venueId}?weather=${encodeURIComponent(weather)}`);
+export async function fetchVenueDetail(venueId: string, weather: string = 'CLEAR', signal?: AbortSignal): Promise<{ success: boolean; venue: VenueDetail }> {
+  const path = '/api/venues/' + encodeURIComponent(venueId);
+  const res = await fetch(path + '?weather=' + encodeURIComponent(weather), { signal });
   if (!res.ok) {
     throw new Error(`Failed to fetch venue detail: ${res.statusText}`);
   }
