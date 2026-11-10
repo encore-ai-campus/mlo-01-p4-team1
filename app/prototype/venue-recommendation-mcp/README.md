@@ -4,7 +4,7 @@
 
 ## 로컬 시연
 
-백엔드 Python 3.14와 MCP Python 3.12를 각각 준비합니다. 프런트엔드는 저장소의 pnpm 잠금 파일을 사용합니다. 저장소 루트에서 실행하는 PowerShell 예시입니다.
+새로 설치하는 경우 Python 3.14로 백엔드와 MCP 가상환경을 각각 만듭니다. 프런트엔드는 저장소의 pnpm 잠금 파일을 사용합니다. 저장소 루트에서 실행하는 PowerShell 예시입니다.
 
 ```powershell
 Set-Location app/frontend
@@ -12,7 +12,7 @@ pnpm install --frozen-lockfile
 pnpm build
 Set-Location ..
 py -3.14 -m venv .local/venue-api
-py -3.12 -m venv .local/venue-mcp
+py -3.14 -m venv .local/venue-mcp
 & ./.local/venue-api/Scripts/python.exe -m pip install -r backend/requirements.lock
 & ./.local/venue-mcp/Scripts/python.exe -m pip install -r prototype/venue-recommendation-mcp/requirements.txt
 & ./.local/venue-api/Scripts/python.exe -B prototype/venue-recommendation-mcp/run_local_demo.py --mcp-python .local/venue-mcp/Scripts/python.exe
