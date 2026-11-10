@@ -45,13 +45,13 @@ export const PartnerPromoBanner: React.FC<PartnerPromoBannerProps> = ({ gu, onSe
         boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '24px' }}>🎵</span>
+          <span style={{ fontSize: '24px' }}>🎧</span>
           <div>
             <div style={{ fontWeight: 700, fontSize: '15px' }}>
-              {gu} 파트너 매장 실시간 날씨 선곡표 재생 중
+              {gu} 매장 분위기 & 오늘 날씨 맞춤 추천 음악 큐레이션
             </div>
             <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-              동네 날씨와 무드에 맞춰 엄선된 공식 공간 음향을 즐겨보세요.
+              각 매장의 무드와 실시간 날씨에 가장 잘 어울리는 추천 BGM 스타일을 함께 확인해보세요.
             </div>
           </div>
         </div>
@@ -63,7 +63,7 @@ export const PartnerPromoBanner: React.FC<PartnerPromoBannerProps> = ({ gu, onSe
           fontSize: '11px',
           fontWeight: 600,
         }}>
-          PARTNER BGM
+          WEATHER BGM
         </span>
       </div>
     );
