@@ -112,6 +112,24 @@ class ExportTests(unittest.TestCase):
         with self.assertRaises(ContractError):export(self.paths)
 
 class SourceSafetyTests(unittest.TestCase):
+    def test_s3_prefix_rejects_multipart_listing_without_widening(self):
+        from security import audit_s3_prefix_actions
+        statement={'Effect':'Allow','Action':['s3:ListBucket'],
+                   'Resource':['arn:aws:s3:::example-only-bucket'],
+                   'Condition':{'StringLike':{'s3:prefix':['raw/weather/*']}}}
+        audit_s3_prefix_actions(statement)
+        versions=copy.deepcopy(statement);versions['Action']=['S3:ListBucketVersions']
+        audit_s3_prefix_actions(versions)
+        for action in ['s3:ListBucketMultipartUploads','s3:GetBucketLocation','s3:GetObject','s3:List*']:
+            with self.subTest(action=action):
+                bad=copy.deepcopy(statement);bad['Action'].append(action)
+                with self.assertRaises(ContractError):audit_s3_prefix_actions(bad)
+        # The generated grant keeps prefix isolation and scoped object-part APIs.
+        grant=account_module()['locals']['s3_grants']
+        self.assertIn('s3:prefix',grant)
+        self.assertIn('s3:ListMultipartUploadParts',grant)
+        self.assertNotIn('s3:ListBucketMultipartUploads',grant)
+
     def test_native_target_is_review_metadata_not_bootstrap_execution(self):
         configuration=account_module()
         host=configuration['resource']['aws_instance']['host']
