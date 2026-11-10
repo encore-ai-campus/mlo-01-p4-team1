@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState,type FormEvent} from 'react';
 import {api} from '../../shared/api';
-import {analyticsQuery,dailyAnalytics,emptyAnalyticsFilters,type AnalyticsReport} from './analytics';
+import {analyticsQuery,parseAnalyticsReport,dailyAnalytics,emptyAnalyticsFilters,type AnalyticsReport} from './analytics';
 
 const number=(value:number|null)=>value===null?'—':value.toLocaleString('ko-KR');
 const rate=(value:number|null)=>value===null?'—':value.toLocaleString('ko-KR',{maximumFractionDigits:4})+'%';
@@ -33,7 +33,7 @@ export function AdAnalytics(){
   async function load(query:string){
     current.current?.abort();const controller=new AbortController();current.current=controller;applied.current=query;
     setLoading(true);setError('');setReport(null);
-    try{const value=await api<AnalyticsReport>('/api/admin/ads/analytics'+(query?'?'+query:''),'GET',undefined,undefined,controller.signal);if(!controller.signal.aborted)setReport(value);}
+    try{const value=await api<unknown>('/api/admin/ads/analytics'+(query?'?'+query:''),'GET',undefined,undefined,controller.signal);if(!controller.signal.aborted)setReport(parseAnalyticsReport(value));}
     catch(error){if(!controller.signal.aborted)setError((error as Error).message);}
     finally{if(!controller.signal.aborted)setLoading(false);}
   }

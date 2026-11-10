@@ -23,6 +23,12 @@ ALLOWED_HOSTS = [
     if value.strip()
 ]
 CSRF_TRUSTED_ORIGINS = [value.strip() for value in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if value.strip()]
+# Fixed server configuration, never a browser-provided cookie name.
+ADS_CSRF_COOKIE_ALIASES = tuple(
+    name.strip()
+    for name in os.environ.get("ADS_CSRF_COOKIE_ALIASES", "platform_csrf").split(",")
+    if name.strip()
+)
 INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",

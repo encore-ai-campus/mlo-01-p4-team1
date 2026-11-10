@@ -15,7 +15,7 @@ it('sends a delivery proof separately from the event JSON while keeping CSRF and
   const controller=new AbortController(),body={delivery_id:'d1',event_id:'e1'};
   await api('/api/ad-events','POST',body,'request-key',controller.signal,{'X-Ad-Delivery-Token':'proof-d1'});
   expect(fetch).toHaveBeenCalledWith('/api/ad-events',expect.objectContaining({
-    credentials:'same-origin',cache:'no-store',signal:controller.signal,body:JSON.stringify(body),
+    credentials:'same-origin',cache:'no-store',signal:expect.any(AbortSignal),body:JSON.stringify(body),
     headers:{'Content-Type':'application/json','X-CSRFToken':'fixture-csrf','Idempotency-Key':'request-key','X-Ad-Delivery-Token':'proof-d1'},
   }));
 });

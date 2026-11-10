@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import ssl
 import sys
 from pathlib import Path
 
@@ -50,13 +51,13 @@ def validate_environment(env):
         raise ValueError("Kafka partition·복제 수는 정수여야 합니다.") from None
     if not 1 <= partitions <= 32 or not 1 <= replication <= 5:
         raise ValueError("Kafka partition·복제 기대값 범위를 확인하세요.")
-    if not Path(env["ADS_V2_KAFKA_CA_FILE"]).is_file():
-        raise ValueError("Kafka CA 파일을 찾을 수 없습니다.")
+    trusted_certificates(env["ADS_V2_KAFKA_CA_FILE"])
     if not env["ADS_V2_CHECKPOINT"].startswith("s3a://"):
         raise ValueError("별도 s3a:// 체크포인트 경로가 필요합니다.")
     jars = env["ADS_V2_SPARK_JARS"].split(",")
     if not jars or any(
-        not name or not Path(name).is_file() or not name.endswith(".jar") for name in jars
+        not name or not Path(name).is_file() or not name.endswith(".jar")
+        for name in jars
     ):
         raise ValueError(
             "검증된 Kafka·S3A 의존성 JAR 파일 목록을 명시하세요. 자동 다운로드하지 않습니다."
@@ -86,7 +87,9 @@ def verify_topic(env):
         or topics[0].get("topic") != env["ADS_V2_KAFKA_TOPIC"]
         or topics[0].get("error_code", 0)
     ):
-        raise ValueError("기존 Kafka 토픽을 확인할 수 없습니다. 자동 생성하지 않습니다.")
+        raise ValueError(
+            "기존 Kafka 토픽을 확인할 수 없습니다. 자동 생성하지 않습니다."
+        )
     partitions = topics[0].get("partitions", [])
     if len(partitions) != int(env["ADS_V2_KAFKA_PARTITIONS"]) or any(
         len(row.get("replicas", [])) != int(env["ADS_V2_KAFKA_REPLICATION_FACTOR"])
@@ -124,11 +127,15 @@ def run_spark(env):
     from ads_analytics_v2.adapters.spark import stream_from_kafka
 
     verify_topic(env)
+    certificates = trusted_certificates(env["ADS_V2_KAFKA_CA_FILE"])
     spark = (
         SparkSession.builder.appName("ads-analytics-v2")
         .master(env["ADS_V2_SPARK_MASTER"])
         .config("spark.jars", env["ADS_V2_SPARK_JARS"])
-        .config("spark.redaction.regex", "(?i)secret|password|token|jaas|access[.]key")
+        .config(
+            "spark.redaction.regex",
+            "(?i)secret|password|token|jaas|certificates|access[.]key",
+        )
         .getOrCreate()
     )
 
@@ -145,7 +152,9 @@ def run_spark(env):
         + jaas_escape(env["ADS_V2_KAFKA_PASSWORD"])
         + '";',
         "kafka.ssl.endpoint.identification.algorithm": "https",
-        "kafka.ssl.truststore.location": env["ADS_V2_KAFKA_CA_FILE"],
+        # Kafka's PEM configuration travels with each consumer's options, including
+        # consumers on remote executors. Do not pass a driver-only absolute path.
+        "kafka.ssl.truststore.certificates": certificates,
         "kafka.ssl.truststore.type": "PEM",
     }
     query = None
@@ -160,7 +169,11 @@ def run_spark(env):
         )
         print(
             json.dumps(
-                {"stage": "spark", "key_contract": "delivery_id", "status": "STARTED_PROVISIONAL"}
+                {
+                    "stage": "spark",
+                    "key_contract": "delivery_id",
+                    "status": "STARTED_PROVISIONAL",
+                }
             ),
             flush=True,
         )
@@ -173,6 +186,24 @@ def run_spark(env):
 
 def jaas_escape(value):
     return value.replace(chr(92), chr(92) * 2).replace(chr(34), chr(92) + chr(34))
+
+
+def trusted_certificates(filename):
+    """Read public PEM CA certificates only; never send private key material."""
+    try:
+        path = Path(filename)
+        if not path.is_file() or not 1 <= path.stat().st_size <= 1_048_576:
+            raise ValueError
+        payload = path.read_text(encoding="ascii")
+        if "PRIVATE KEY" in payload or "-----BEGIN CERTIFICATE-----" not in payload:
+            raise ValueError
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        context.load_verify_locations(cadata=payload)
+        return payload
+    except (OSError, UnicodeError, ValueError, ssl.SSLError):
+        raise ValueError(
+            "공개 PEM CA 인증서만 담은 1MiB 이하의 유효한 파일이 필요합니다."
+        ) from None
 
 
 def main(argv=None, env=None):
@@ -193,7 +224,11 @@ def main(argv=None, env=None):
         print(str(error), file=sys.stderr)
         return 2
     if args.check_config:
-        print(json.dumps({"configuration_valid": True, "external_services_verified": False}))
+        print(
+            json.dumps(
+                {"configuration_valid": True, "external_services_verified": False}
+            )
+        )
         return 0
     try:
         run_spark(env)
@@ -207,7 +242,10 @@ def main(argv=None, env=None):
         )
         return 2
     except Exception:  # noqa: BLE001 -- third-party runtime errors may contain credentials/URIs.
-        print("Spark 작업이 실패했습니다. 비밀값을 제외한 운영 상태를 확인하세요.", file=sys.stderr)
+        print(
+            "Spark 작업이 실패했습니다. 비밀값을 제외한 운영 상태를 확인하세요.",
+            file=sys.stderr,
+        )
         return 2
 
 
