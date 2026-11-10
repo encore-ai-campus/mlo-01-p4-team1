@@ -36,6 +36,7 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({ userId
       {/* 알림 벨 버튼 */}
       <button
         type="button"
+        aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
         style={{
           position: 'relative',
@@ -51,7 +52,7 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({ userId
           boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
         }}
       >
-        <span>🔔</span>
+        <span>알림</span>
         {unreadCount > 0 && (
           <span style={{
             backgroundColor: '#ef4444',

@@ -124,3 +124,55 @@ body:has(.fitplace) { background:#faf8f5; }
 
 .fp-region-trigger:hover:not(:disabled) { background:#fff; }
 .fp-region-option:hover:not(.is-selected) { background:#faf8f5; }
+
+/* Desktop result card: photo area follows music and collapses when no photos exist. */
+.fitplace-desktop-result-count { display:none; }
+.fp-gallery { display:none; }
+@media (min-width:1200px) {
+ .fitplace-results-heading, .fitplace-count { display:none; }
+ .fitplace-desktop-result-count { display:block; margin:28px 0 18px; font-size:14px; font-weight:700; }
+ .fp-card-heading { display:flex; align-items:center; flex-wrap:wrap; gap:0 12px; min-width:0; }
+ .fp-card-heading .fp-card-meta { margin:0; }
+ .fp-gallery { display:block; position:relative; margin:12px 0; min-width:0; }
+ .fp-photo-track { display:flex; gap:12px; overflow-x:auto; scrollbar-width:thin; scroll-snap-type:x proximity; }
+ .fp-photo { flex:0 0 115px; width:115px; height:115px; position:relative; overflow:hidden; border-radius:12px; background:#a0a0a0; scroll-snap-align:start; }
+ .fp-photo img { width:100%; height:100%; object-fit:cover; display:block; }
+ .fp-photo-loading,.fp-photo-error { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:6px; padding:5px; color:#242424; font-size:10px; line-height:14px; background:#e8e4e0; }
+ .fp-photo-spinner { width:20px; height:20px; border:2px solid #fff; border-top-color:#ff383e; border-radius:50%; animation:fp-spin .8s linear infinite; }
+ .fp-photo-error button { border:1px solid #e8e4e0; background:#fff; color:#242424; border-radius:6px; padding:4px 8px; }
+ .fp-photo-prev,.fp-photo-next { position:absolute; top:50%; transform:translateY(-50%); width:32px; height:32px; border:1px solid #e8e4e0; border-radius:50%; background:#fff; color:#242424; font-size:24px; line-height:1; box-shadow:0 2px 8px #0002; }
+ .fp-photo-prev { left:4px; } .fp-photo-next { right:4px; }
+}
+@keyframes fp-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { .fp-photo-spinner { animation:none; } }
+
+/* Desktop layout measured from Figma frame 01: 1360 × 760, map 530 × 760, gap 24. */
+@media (min-width:1200px) {
+ .fitplace-results { grid-template-columns:minmax(0,39.67fr) minmax(0,60.33fr) !important; height:760px; align-items:stretch !important; }
+ .fitplace-map-card { display:flex; flex-direction:column; height:100%; min-height:0; box-sizing:border-box; }
+ .fitplace-map-card > div:first-child, .fitplace-map-card > .fp-map-hint { display:none !important; }
+ .fitplace-map-card .fitplace-map { height:auto !important; min-height:0; flex:1 1 0; }
+ .fitplace-list { min-width:0; height:100%; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; }
+ .fitplace-desktop-result-count { display:flex; align-items:center; justify-content:space-between; }
+ .fitplace-desktop-result-count a { font-size:12px; color:#77736f; font-weight:400; text-decoration:none; }
+ .fitplace-header .fp-header-actions > button,
+ .fitplace-header .fp-header-actions > div > button { display:inline-flex !important; align-items:center; justify-content:center; height:46px; min-height:46px; padding:0 16px !important; font-size:14px !important; line-height:20px; font-weight:600 !important; color:#242424 !important; background:#fff !important; border:1px solid #e8e4e0 !important; border-radius:10px !important; box-shadow:none !important; white-space:nowrap; }
+ .fitplace-concierge { position:relative; }
+ .fitplace-concierge > div:first-child span:nth-child(2) { position:absolute; right:24px; top:24px; }
+ .fitplace-concierge > div:nth-child(2) button { min-height:44px; padding:10px 16px !important; font-size:14px !important; }
+}
+
+.fp-ai-empty { display:none; }
+@media (min-width:1200px) {
+ .fitplace-concierge .fp-ai-empty { display:block; min-height:128px; margin-top:16px; padding:16px; border-radius:16px; background:#faf8f5; color:#242424; font-size:14px; line-height:20px; }
+ .fitplace-concierge .fp-ai-empty strong { display:block; font-weight:700; }
+ .fitplace-concierge .fp-ai-empty p { margin:12px 0 0; color:#77736f; }
+ .fitplace-map .leaflet-bottom.leaflet-right { bottom:16px; }
+ .fitplace-map .leaflet-control-zoom { margin-bottom:70px; }
+ .fitplace-map .leaflet-control-scale { right:52px; bottom:0; }
+ .fitplace-location { bottom:16px; }
+}
+
+.fp-menu-grid button:hover { background:#fff0ef !important; }
+
+@media (max-width:1199px) { .fp-map-research:disabled { display:none; } }

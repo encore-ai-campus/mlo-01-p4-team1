@@ -102,7 +102,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
               <GatewayRoleTabs currentTab="USER" /><span className="fitplace-header-title">카페·주점 탐색</span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="fp-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {/* 사장님 매장 등록 / 이벤트 발행 버튼 */}
               <button
                 type="button"
@@ -117,7 +117,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
                   cursor: 'pointer',
                 }}
               >
-                🏪 점주 매장 연결
+                점주 매장 연결
               </button>
 
               <button
@@ -134,7 +134,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
                   cursor: 'pointer',
                 }}
               >
-                🎉 점주 이벤트 발행
+                점주 이벤트 발행
               </button>
 
               {/* 알림 벨 팝오버 */}
@@ -161,7 +161,6 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
                   gap: '4px',
                 }}
               >
-                <span>👤</span>
                 <span>마이페이지</span>
               </button>
             </div>
@@ -204,6 +203,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
         totalCount={totalCount}
       />
 
+      <div className="fitplace-desktop-result-count"><span>검색 결과 <strong>{totalCount.toLocaleString()}건</strong></span>{!readOnly && <a href="/admin/venues/closures">폐업 제보 관리자 검수함 →</a>}</div>
       <div className="fitplace-results-heading"><h2>{gu}, 오늘의 발견</h2><p>매장 정보를 살펴보고 취향에 맞는 장소를 찾아보세요.</p></div>
       {/* 5. 메인 레이아웃: 좌측 인터랙티브 지도 + 우측 추천 매장 리스트 */}
       <div className="fitplace-results" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'start' }}>
@@ -241,7 +241,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
             </div>
             {!readOnly && (
               <a href="/admin/venues/closures" style={{ fontSize: '12px', color: '#dc2626', textDecoration: 'none', fontWeight: 600 }}>
-                🛡️ 폐업 제보 관리자 검수함 &rarr;
+                폐업 제보 관리자 검수함 &rarr;
               </a>
             )}
           </div>
@@ -261,7 +261,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
         </div>
 
         {/* 우측: 추천 매장 리스트 */}
-        <div className="fitplace-list">
+        <div className="fitplace-list" tabIndex={0} aria-label="매장 검색 결과 목록">
           <p className="fitplace-count">매장 {totalCount.toLocaleString()}곳 {detailVenueId && <span> · 선택한 매장: {venues.find(v => v.venue_id === detailVenueId)?.venue_name || ''}</span>}</p>
           {loading && (
             <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
