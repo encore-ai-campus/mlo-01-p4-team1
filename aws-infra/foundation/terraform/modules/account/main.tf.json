@@ -1952,15 +1952,11 @@
       "host": {
         "for_each": "${local.nodes}",
         "name": "${\"p4-${each.key}\"}",
-        "vpc_id": "${aws_vpc.this.id}",
-        "ingress": [],
-        "egress": []
+        "vpc_id": "${aws_vpc.this.id}"
       },
       "ssm": {
         "count": "${var.account==\"encore1\" ? 1 : 0}",
-        "vpc_id": "${aws_vpc.this.id}",
-        "ingress": [],
-        "egress": []
+        "vpc_id": "${aws_vpc.this.id}"
       }
     },
     "aws_security_group_rule": {

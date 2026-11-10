@@ -78,5 +78,12 @@
     "runtime_artifact_boundary": {
       "value": "${module.account.runtime_artifact_boundary}"
     }
-  }
+  },
+  "import": [
+    {
+      "for_each": "${try(length(var.binding.existing_edge_viewer_rule_import_id)>0,false) ? {viewer=var.binding.existing_edge_viewer_rule_import_id} : {}}",
+      "to": "module.edge.aws_security_group_rule.viewer_in",
+      "id": "${each.value}"
+    }
+  ]
 }
