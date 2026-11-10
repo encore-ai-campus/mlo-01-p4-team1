@@ -17,6 +17,7 @@ export interface VenueSearchParams {
   store_type?: StoreType;
   event_only?: boolean;
   partner_only?: boolean;
+  partner_exact?: boolean;
   open_now?: boolean;
   q?: string;
   weather?: string;
@@ -37,6 +38,7 @@ export async function fetchVenues(params: VenueSearchParams): Promise<{ success:
   if (params.store_type && params.store_type !== 'ALL') query.set('store_type', params.store_type === 'LOCAL' ? '로컬' : '체인');
   if (params.event_only) query.set('event_only', '1');
   if (params.partner_only) query.set('partner_only', '1');
+  if (params.partner_exact) query.set('partner_exact', '1');
   if (params.open_now) query.set('open_now', '1');
   if (params.q) query.set('q', params.q);
   if (params.weather) query.set('weather', params.weather);

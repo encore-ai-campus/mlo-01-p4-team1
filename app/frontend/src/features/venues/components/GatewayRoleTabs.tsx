@@ -38,7 +38,6 @@ export const GatewayRoleTabs: React.FC<GatewayRoleTabsProps> = ({ currentTab = '
           gap: '8px',
         }}
       >
-        <span></span>
         <span>일반 사용자</span>
       </button>
 
@@ -65,7 +64,6 @@ export const GatewayRoleTabs: React.FC<GatewayRoleTabsProps> = ({ currentTab = '
           gap: '8px',
         }}
       >
-        <span></span>
         <span>매장 관리자</span>
       </button>
     </div>

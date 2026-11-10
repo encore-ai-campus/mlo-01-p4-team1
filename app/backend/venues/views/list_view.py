@@ -21,6 +21,7 @@ def venue_list_api(request, *, consumer):
     store_type_raw = request.GET.get('store_type', '').strip()
     event_only = request.GET.get('event_only', '0') in ('1', 'true', 'True')
     partner_only = request.GET.get('partner_only', '0') in ('1', 'true', 'True')
+    partner_exact = request.GET.get('partner_exact', '0') in ('1', 'true', 'True')
     open_now = request.GET.get('open_now', '0') in ('1', 'true', 'True')
     q = request.GET.get('q', '').strip()
     weather = request.GET.get('weather', 'CLEAR').strip().upper()
@@ -77,6 +78,8 @@ def venue_list_api(request, *, consumer):
     filtered_results = []
     for item in results:
         if dong and dong not in item.get('dong_name', ''):
+            continue
+        if partner_exact and not item.get('is_partner'):
             continue
         if partner_only and not (item.get('is_partner') or item.get('recommendation_style')):
             continue

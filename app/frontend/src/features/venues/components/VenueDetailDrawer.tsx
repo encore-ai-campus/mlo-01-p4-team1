@@ -130,7 +130,7 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isO
         <section className="fitplace-detail-section" data-detail-section="reviews">
           <h3>리뷰</h3>
           <p className="fitplace-detail-muted">자체 평점 준비 중</p>
-          {!venue.curated_listing && venue.recent_reviews?.length ? venue.recent_reviews.map(review => <article className="fitplace-detail-review" key={review.interaction_id}><strong>{review.user_id} · ★ {review.rating}</strong><p>{review.content}</p></article>) : <p className="fitplace-detail-muted">아직 등록된 리뷰가 없습니다.</p>}
+          {!venue.curated_listing && venue.recent_reviews?.length ? venue.recent_reviews.map(review => <article className="fitplace-detail-review" key={review.interaction_id}><strong>{review.user_id} · <span className="fp-review-stars" role="img" aria-label={`별점 ${review.rating}점`}>{Array.from({ length: Math.max(0, Math.min(5, Math.round(review.rating))) }, (_, index) => <img key={index} className="fp-rating-star" src="/venue-rating-star.svg" alt="" />)}</span></strong><p>{review.content}</p></article>) : <p className="fitplace-detail-muted">아직 등록된 리뷰가 없습니다.</p>}
           {!readOnly && !venue.curated_listing && <form className="fitplace-detail-review-form" onSubmit={handleReview}>
             <label>별점 <select value={reviewRating} onChange={e => setReviewRating(Number(e.target.value))}>{[5,4,3,2,1].map(rating => <option key={rating} value={rating}>{rating}점</option>)}</select></label>
             <label>리뷰 <input value={reviewContent} onChange={e => setReviewContent(e.target.value)} placeholder="방문 소감을 남겨주세요" /></label>
@@ -140,7 +140,7 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isO
         <section className="fitplace-detail-section" data-detail-section="events"><h3>이벤트</h3>{event ? <><p><strong>{event.title}</strong></p><p>{event.discount_info}</p>{!readOnly && <button type="button" className="fitplace-detail-event" onClick={() => onOpenEventModal?.(event)}>이벤트 참여하기</button>}</> : <p className="fitplace-detail-muted">진행 중인 이벤트가 없습니다.</p>}</section>
         {message && <p className="fitplace-detail-message" role="status">{message}</p>}
       </div>
-      <footer className="fitplace-detail-actions">{!readOnly && !venue.curated_listing && <button type="button" disabled={bookmarkBusy} aria-pressed={bookmarked} onClick={handleBookmark}>{bookmarked ? '♥ 찜 해제' : '♡ 찜하기'}</button>}<button type="button" onClick={showOnMap}>지도에서 보기</button></footer>
+      <footer className="fitplace-detail-actions">{!readOnly && !venue.curated_listing && <button type="button" disabled={bookmarkBusy} aria-pressed={bookmarked} onClick={handleBookmark}><span className="fitplace-bookmark-icon" aria-hidden="true">{bookmarked ? '♥' : '♡'}</span> {bookmarked ? '찜 해제' : '찜하기'}</button>}<button type="button" onClick={showOnMap}>지도에서 보기</button></footer>
     </section>
     {showReport && <div className="fitplace-report-overlay" onClick={e => e.stopPropagation()}><div className="fitplace-report" role="dialog" aria-modal="true" aria-labelledby="fitplace-report-title"><h3 id="fitplace-report-title">폐업·정보 오류 제보</h3><p>제보 내용을 확인한 뒤 처리합니다.</p><textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="제보 사유를 입력해 주세요" rows={4}/><div><button type="button" onClick={() => setShowReport(false)}>취소</button><button type="button" disabled={reportBusy || !reason.trim()} onClick={handleReport}>{reportBusy ? '접수 중' : '제보하기'}</button></div></div></div>}
   </div>;

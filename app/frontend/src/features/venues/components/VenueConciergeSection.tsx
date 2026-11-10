@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { postVisitRecommendation, type VisitRecommendation } from '../api/visitRecommendation.api';
 import { VisitCards } from './VisitRecommendationSection';
+import { withMinimumRecommendationDelay, RecommendationLoading } from './RecommendationLoading';
 
 const quickQueries = [
   '성수카페거리 레트로 카페', '성수카페거리 2만원 이하 아늑한 술집',
@@ -57,9 +58,9 @@ export function VenueConciergeSection({ gu, onSelectVenue }: {
     setError('');
     setLoading(true);
     try {
-      setResult(await postVisitRecommendation({
+      setResult(await withMinimumRecommendationDelay(postVisitRecommendation({
         query: prompt, region: gu, limit: 5,
-      }));
+      })));
     } catch (error) {
       setError((error as Error).message);
     } finally {
@@ -93,7 +94,7 @@ export function VenueConciergeSection({ gu, onSelectVenue }: {
       </button>
     </form>
 
-    {loading && <p role="status">조건에 맞는 매장을 찾는 중입니다.</p>}
+    {loading && <RecommendationLoading />}
     {error && <p role="alert">{error}</p>}
     {result && <div className="visit-recs__results" aria-live="polite">
       <h3>추천 결과</h3>
