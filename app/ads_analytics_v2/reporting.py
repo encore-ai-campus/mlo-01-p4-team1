@@ -34,6 +34,8 @@ def validate_query(cutoff, settled_through=None, **scope):
         raise AnalyticsError("INVALID_REPORT_DATE") from None
     if bool(start) != bool(end) or (start and (start > end or (end - start).days > 366)):
         raise AnalyticsError("INVALID_REPORT_RANGE")
+    if start is not None:
+        scope["date_from"], scope["date_to"] = start.isoformat(), end.isoformat()
     if scope.get("placement") not in (None, "", "top", "bottom"):
         raise AnalyticsError("INVALID_PLACEMENT")
     for key in ("ad_id", "media_id"):
@@ -50,7 +52,7 @@ def in_period(metric_day, scope):
 def prepare(events, cutoff, scope, max_events=100_000):
     unique = {}
     for index, event in enumerate(events):
-        if index >= max_events:
+        if max_events is not None and index >= max_events:
             raise CapacityExceeded("REPORT_EVENT_LIMIT")
         if not isinstance(event, Event):
             raise AnalyticsError("EXPECTED_VALIDATED_EVENT")
@@ -80,7 +82,7 @@ def prepare(events, cutoff, scope, max_events=100_000):
     return visible, eligible
 
 
-def assemble(visible, rows, cutoff, settled, scope, details=None):
+def assemble(visible, rows, cutoff, settled, scope, details=None, *, metadata=None):
     rows = sorted(
         rows, key=lambda row: (row["date_kst"], row["ad_id"], row["placement"], row["media_id"])
     )
@@ -110,10 +112,10 @@ def assemble(visible, rows, cutoff, settled, scope, details=None):
         "classification_boundary": "CALLER_SUPPLIED" if settled else "NONE",
         "settlement_note": "CALLER_ASSERTION_NOT_VERIFIED_BY_THIS_PROTOTYPE",
         "scope": scope,
-        "dataset_sha256": digest([event.envelope() for event in visible]),
+        "dataset_sha256": metadata["dataset_sha256"] if metadata else digest([event.envelope() for event in visible]),
         "rows": rows,
         "totals": totals,
-        "diagnostics": {
+        "diagnostics": metadata["diagnostics"] if metadata else {
             "source_events_as_of": len(visible),
             "test_events_excluded": sum(event.is_test for event in visible),
             "source_results_by_occurrence_day": dict(sorted(counts.items())),

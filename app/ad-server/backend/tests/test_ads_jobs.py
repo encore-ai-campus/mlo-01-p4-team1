@@ -81,7 +81,8 @@ class AdsJobsTests(SimpleTestCase):
         stop = Mock()
         stop.is_set.return_value = False
         stop.wait.side_effect = [False, True]
-        with patch("workers.ads_jobs.time.monotonic", side_effect=[0, 350, 800]):
+        with patch("workers.ads_jobs.time") as clock:
+            clock.monotonic.side_effect = [0, 350, 800]
             runner.watch(stop)
         self.assertEqual(runner.job.callback.call_count, 2)
         self.assertEqual(runner.snapshot()["status"], "OK")

@@ -3,7 +3,7 @@
 import time
 
 from ..errors import AnalyticsError, CapacityExceeded, Conflict, LeaseLost
-from ..events import Event, canonical, timestamp
+from ..events import Event, canonical, stamp, timestamp
 from ..sqlite_store import Claim, validate_claim, validate_requeue
 
 COLLECTIONS = {
@@ -28,7 +28,7 @@ class MongoStore:
 
     def prepare_indexes(self):
         self.outbox.create_index([("state", 1), ("due_at", 1), ("lease_until", 1)])
-        self.reports.create_index([("report_as_of", -1), ("saved_at_ns", -1)])
+        self.reports.create_index([("report_as_of_key", -1), ("saved_at_ns", -1)])
         return dict(COLLECTIONS)
 
     def _ingest(self, events, *, enqueue, now, session):
@@ -105,6 +105,16 @@ class MongoStore:
             return added
 
         return self._transaction(operation)
+
+    def iter_events(self, *, batch_size=1000):
+        if type(batch_size) is not int or not 1 <= batch_size <= 10_000:
+            raise AnalyticsError("INVALID_EVENT_BATCH_SIZE")
+        cursor = self.events.find({}, {"body": 1}).sort("_id", 1).batch_size(batch_size)
+        try:
+            for row in cursor:
+                yield Event.from_envelope(row["body"])
+        finally:
+            cursor.close()
 
     def read_events(self, *, limit=100_000):
         rows = list(self.events.find({}, {"body": 1}).sort("_id", 1).limit(limit + 1))
@@ -237,6 +247,7 @@ class MongoStore:
                     "body": report,
                     "saved_at_ns": time.time_ns(),
                     "report_as_of": timestamp(report["as_of"]),
+                    "report_as_of_key": stamp(report["as_of"]),
                 }
             )
         except DuplicateKeyError:
@@ -245,12 +256,31 @@ class MongoStore:
                 raise Conflict("REPORT_ID_CONFLICT") from None
 
     def latest_report(self, cutoff=None):
-        query = {"body.scope": {}}
-        if cutoff is not None:
-            query["report_as_of"] = {"$lte": timestamp(cutoff)}
+        # BSON Date is millisecond precision; the canonical UTC key preserves all
+        # six fractional digits. Do not trust legacy BSON metadata for cutoffs.
+        bound = stamp(cutoff) if cutoff is not None else "9999-12-31T23:59:59.999999Z"
         row = self.reports.find_one(
-            query, sort=[("report_as_of", -1), ("saved_at_ns", -1), ("_id", -1)]
+            {"body.scope": {}, "report_as_of_key": {"$lte": bound}},
+            sort=[("report_as_of_key", -1), ("saved_at_ns", -1), ("_id", -1)],
         )
+
+        def position(item):
+            return (stamp(item["body"]["as_of"]), item.get("saved_at_ns", 0), item["_id"])
+
+        # Read old documents without rewriting their immutable body/hash. This
+        # compatibility scan keeps one candidate in memory and closes its cursor.
+        legacy = self.reports.find(
+            {"body.scope": {}, "report_as_of_key": {"$exists": False}},
+            {"body": 1, "saved_at_ns": 1},
+        ).batch_size(1000)
+        try:
+            for candidate in legacy:
+                if position(candidate)[0] <= bound and (
+                    row is None or position(candidate) > position(row)
+                ):
+                    row = candidate
+        finally:
+            legacy.close()
         return row["body"] if row else None
 
     def close(self):

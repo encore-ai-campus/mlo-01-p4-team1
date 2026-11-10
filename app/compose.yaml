@@ -189,7 +189,7 @@ services:
     networks: [dev]
 
   mongo:
-    profiles: [ads]
+    profiles: [ads, ads-workers, ads-tests, ads-analytics, ads-analytics-spark]
     image: mongo:8.0.17@sha256:9814652e33f0cf8b9fddea8b46dfc9d8e19b130dcfdd7b510ca58bb0d40c8b71
     command: ["mongod", "--replSet", "ads-rs", "--bind_ip_all"]
     volumes:
@@ -204,7 +204,7 @@ services:
     networks: [dev]
 
   mongo-init:
-    profiles: [ads]
+    profiles: [ads, ads-workers, ads-tests, ads-analytics, ads-analytics-spark]
     image: mongo:8.0.17@sha256:9814652e33f0cf8b9fddea8b46dfc9d8e19b130dcfdd7b510ca58bb0d40c8b71
     depends_on:
       mongo:
@@ -220,8 +220,23 @@ services:
     restart: "no"
     networks: [dev]
 
+  ads-runtime-init:
+    profiles: [ads, ads-workers, ads-tests]
+    image: mlo-p4-ads:dev
+    build:
+      context: .
+      dockerfile: docker/ads.Dockerfile
+      target: development
+    environment: *ads-env
+    command: ["python", "manage.py", "prepare_ads_runtime", "--apply"]
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+    restart: "no"
+    networks: [dev]
+
   ads:
-    profiles: [ads]
+    profiles: [ads, ads-workers]
     image: mlo-p4-ads:dev
     build:
       context: .
@@ -236,7 +251,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      mongo-init:
+      ads-runtime-init:
         condition: service_completed_successfully
       api:
         condition: service_healthy
@@ -250,19 +265,27 @@ services:
     networks: [dev]
 
   ads-worker:
-    profiles: [ads-workers]
+    profiles: [ads, ads-workers]
     image: mlo-p4-ads:dev
     build:
       context: .
       dockerfile: docker/ads.Dockerfile
       target: development
-    environment: *ads-env
+    environment:
+      <<: *ads-env
+      ADS_WORKER_HEALTH_FILE: /tmp/ads-policy-health.json
     volumes:
       - .:/workspace/app:ro
     command: ["python", "manage.py", "run_ads_workers", "--watch"]
     depends_on:
       ads:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "workers.ads_worker_health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
     restart: unless-stopped
     networks: [dev]
 
@@ -366,7 +389,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      mongo-init:
+      ads-runtime-init:
         condition: service_completed_successfully
     restart: "no"
     networks: [dev]

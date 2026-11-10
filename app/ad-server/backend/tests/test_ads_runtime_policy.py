@@ -139,13 +139,13 @@ class RuntimePolicyCommandsTests(SimpleTestCase):
                 "domains.ads.management.commands.refresh_ads_policy.AdsBudgetService",
                 return_value=service,
             ) as factory,
-            patch("domains.ads.management.commands.refresh_ads_policy.time.sleep") as sleep,
+            patch("domains.ads.management.commands.refresh_ads_policy.time") as clock,
         ):
             output = StringIO()
             call_command("refresh_ads_policy", stdout=output)
         factory.assert_called_once_with(repository)
         service.run_once.assert_called_once_with()
-        sleep.assert_not_called()
+        clock.sleep.assert_not_called()
         self.assertIn("blocked=1", output.getvalue())
 
     def test_watch_uses_300_second_start_interval_and_handles_ctrl_c(self):
@@ -157,19 +157,14 @@ class RuntimePolicyCommandsTests(SimpleTestCase):
                 "domains.ads.management.commands.refresh_ads_policy.AdsBudgetService",
                 return_value=service,
             ),
-            patch(
-                "domains.ads.management.commands.refresh_ads_policy.time.monotonic",
-                side_effect=[100, 102, 405],
-            ),
-            patch(
-                "domains.ads.management.commands.refresh_ads_policy.time.sleep",
-                side_effect=[None, KeyboardInterrupt],
-            ) as sleep,
+            patch("domains.ads.management.commands.refresh_ads_policy.time") as clock,
         ):
+            clock.monotonic.side_effect = [100, 102, 405]
+            clock.sleep.side_effect = [None, KeyboardInterrupt]
             output = StringIO()
             call_command("refresh_ads_policy", watch=True, stdout=output)
         self.assertEqual(service.run_once.call_count, 2)
-        self.assertEqual([call.args[0] for call in sleep.call_args_list], [298, 295])
+        self.assertEqual([call.args[0] for call in clock.sleep.call_args_list], [298, 295])
         self.assertIn("Ctrl+C", output.getvalue())
         self.assertIn("종료", output.getvalue())
 
