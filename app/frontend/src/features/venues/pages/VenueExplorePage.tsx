@@ -18,7 +18,8 @@ import { OwnerVenueClaimModal } from '../components/OwnerVenueClaimModal';
 import { OwnerEventPublishModal } from '../components/OwnerEventPublishModal';
 import { MenuItem, VenueEventSummary } from '../types/venue.types';
 
-export const VenueExplorePage: React.FC<{ showVisitRecommendations?: boolean }> = ({
+export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommendations?: boolean }> = ({
+  readOnly = false,
   showVisitRecommendations = false,
 }) => {
   const currentUserId = 'demo_user_final';
@@ -64,8 +65,7 @@ export const VenueExplorePage: React.FC<{ showVisitRecommendations?: boolean }> 
 
   // 모달 및 드로어 상태들
   const [detailVenueId, setDetailVenueId] = useState<string | null>(null);
-  const [isDetailOpen, setIsDetailOpen] = useState<boolean>(false);
-  const { venue: detailVenue } = useVenueDetail(detailVenueId, weather);
+  const { venue: detailVenue, error: detailError } = useVenueDetail(detailVenueId, weather);
 
   const [activeEventModal, setActiveEventModal] = useState<VenueEventSummary | null>(null);
   const [isEventModalOpen, setIsEventModalOpen] = useState<boolean>(false);
@@ -74,10 +74,7 @@ export const VenueExplorePage: React.FC<{ showVisitRecommendations?: boolean }> 
   const [isClaimModalOpen, setIsClaimModalOpen] = useState<boolean>(false);
   const [isPublishEventOpen, setIsPublishEventOpen] = useState<boolean>(false);
 
-  const handleOpenDetail = (venueId: string) => {
-    setDetailVenueId(venueId);
-    setIsDetailOpen(true);
-  };
+  const handleOpenDetail = setDetailVenueId;
 
   const handleOpenEvent = (event: VenueEventSummary) => {
     setActiveEventModal(event);
@@ -96,88 +93,92 @@ export const VenueExplorePage: React.FC<{ showVisitRecommendations?: boolean }> 
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       color: '#0f172a',
     }}>
-      {/* 1. 최상단 네비게이션 바: 게이트웨이 탭 + 마이페이지 + 알림벨 + 점주 전용 버튼 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ flex: 1, minWidth: '320px' }}>
-          <GatewayRoleTabs currentTab="USER" />
-        </div>
+      {!readOnly && (
+        <>
+          {/* 1. 최상단 네비게이션 바: 게이트웨이 탭 + 마이페이지 + 알림벨 + 점주 전용 버튼 */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ flex: 1, minWidth: '320px' }}>
+              <GatewayRoleTabs currentTab="USER" />
+            </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* 사장님 매장 등록 / 이벤트 발행 버튼 */}
-          <button
-            type="button"
-            onClick={() => setIsClaimModalOpen(true)}
-            style={{
-              padding: '8px 12px',
-              backgroundColor: '#f8fafc',
-              border: '1px solid #cbd5e1',
-              borderRadius: '10px',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            🏪 점주 매장 연결
-          </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {/* 사장님 매장 등록 / 이벤트 발행 버튼 */}
+              <button
+                type="button"
+                onClick={() => setIsClaimModalOpen(true)}
+                style={{
+                  padding: '8px 12px',
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '10px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                🏪 점주 매장 연결
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setIsPublishEventOpen(true)}
-            style={{
-              padding: '8px 12px',
-              backgroundColor: '#fee2e2',
-              color: '#dc2626',
-              border: '1px solid #fecdd3',
-              borderRadius: '10px',
-              fontSize: '12px',
-              fontWeight: 800,
-              cursor: 'pointer',
-            }}
-          >
-            🎉 점주 이벤트 발행
-          </button>
+              <button
+                type="button"
+                onClick={() => setIsPublishEventOpen(true)}
+                style={{
+                  padding: '8px 12px',
+                  backgroundColor: '#fee2e2',
+                  color: '#dc2626',
+                  border: '1px solid #fecdd3',
+                  borderRadius: '10px',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                🎉 점주 이벤트 발행
+              </button>
 
-          {/* 알림 벨 팝오버 */}
-          <NotificationPopover
-            userId={currentUserId}
-            onSelectLink={(url) => window.location.href = url}
+              {/* 알림 벨 팝오버 */}
+              <NotificationPopover
+                userId={currentUserId}
+                onSelectLink={(url) => window.location.href = url}
+              />
+
+              {/* 마이페이지 버튼 */}
+              <button
+                type="button"
+                onClick={() => setIsMyPageOpen(true)}
+                style={{
+                  padding: '8px 14px',
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <span>👤</span>
+                <span>마이페이지</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 2. 상단 파트너 매장 & 선착순 이벤트 홍보 배너 */}
+          <PartnerPromoBanner
+            gu={gu}
+            onSelectEvent={(ev) => handleOpenEvent(ev)}
           />
 
-          {/* 마이페이지 버튼 */}
-          <button
-            type="button"
-            onClick={() => setIsMyPageOpen(true)}
-            style={{
-              padding: '8px 14px',
-              backgroundColor: '#2563eb',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '10px',
-              fontSize: '13px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-          >
-            <span>👤</span>
-            <span>마이페이지</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 2. 상단 파트너 매장 & 선착순 이벤트 홍보 배너 */}
-      <PartnerPromoBanner
-        gu={gu}
-        onSelectEvent={(ev) => handleOpenEvent(ev)}
-      />
-
-      {/* 3. 방문 조건과 자연어 매장 추천 */}
-      {venueMcpEnabled ? <>
-        {showVisitRecommendations && <VisitRecommendationSection onOpenVenue={handleOpenDetail} />}
-        <VenueConciergeSection key={gu} gu={gu} onSelectVenue={handleOpenDetail} />
-      </> : <GeminiConciergeSection gu={gu} weather={weather} onSelectVenue={handleOpenDetail} />}
+          {/* 3. 방문 조건과 자연어 매장 추천 */}
+          {venueMcpEnabled ? <>
+            {showVisitRecommendations && <VisitRecommendationSection onOpenVenue={handleOpenDetail} />}
+            <VenueConciergeSection key={gu} gu={gu} onSelectVenue={handleOpenDetail} />
+          </> : <GeminiConciergeSection gu={gu} weather={weather} onSelectVenue={handleOpenDetail} />}
+        </>
+      )}
 
       {/* 4. PA 5단계 가격 & 필터 바 */}
       <VenueFilterBar
@@ -236,9 +237,11 @@ export const VenueExplorePage: React.FC<{ showVisitRecommendations?: boolean }> 
                 </button>
               )}
             </div>
-            <a href="/admin/venues/closures" style={{ fontSize: '12px', color: '#dc2626', textDecoration: 'none', fontWeight: 600 }}>
-              🛡️ 폐업 제보 관리자 검수함 &rarr;
-            </a>
+            {!readOnly && (
+              <a href="/admin/venues/closures" style={{ fontSize: '12px', color: '#dc2626', textDecoration: 'none', fontWeight: 600 }}>
+                🛡️ 폐업 제보 관리자 검수함 &rarr;
+              </a>
+            )}
           </div>
 
           <VenueInteractiveMap
@@ -271,6 +274,7 @@ export const VenueExplorePage: React.FC<{ showVisitRecommendations?: boolean }> 
               <VenueCard
                 venue={venue}
                 userId={currentUserId}
+                readOnly={readOnly}
                 onSelectVenue={handleOpenDetail}
                 onSelectMenu={handleSelectMenu}
               />
@@ -279,51 +283,60 @@ export const VenueExplorePage: React.FC<{ showVisitRecommendations?: boolean }> 
         </div>
       </div>
 
-      {/* 배민형 16종 메뉴 상세 슬라이드 드로어 */}
+      {detailVenueId && !detailVenue && (
+        <p role={detailError ? 'alert' : 'status'}>
+          {detailError ?? '매장 상세를 불러오는 중입니다…'}
+        </p>
+      )}
       <VenueDetailDrawer
         venue={detailVenue}
-        isOpen={isDetailOpen}
-        onClose={() => setIsDetailOpen(false)}
-        onOpenEventModal={(ev) => handleOpenEvent(ev)}
+        isOpen={detailVenueId !== null}
+        onClose={() => setDetailVenueId(null)}
+        readOnly={readOnly}
+        onOpenEventModal={handleOpenEvent}
         userId={currentUserId}
         currentWeather={weather}
       />
 
-      {/* 유저 이벤트 참여 & 현장 QR 인증 모달 (발표 시연용 원클릭 시뮬레이션 포함) */}
-      <UserEventJoinAndQrModal
-        event={activeEventModal}
-        isOpen={isEventModalOpen}
-        onClose={() => {
-          setIsEventModalOpen(false);
-          reloadVenues();
-        }}
-        userId={currentUserId}
-        onStockUpdated={() => reloadVenues()}
-      />
+      {!readOnly && (
+        <>
+          {/* 유저 이벤트 참여 & 현장 QR 인증 모달 (발표 시연용 원클릭 시뮬레이션 포함) */}
+          <UserEventJoinAndQrModal
+            event={activeEventModal}
+            isOpen={isEventModalOpen}
+            onClose={() => {
+              setIsEventModalOpen(false);
+              reloadVenues();
+            }}
+            userId={currentUserId}
+            onStockUpdated={() => reloadVenues()}
+          />
 
-      {/* 마이페이지 드로어 */}
-      <MyPageDrawer
-        isOpen={isMyPageOpen}
-        onClose={() => setIsMyPageOpen(false)}
-        userId={currentUserId}
-        onSelectVenue={(id) => handleOpenDetail(id)}
-      />
+          {/* 마이페이지 드로어 */}
+          <MyPageDrawer
+            isOpen={isMyPageOpen}
+            onClose={() => setIsMyPageOpen(false)}
+            userId={currentUserId}
+            onSelectVenue={(id) => handleOpenDetail(id)}
+          />
 
-      {/* 점주 매장 연결 모달 */}
-      <OwnerVenueClaimModal
-        isOpen={isClaimModalOpen}
-        onClose={() => setIsClaimModalOpen(false)}
-        onSuccess={() => reloadVenues()}
-      />
+          {/* 점주 매장 연결 모달 */}
+          <OwnerVenueClaimModal
+            isOpen={isClaimModalOpen}
+            onClose={() => setIsClaimModalOpen(false)}
+            onSuccess={() => reloadVenues()}
+          />
 
-      {/* 점주 이벤트 발행 모달 */}
-      <OwnerEventPublishModal
-        isOpen={isPublishEventOpen}
-        onClose={() => setIsPublishEventOpen(false)}
-        venueId={venues[0]?.venue_id || 'venue_seoul_0001'}
-        venueName={venues[0]?.venue_name || '대표 매장'}
-        onSuccess={() => reloadVenues()}
-      />
+          {/* 점주 이벤트 발행 모달 */}
+          <OwnerEventPublishModal
+            isOpen={isPublishEventOpen}
+            onClose={() => setIsPublishEventOpen(false)}
+            venueId={venues[0]?.venue_id || 'venue_seoul_0001'}
+            venueName={venues[0]?.venue_name || '대표 매장'}
+            onSuccess={() => reloadVenues()}
+          />
+        </>
+      )}
     </div>
   );
 };

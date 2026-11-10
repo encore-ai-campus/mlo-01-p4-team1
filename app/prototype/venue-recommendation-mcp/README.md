@@ -18,7 +18,20 @@ py -3.12 -m venv .local/venue-mcp
 & ./.local/venue-api/Scripts/python.exe -B prototype/venue-recommendation-mcp/run_local_demo.py --mcp-python .local/venue-mcp/Scripts/python.exe
 ```
 
-[시연 화면](http://127.0.0.1:18748/venues)에서 ‘성수카페거리 2만원 이하 아늑한 술집’ 또는 ‘을지로 1만원 이하 술집’을 검색합니다. 성수오뎅과 토리키조쿠에서 주문 예시와 공개 메뉴 출처를 확인할 수 있습니다. 예보 캐시가 있다면 실행 명령에 `--kma-cache 경로`를 붙입니다. 해당 시각의 유효 예보가 없으면 화면에서 미확인으로 표시합니다.
+[시연 화면](http://127.0.0.1:18748/venues)에서 ‘성수카페거리 2만원 이하 아늑한 술집’ 또는 ‘을지로 1만원 이하 술집’을 검색합니다. 성수오뎅과 토리키조쿠에서 주문 예시와 공개 메뉴 출처를 확인할 수 있습니다.
+
+이 실행 명령은 독립 시연용입니다. 공통 계정으로 손님 탐색을 이용하는 통합 모드는 손님 이용 유형과 로그인을 확인합니다.
+
+### 기상청 실예보로 시연
+
+팀에서 사용하는 기상청 API허브 키를 수집기 환경에 설정합니다. `app`에서 시연 전 캐시를 갱신합니다.
+
+```powershell
+& ./.local/venue-api/Scripts/python.exe -B -m pipeline.weather.live_cache --once --path .local/venue-mcp/weather-live.json
+& ./.local/venue-api/Scripts/python.exe -B prototype/venue-recommendation-mcp/run_local_demo.py --mcp-python .local/venue-mcp/Scripts/python.exe --kma-cache .local/venue-mcp/weather-live.json
+```
+
+방문 시각에 유효한 예보가 없으면 날씨 가점을 적용하지 않습니다.
 
 ## MCP 연결
 

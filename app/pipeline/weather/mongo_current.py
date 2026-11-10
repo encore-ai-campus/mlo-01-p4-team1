@@ -9,7 +9,7 @@ from pymongo.write_concern import WriteConcern
 from pipeline.weather.common import digest
 from pipeline.weather.latest_state import merge_rows
 from pipeline.weather.projection import project_grid
-from pipeline.weather.service_view import enrich
+from pipeline.weather.service_view import config, enrich
 
 
 def setting(name):
@@ -72,13 +72,14 @@ def write_grid(store, nx, ny, incoming):
     identifier = grid_id(nx, ny)
     if any((r['nx'], r['ny']) != (nx, ny) for r in incoming):
         raise ValueError('mixed_weather_grids')
+    backfill_hours = config()['backfill_hours']
     # 다른 writer가 먼저 저장하면 다시 읽고 병합. 최대 8회 충돌 재시도.
     for _ in range(8):
         previous = store.find_one({'_id': identifier})
         if previous:
             validate_document(previous)
         previous_rows = previous['rows'] if previous else []
-        rows = merge_rows(previous_rows, incoming)
+        rows = merge_rows(previous_rows, incoming, backfill_hours=backfill_hours)
         rows.sort(key=lambda r: (r['source'], r['issued_at'], r['target_at'], r['category']))
         state_hash = digest(rows)
         if previous and previous['state_hash'] == state_hash:

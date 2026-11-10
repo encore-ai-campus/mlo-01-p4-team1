@@ -1,10 +1,11 @@
 import json
-from django.test import TestCase, Client
+from django.test import TestCase, Client, override_settings
 
 from backend.venues.models.event import VenueEvent
 from backend.venues.repositories.csv_lazy_repo import get_venue_repo
 
 
+@override_settings(PLATFORM_ENABLED=False, MEMBER_LOCAL_PREVIEW=True)
 class TestStep4ApiViews(TestCase):
     def setUp(self):
         self.client = Client()

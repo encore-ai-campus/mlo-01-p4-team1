@@ -109,6 +109,7 @@ interface RegisteredVenueDetail extends VenueItem {
   curated_listing?: never;
   menu_tabs: MenuTab[];
   all_menus_count: number;
+  applied_playlist: { id: string; name: string } | null;
   recent_reviews?: VenueReviewItem[];
 }
 

@@ -41,7 +41,7 @@ def main():
         "C_LOCAL_DEMO": "1",
         "C_LOCAL_DATABASE": str(database),
         "INTEGRATION_ENABLED": "0",
-        "PLATFORM_LOCAL_MVP": "1",
+        "PLATFORM_LOCAL_MVP": "0",
         "FRONTEND_REQUIRED": "1",
         "ADMIN_SSO_ENABLED": "0",
         "MEMBER_PUBLIC_ORIGIN": base,

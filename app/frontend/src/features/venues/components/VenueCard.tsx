@@ -8,9 +8,10 @@ interface VenueCardProps {
   onSelectVenue?: (venueId: string) => void;
   onSelectMenu?: (menu: MenuItem) => void;
   userId?: string;
+  readOnly?: boolean;
 }
 
-export const VenueCard: React.FC<VenueCardProps> = ({ venue, onSelectVenue, onSelectMenu, userId = 'guest_anonymous' }) => {
+export const VenueCard: React.FC<VenueCardProps> = ({ venue, onSelectVenue, onSelectMenu, userId = 'guest_anonymous', readOnly = false }) => {
   const [isBookmarked, setIsBookmarked] = useState<boolean>(false);
   const [bookmarkLoading, setBookmarkLoading] = useState<boolean>(false);
 
@@ -108,29 +109,33 @@ export const VenueCard: React.FC<VenueCardProps> = ({ venue, onSelectVenue, onSe
         </div>
 
         {/* 찜하기 하트 버튼 */}
-        <button
-          type="button"
-          onClick={handleBookmark}
-          disabled={bookmarkLoading}
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '18px',
-            color: isBookmarked ? '#ef4444' : '#cbd5e1',
-            padding: '4px',
-            lineHeight: 1,
-          }}
-          title="찜하기"
-        >
-          {isBookmarked ? '❤️' : '🤍'}
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={handleBookmark}
+            disabled={bookmarkLoading}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '18px',
+              color: isBookmarked ? '#ef4444' : '#cbd5e1',
+              padding: '4px',
+              lineHeight: 1,
+            }}
+            title="찜하기"
+          >
+            {isBookmarked ? '❤️' : '🤍'}
+          </button>
+        )}
       </div>
 
       {/* 2. 매장 기본 정보: 매장명, 업종, 동네 */}
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '4px' }}>
         <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
-          {venue.venue_name}
+          <button type="button" style={{ border: 0, padding: 0, background: 'none', font: 'inherit', color: 'inherit', cursor: 'pointer' }}>
+            {venue.venue_name}
+          </button>
         </h3>
         <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
           {venue.dong_name}
