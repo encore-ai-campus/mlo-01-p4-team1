@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ConciergeBriefing, BudgetTier, VenueCategory } from '../types/venue.types';
 import { postAiConcierge } from '../api/venues.api';
+import { withMinimumRecommendationDelay, RecommendationLoading } from './RecommendationLoading';
 
 interface GeminiConciergeSectionProps {
   gu: string;
@@ -22,17 +23,18 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
   ];
 
   const handleAsk = async (userPrompt: string, cat?: VenueCategory, tier?: BudgetTier) => {
-    if (!userPrompt.trim()) return;
+    if (!userPrompt.trim() || loading) return;
+    setBriefing(null);
     setLoading(true);
     setError(null);
     try {
-      const data = await postAiConcierge({
+      const data = await withMinimumRecommendationDelay(postAiConcierge({
         query: userPrompt,
         gu,
         weather,
         category: cat || 'ALL',
         budget_tier: tier,
-      });
+      }));
       if (data.success && data.briefing) {
         setBriefing(data.briefing);
       }
@@ -59,16 +61,6 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontWeight: 800, fontSize: '17px' }}>어떤 분위기를 찾고 있나요?</span>
-              <span style={{
-                backgroundColor: '#ff383e',
-                color: '#ffffff',
-                padding: '2px 8px',
-                borderRadius: '6px',
-                fontSize: '11px',
-                fontWeight: 700,
-              }}>
-                AI 추천
-              </span>
             </div>
             <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '2px' }}>
               AI 매장·메뉴 추천 · 질문을 고르거나 직접 입력해 보세요.
@@ -83,6 +75,7 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
           <button
             key={idx}
             type="button"
+            disabled={loading}
             onClick={() => {
               setQuery(chip.q);
               handleAsk(chip.q, chip.cat, chip.tier);
@@ -147,6 +140,7 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
         </button>
       </div>
 
+      {loading && <RecommendationLoading />}
       {!briefing && !loading && !error && (
         <div className="fp-ai-empty" role="status">
           <strong>추천 결과</strong>

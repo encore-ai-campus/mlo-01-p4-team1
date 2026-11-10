@@ -50,3 +50,11 @@
 .fitplace-report h3 { margin:0; } .fitplace-report p { color:#77736f; } .fitplace-report div { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
 .fitplace-report button:first-child { border:1px solid #e8e4e0; border-radius:8px; padding:10px 14px; background:#fff; }
 @media (max-width:768px) { .fitplace-detail { width:100%; } .fitplace-detail-header { padding-top:20px; } }
+
+.fitplace-detail-actions .fitplace-bookmark-icon { color:#ff7775; }
+.fitplace-detail-actions button[aria-pressed="true"] .fitplace-bookmark-icon { color:#ff383e; }
+
+/* 상세 화면 선택 탭과 하단 작업 버튼 */
+.fitplace-detail-nav button.is-active { border-color:transparent; }
+.fitplace-detail-actions button { display:inline-flex; align-items:center; justify-content:center; gap:4px; text-align:center; }
+.fp-review-stars { display:inline-flex; align-items:center; gap:2px; vertical-align:middle; }

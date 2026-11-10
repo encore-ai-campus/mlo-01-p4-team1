@@ -31,34 +31,7 @@ export const PartnerPromoBanner: React.FC<PartnerPromoBannerProps> = ({ gu, onSe
     return () => clearInterval(interval);
   }, [events.length]);
 
-  if (events.length === 0) {
-    return (
-      <div className="fitplace-banner" style={{
-        background: 'linear-gradient(135deg, #1e293b, #242424)',
-        color: '#f8fafc',
-        padding: '14px 20px',
-        borderRadius: '14px',
-        marginBottom: '20px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-
-          <div>
-            <div style={{ fontWeight: 700, fontSize: '15px' }}>
-              날씨에 어울리는, 오늘의 취향
-            </div>
-            <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-              {gu}의 카페·주점과 추천 음악을 함께 둘러보세요.
-            </div>
-          </div>
-        </div>
-        <a className="fp-banner-link" href="/">음악 큐레이션 보기</a>
-      </div>
-    );
-  }
+  if (events.length === 0) return null;
 
   const currentEv = events[currentIndex];
 

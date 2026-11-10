@@ -220,7 +220,6 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
       }).addTo(map);
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
-      L.control.scale({ position: 'bottomright', imperial: false }).addTo(map);
       markersLayerRef.current = L.layerGroup().addTo(map);
       mapInstanceRef.current = map;
 
@@ -339,7 +338,6 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
     <div className="fitplace-map" style={{ position: 'relative', width: '100%', height: '520px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
       <div ref={mapContainerRef} role="region" aria-label="매장 지도" style={{ width: '100%', height: '100%' }} />
       {!leafletReady && leafletUnavailable && <CoordinatePins venues={venues} onSelectVenue={onSelectVenue} />}
-      <div className="fitplace-map-weather">{weather === 'RAIN' ? '비' : weather === 'SNOW' ? '눈' : '맑음'}<small>{typeof temperature === 'number' && Number.isFinite(temperature) ? `${temperature}℃` : '기온 정보 없음'}</small></div>
       <button className="fitplace-location" type="button" aria-label="내 위치로 이동" onClick={() => {
         if (!navigator.geolocation) { setLocationError('위치 기능을 사용할 수 없습니다.'); return; }
         navigator.geolocation.getCurrentPosition((position) => { setLocationError(''); mapInstanceRef.current?.setView([position.coords.latitude, position.coords.longitude], 15); }, () => setLocationError('위치를 확인할 수 없습니다. 위치 권한을 확인해 주세요.'));
@@ -366,16 +364,18 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
             border: '1px solid #ff383e',
             borderRadius: '9999px',
             padding: '8px 16px',
-            fontSize: '12px',
+            fontSize: '17px',
             fontWeight: 800,
             boxShadow: '0 4px 12px rgba(15, 23, 42, 0.35)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
             gap: '6px',
           }}
         >
-          <span>⟳ 이 지역 재검색</span>
+          <span>이 지역 재검색</span>
         </button>
       }
       <div className="fitplace-map-legend"

@@ -43,7 +43,7 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
               onClick={() => setActiveTabIdx(idx)}
               style={{
                 padding: '7px 12px',
-                border: isActive ? '1.5px solid #ff383e' : '1px solid #e8e4e0',
+                border: isActive ? '1px solid transparent' : '1px solid #e8e4e0',
                 backgroundColor: isActive ? '#fff0ef' : '#ffffff',
                 borderRadius: '9999px',
                 color: isActive ? '#ff383e' : '#334155',

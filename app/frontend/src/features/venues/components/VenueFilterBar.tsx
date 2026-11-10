@@ -5,8 +5,10 @@ import { BudgetTier, VenueCategory, StoreType } from '../types/venue.types';
 interface VenueFilterBarProps {
   gu: string;
   setGu: (gu: string) => void;
-  weather: string;
-  setWeather: (w: string) => void;
+  weather?: string;
+  setWeather?: (weather: string) => void;
+  liveWeather?: { label: string; area: string; temperature: number | null } | null;
+  weatherLoading?: boolean;
   category: VenueCategory;
   setCategory: (c: VenueCategory) => void;
   priceTier: BudgetTier | '';
@@ -27,8 +29,8 @@ interface VenueFilterBarProps {
 export const VenueFilterBar: React.FC<VenueFilterBarProps> = ({
   gu,
   setGu,
-  weather,
-  setWeather,
+  liveWeather,
+  weatherLoading,
   category,
   setCategory,
   priceTier,
@@ -84,12 +86,12 @@ export const VenueFilterBar: React.FC<VenueFilterBarProps> = ({
       {label:'경기도 (30개 시·군)', options:gyeonggiCityList},
       {label:'인천광역시 (10개 구·군)', options:incheonGuList},
     ]} /><span>검색 결과 {totalCount.toLocaleString()}개 매장</span></div>
-      <div className="fp-weather"><span>날씨</span>{[['맑음','CLEAR'],['비','RAIN'],['눈','SNOW']].map(([label,value]) => <React.Fragment key={value}>{chip(label, weather === value, () => setWeather(value))}</React.Fragment>)}</div>
+      <div className="fp-weather" aria-live="polite"><span>날씨</span><span className="fp-live-weather">{weatherLoading ? '날씨 확인 중' : liveWeather ? `${liveWeather.label}${liveWeather.temperature !== null ? ` · ${liveWeather.temperature}℃` : ''} (${liveWeather.area} 기준)` : '현재 날씨 확인 불가'}</span></div>
     </div>
     <input className="fp-search" type="search" aria-label="매장 검색" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="매장명, 대표 메뉴, 동네로 검색해 보세요" />
     <div className="fp-filter-row fp-quick">{chip('이벤트 진행 중',eventOnly,()=>setEventOnly(!eventOnly))}{chip('추천 음악 큐레이션',partnerOnly,()=>setPartnerOnly(!partnerOnly))}{chip('영업 중',openNow,()=>setOpenNow(!openNow))}</div>
     <div className="fp-filter-row"><span className="fp-filter-label">업종</span><div className="fp-chip-row">{chip('전체',category==='ALL',()=>setCategory('ALL'))}{chip('카페',category==='CAFE',()=>setCategory('CAFE'))}{chip('주점',category==='PUB',()=>setCategory('PUB'))}<button type="button" className="fp-chip" disabled>일반 음식점 · 준비 중</button></div></div>
-    <div className="fp-filter-row"><span className="fp-filter-label">예산</span><div className="fp-chip-row">{chip('전체 예산',priceTier==='',()=>setPriceTier(''))}{budgetOptions.map(b=><React.Fragment key={b.value}>{chip(b.label,priceTier===b.value,()=>setPriceTier(priceTier===b.value?'':b.value))}</React.Fragment>)}</div></div>
+    <div className="fp-filter-row"><span className="fp-filter-label">금액</span><div className="fp-chip-row">{chip('전체 금액',priceTier==='',()=>setPriceTier(''))}{budgetOptions.map(b=><React.Fragment key={b.value}>{chip(b.label,priceTier===b.value,()=>setPriceTier(priceTier===b.value?'':b.value))}</React.Fragment>)}</div></div>
     <div className="fp-filter-row"><span className="fp-filter-label">형태</span><div className="fp-chip-row">{chip('전체',storeType==='ALL',()=>setStoreType('ALL'))}{chip('개인/로컬',storeType==='LOCAL',()=>setStoreType('LOCAL'))}{chip('체인점',storeType==='CHAIN',()=>setStoreType('CHAIN'))}</div></div>
   </section>;
 };

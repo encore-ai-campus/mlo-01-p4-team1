@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { VenueCard } from './VenueCard';
-import { venuePhotoUrls } from './VenuePhotoGallery';
+import { VenuePhotoGallery, venuePhotoUrls } from './VenuePhotoGallery';
 import { VenueMenuPreviewStrip } from './VenueMenuPreviewStrip';
 import { VenueFilterBar } from './VenueFilterBar';
 import { nextRegionIndex } from './RegionSelect';
@@ -18,6 +18,12 @@ describe('매장 탐색 디자인',()=>{
  it('대표 사진을 먼저 두고 중복 및 잘못된 URL은 제외한다',()=>{
   expect(venuePhotoUrls(' https://example.com/a.jpg ', ['https://example.com/b.jpg','https://example.com/a.jpg','', 'javascript:alert(1)'])).toEqual(['https://example.com/a.jpg','https://example.com/b.jpg']);
   expect(venuePhotoUrls(undefined,[])).toEqual([]);
+ });
+ it('사진이 없으면 갤러리를 숨기고 사진이 있으면 대표 사진부터 표시한다',()=>{
+  expect(renderToStaticMarkup(<VenuePhotoGallery name="매장" photos={[]}/>)).toBe('');
+  const html=renderToStaticMarkup(<VenuePhotoGallery name="매장" thumbnail="https://example.com/cover.jpg" photos={['https://example.com/inside.jpg']}/>);
+  expect(html).toContain('매장 사진 목록');
+  expect(html.indexOf('cover.jpg')).toBeLessThan(html.indexOf('inside.jpg'));
  });
  it('API가 제공한 미리보기 메뉴를 빠짐없이 표시한다',()=>{
   const menus = Array.from({length: 4}, (_, index) => ({...venue.matched_menus_preview[0], menu_id:`menu-${index}`, menu_name:`메뉴 ${index}`}));

@@ -9,7 +9,7 @@ export interface MapBounds {
   max_lng: number;
 }
 
-export function useVenueList(initialGu: string = '강남구') {
+export function useVenueList(initialGu: string = '강남구', partnerExact = false) {
   const [gu, setGuState] = useState<string>(initialGu);
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null);
   const [dong, setDong] = useState<string>('');
@@ -20,7 +20,7 @@ export function useVenueList(initialGu: string = '강남구') {
   const [partnerOnly, setPartnerOnly] = useState<boolean>(false);
   const [openNow, setOpenNow] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [weather, setWeather] = useState<string>('CLEAR');
+  const [weather, setWeather] = useState<string>('');
 
   // 사용자가 드롭다운에서 직접 구(Gu)를 바꿀 때는 기존 지도 BBox 필터를 초기화하여 해당 구로 이동
   const setGu = useCallback((newGu: string) => {
@@ -45,6 +45,7 @@ export function useVenueList(initialGu: string = '강남구') {
         store_type: storeType,
         event_only: eventOnly,
         partner_only: partnerOnly,
+        partner_exact: partnerExact,
         open_now: openNow,
         q: searchQuery || undefined,
         weather,
@@ -60,7 +61,7 @@ export function useVenueList(initialGu: string = '강남구') {
     } finally {
       setLoading(false);
     }
-  }, [gu, mapBounds, dong, category, priceTier, storeType, eventOnly, partnerOnly, openNow, searchQuery, weather]);
+  }, [gu, mapBounds, dong, category, priceTier, storeType, eventOnly, partnerOnly, partnerExact, openNow, searchQuery, weather]);
 
   useEffect(() => {
     loadVenues();
