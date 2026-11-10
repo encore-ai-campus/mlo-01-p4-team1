@@ -1817,6 +1817,65 @@
         "checked_on": "2026-11-06",
         "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
       }
+    },
+    {
+      "venue_id": "VN_MVP_MA010120220800186207",
+      "name": "산울림1992",
+      "district": "마포구",
+      "admin_dong": "서강동",
+      "address": "서울특별시 마포구 서강로9길 60",
+      "source_store_id": "MA010120220800186207",
+      "source_csv": "서울_매장_확장_검증_38곳.csv",
+      "mood_tag_ids": [
+        "mood_cozy",
+        "mood_conversation"
+      ],
+      "mood_evidence": {
+        "mood_cozy": {
+          "observed": "예약 안내가 이 지점의 아늑한 분위기를 설명합니다.",
+          "urls": [
+            "https://autoreserve.com/ko/restaurants/mfqgu33ticuUcinGZUa8"
+          ]
+        },
+        "mood_conversation": {
+          "observed": "예약 안내에서 넓은 테이블 간격과 대화하기 편한 환경을 설명합니다.",
+          "urls": [
+            "https://autoreserve.com/ko/restaurants/mfqgu33ticuUcinGZUa8"
+          ]
+        }
+      },
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "observed": "지하 1층 실내 홀과 바 테이블.",
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=dYGzVuySFVs8"
+            ]
+          }
+        }
+      },
+      "coordinates": [
+        37.5546422349158,
+        126.930523626816
+      ],
+      "venue_category": "PUB",
+      "sub_category": "막걸리·전통주점",
+      "public_listing": {
+        "moods": [
+          "아늑한",
+          "대화하기 편한"
+        ],
+        "representative_menus": [
+          "해물파전",
+          "복순도가 손막걸리"
+        ],
+        "seat_summary": "지하 1층 실내 홀과 바 테이블.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
     }
   ],
   "menus": [
@@ -1989,6 +2048,21 @@
       "menu_id": "MN_MVP_MA0101202305A0080350_04"
     },
     {
+      "menu_id": "MN_MVP_MA0101202305A0080350_05",
+      "venue_id": "VN_MVP_MA0101202305A0080350",
+      "name": "서울브루어리 프라이드 치킨",
+      "evidence": {
+        "observed": "서울브루어리 성수 공개 메뉴판의 프라이드 치킨 항목.",
+        "urls": [
+          "https://tag-here.com/menu/seoulbrewery-seongsu/view"
+        ]
+      },
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_fried_chicken"
+      ]
+    },
+    {
       "menu_id": "MN_MVP_MA0101202308A0047504_01",
       "venue_id": "VN_MVP_MA0101202308A0047504",
       "name": "홀리 세트 (모둠 오뎅, 2인)",
@@ -2144,11 +2218,44 @@
           "https://korean.visitkorea.or.kr/detail/rem_detail.do?cotid=000a93d2-4ed5-4a30-b7ff-8536e9ed7fea"
         ]
       }
+    },
+    {
+      "menu_id": "MN_MVP_MA010120220800186207_seafood_pajeon",
+      "venue_id": "VN_MVP_MA010120220800186207",
+      "name": "해물파전",
+      "cuisine_tag_ids": [
+        "cuisine_korean"
+      ],
+      "menu_type_tag_ids": [
+        "menu_pajeon"
+      ],
+      "evidence": {
+        "observed": "예약 메뉴가 해물파전을 한식 안주로 안내합니다.",
+        "urls": [
+          "https://autoreserve.com/ko/restaurants/mfqgu33ticuUcinGZUa8"
+        ]
+      }
+    },
+    {
+      "menu_id": "MN_MVP_MA010120220800186207_makgeolli",
+      "venue_id": "VN_MVP_MA010120220800186207",
+      "name": "복순도가 손막걸리",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_makgeolli"
+      ],
+      "evidence": {
+        "observed": "지점 예약 메뉴의 막걸리 목록에서 확인했습니다.",
+        "urls": [
+          "https://autoreserve.com/ko/restaurants/mfqgu33ticuUcinGZUa8"
+        ]
+      }
     }
   ],
   "basis": [
     "팀 시연 CSV 원본 ID에 연결된 파스텔서촌점",
     "서울_매장_확장_검증_38곳.csv 중 성수·을지로 27곳",
+    "시범 카탈로그에서 확인한 산울림1992와 해물파전·손막걸리",
     "공개 지점 메뉴를 대조한 1인 주문 예시 4건"
   ],
   "notes": [

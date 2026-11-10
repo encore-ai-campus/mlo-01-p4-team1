@@ -3,9 +3,8 @@ import { useVenueList } from '../hooks/useVenueList';
 import { useVenueDetail } from '../hooks/useVenueDetail';
 import { GatewayRoleTabs } from '../components/GatewayRoleTabs';
 import { PartnerPromoBanner } from '../components/PartnerPromoBanner';
-import { GeminiConciergeSection } from '../components/GeminiConciergeSection';
 import { VenueConciergeSection } from '../components/VenueConciergeSection';
-import { fetchVisitOptions } from '../api/visitRecommendation.api';
+import { fetchVisitOptions, type VenueRecommendationConnection } from '../api/visitRecommendation.api';
 import { VisitRecommendationSection } from '../components/VisitRecommendationSection';
 import { VenueFilterBar } from '../components/VenueFilterBar';
 import { VenueCard } from '../components/VenueCard';
@@ -23,17 +22,21 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
   showVisitRecommendations = false,
 }) => {
   const currentUserId = 'demo_user_final';
-  const [venueMcpEnabled, setVenueMcpEnabled] = useState(false);
+  const [concierge, setConcierge] = useState<VenueRecommendationConnection>({ status: 'checking' });
+  const [hasSelectedDistrict, setHasSelectedDistrict] = useState(false);
 
   useEffect(() => {
+    if (readOnly || concierge.status !== 'checking') return;
     const controller = new AbortController();
     fetchVisitOptions(controller.signal)
-      .then(options => setVenueMcpEnabled(options !== null))
+      .then(options => {
+        if (!controller.signal.aborted) setConcierge({ status: 'ready', options });
+      })
       .catch(() => {
-        if (!controller.signal.aborted) setVenueMcpEnabled(false);
+        if (!controller.signal.aborted) setConcierge({ status: 'error' });
       });
     return () => controller.abort();
-  }, []);
+  }, [readOnly, concierge.status]);
 
   const {
     gu,
@@ -62,6 +65,8 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
     error,
     reload: reloadVenues,
   } = useVenueList('강남구');
+  const conciergeRegion = hasSelectedDistrict ? gu : undefined;
+  const visitOptions = concierge.status === 'ready' ? concierge.options.mcp : null;
 
   // 모달 및 드로어 상태들
   const [detailVenueId, setDetailVenueId] = useState<string | null>(null);
@@ -86,7 +91,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
   };
 
   return (
-    <div style={{
+    <div className="fitplace" style={{
       maxWidth: '1280px',
       margin: '0 auto',
       padding: '24px 20px',
@@ -95,13 +100,13 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
     }}>
       {!readOnly && (
         <>
-          {/* 1. 최상단 네비게이션 바: 게이트웨이 탭 + 마이페이지 + 알림벨 + 점주 전용 버튼 */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+          <div className="fitplace-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+            <a className="fitplace-logo" href="/venues">핏플레이스</a>
             <div style={{ flex: 1, minWidth: '320px' }}>
-              <GatewayRoleTabs currentTab="USER" />
+              <GatewayRoleTabs currentTab="USER" /><span className="fitplace-header-title">카페·주점 탐색</span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="fp-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {/* 사장님 매장 등록 / 이벤트 발행 버튼 */}
               <button
                 type="button"
@@ -116,7 +121,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
                   cursor: 'pointer',
                 }}
               >
-                🏪 점주 매장 연결
+                점주 매장 연결
               </button>
 
               <button
@@ -133,7 +138,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
                   cursor: 'pointer',
                 }}
               >
-                🎉 점주 이벤트 발행
+                점주 이벤트 발행
               </button>
 
               {/* 알림 벨 팝오버 */}
@@ -160,7 +165,6 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
                   gap: '4px',
                 }}
               >
-                <span>👤</span>
                 <span>마이페이지</span>
               </button>
             </div>
@@ -172,18 +176,25 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
             onSelectEvent={(ev) => handleOpenEvent(ev)}
           />
 
-          {/* 3. 방문 조건과 자연어 매장 추천 */}
-          {venueMcpEnabled ? <>
-            {showVisitRecommendations && <VisitRecommendationSection onOpenVenue={handleOpenDetail} />}
-            <VenueConciergeSection key={gu} gu={gu} onSelectVenue={handleOpenDetail} />
-          </> : <GeminiConciergeSection gu={gu} weather={weather} onSelectVenue={handleOpenDetail} />}
+          <VenueConciergeSection
+            defaultRegion={conciergeRegion}
+            connection={concierge}
+            onReconnect={() => setConcierge({ status: 'checking' })}
+            onSelectVenue={handleOpenDetail}
+          />
+          {showVisitRecommendations && visitOptions && (
+            <VisitRecommendationSection options={visitOptions} onOpenVenue={handleOpenDetail} />
+          )}
         </>
       )}
 
       {/* 4. PA 5단계 가격 & 필터 바 */}
       <VenueFilterBar
         gu={gu}
-        setGu={setGu}
+        setGu={value => {
+          setHasSelectedDistrict(true);
+          setGu(value);
+        }}
         weather={weather}
         setWeather={setWeather}
         category={category}
@@ -203,10 +214,17 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
         totalCount={totalCount}
       />
 
+      <div className="fitplace-desktop-result-count">
+        <span>검색 결과 <strong>{totalCount.toLocaleString()}건</strong></span>
+        {!readOnly && <a href="/admin/venues/closures">폐업 제보 관리자 검수함 →</a>}
+      </div>
+      <div className="fitplace-results-heading">
+        <h2>{gu}, 오늘의 발견</h2><p>매장 정보를 살펴보고 취향에 맞는 장소를 찾아보세요.</p>
+      </div>
       {/* 5. 메인 레이아웃: 좌측 인터랙티브 지도 + 우측 추천 매장 리스트 */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'start' }}>
+      <div className="fitplace-results" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'start' }}>
         {/* 좌측 인터랙티브 매장 핀 지도 */}
-        <div style={{
+        <div className="fitplace-map-card" style={{
           backgroundColor: '#ffffff',
           borderRadius: '16px',
           padding: '20px',
@@ -217,7 +235,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
             <div style={{ fontWeight: 800, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>🗺️ {gu} 매장 인터랙티브 지도</span>
+              <span>지도에서 매장 찾기</span><span className="fp-map-count">{totalCount.toLocaleString()}곳</span>
               {mapBounds && (
                 <button
                   type="button"
@@ -239,11 +257,12 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
             </div>
             {!readOnly && (
               <a href="/admin/venues/closures" style={{ fontSize: '12px', color: '#dc2626', textDecoration: 'none', fontWeight: 600 }}>
-                🛡️ 폐업 제보 관리자 검수함 &rarr;
+                폐업 제보 관리자 검수함 &rarr;
               </a>
             )}
           </div>
 
+          <p className="fp-map-hint">핀을 선택하면 매장 상세를 확인해요.</p>
           <VenueInteractiveMap
             gu={gu}
             venues={venues}
@@ -256,10 +275,13 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
         </div>
 
         {/* 우측: 추천 매장 리스트 */}
-        <div>
+        <div className="fitplace-list" tabIndex={0} aria-label="매장 검색 결과 목록">
+          <p className="fitplace-count">매장 {totalCount.toLocaleString()}곳
+            {detailVenueId && <span> · 선택한 매장: {venues.find(venue => venue.venue_id === detailVenueId)?.venue_name || ''}</span>}
+          </p>
           {loading && (
             <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-              매장 및 Two-Tower 딥러닝 추천 결과를 불러오는 중입니다...
+              매장 목록을 불러오는 중입니다.
             </div>
           )}
 
@@ -269,6 +291,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
             </div>
           )}
 
+          {!loading && !error && venues.length === 0 && <p className="fitplace-empty">조건에 맞는 매장이 없습니다. 검색 조건을 바꿔 보세요.</p>}
           {!loading && !error && venues.map((venue) => (
             <div key={venue.venue_id}>
               <VenueCard

@@ -270,6 +270,15 @@ async def verify_concierge_ranking():
         assert empty["status"] == "NO_MATCH" and empty["forecast_status"] == "NOT_NEEDED", empty
         assert empty["request"]["venue_category"] == "PUB" and empty["request"]["required_moods"] == ["mood_calm"]
         assert empty["request"]["budget"] == {"min_krw": 30000, "max_krw": 30000}
+        structured = await call(client, "recommend_venues", {
+            "region": "강남구", "venue_category": "CAFE", "preferred_moods": ["잔잔한"],
+            "request_text": arguments["query"],
+        })
+        assert structured["status"] == "NO_MATCH" and structured["empty_reason"] == empty["empty_reason"], structured
+        assert not structured["ranked"], structured
+        assert structured["request"]["venue_category"] == "PUB", structured
+        assert structured["request"]["required_moods"] == ["mood_calm"], structured
+        assert structured["request"]["budget_mode"] == "PREFER", structured
         pubs = await call(client, "recommend_venues", {**arguments, "query": "술집"})
         assert "VN_SL_000153" not in {row["venue_id"] for row in pubs["ranked"]}, pubs
         cafes = await call(client, "recommend_venues", {**arguments, "query": "1만원 미만 카공하기 좋은 카페"})
@@ -308,13 +317,50 @@ async def verify_concierge_ranking():
             preferred = await call(client, "recommend_venues", {**arguments, "preferred_moods": ["아늑한"], "limit": 2})
             assert [row["venue_id"] for row in preferred["ranked"]] == ["test_a", "test_b"], preferred
             assert preferred["counts"]["ranked"] == 3, preferred
+            capped = await call(client, "recommend_venues", {
+                "region": "강남구", "venue_category": "PUB", "preferred_moods": ["아늑한"],
+                "request_text": "인당 3만원 이하 조용한 술집",
+            })
+            assert [row["venue_id"] for row in capped["ranked"]] == ["test_b"], capped
+            assert capped["request"]["budget_mode"] == "REQUIRE", capped
+            flexible = await call(client, "recommend_venues", {
+                "region": "강남구", "venue_category": "PUB", "preferred_moods": ["조용한"],
+                "request_text": "가능하면 잔잔한 술집으로 추천해 주세요.",
+            })
+            assert not flexible["request"]["required_moods"] and flexible["counts"]["ranked"] > 3, flexible
             no_budget = await call(client, "recommend_venues", {**arguments, "query": "조용한 술집"})
             assert [row["venue_id"] for row in no_budget["ranked"]] == ["test_a", "test_b", "test_c"], no_budget
             band = await call(client, "recommend_venues", {**arguments, "query": "3만원대 술집"})
             assert [row["venue_id"] for row in band["ranked"]] == ["test_a", "test_loud"], band
-            invalid = await client.call_tool("recommend_venues", arguments={**arguments, "query": "술집 말고 카페"})
-            assert invalid.isError, invalid
+            exclusion = await call(client, "recommend_venues", {**arguments, "query": "술집 말고 카페"})
+            assert exclusion["empty_reason"] == "CONDITION_UNVERIFIED" and not exclusion["ranked"], exclusion
             print("PASS 합성 대조군 · 업종과 필수 분위기 · 분위기 우선 · 예산순 · 가격 누락 · 상위 2곳 제한")
+
+
+async def verify_unverified_intent():
+    with project_fixture() as (url, first, requests):
+        async with session_for("--weather-base-url", url) as client:
+            typed = {"region": "마포구 서교동", "venue_category": "PUB", "visit_at": first.isoformat()}
+            for extra in (
+                {"query": "서교동 헌팅술집"},
+                {"request_text": "서교동에서 처음 보는 사람들이랑 어울리기 좋은 술집"},
+                {"request_text": "쿠키는 빼고 커피 카페"},
+                {"request_text": "쿠키 없는 카페"},
+                {"request_text": "커피 또는 쿠키 카페"},
+                {"request_text": "1인 1만원 또는 2만원 술집"},
+                {"unverified_conditions": [{"kind": "OTHER", "text": "수화 공연을 볼 수 있는 곳"}]},
+            ):
+                result = await call(client, "recommend_venues", {**typed, **extra})
+                assert result["status"] == "NEEDS_CHECK" and result["empty_reason"] == "CONDITION_UNVERIFIED", result
+                assert not result["ranked"] and result["forecast_status"] == "NOT_NEEDED", result
+                assert result["unverified_conditions"][0]["evidence_status"] == "UNKNOWN", result
+            assert not requests, requests
+            coffee = await call(client, "recommend_venues", {
+                "request_text": "강서구에서 친구랑 모임 전에 커피 한잔", "region": "강서구",
+                "orders": [{"types": ["커피"]}], "visit_at": first.isoformat(),
+            })
+            assert coffee["status"] == "OK" and coffee["ranked"], coffee
+            print("PASS 미확인 목적·제외·선택 조건·모호한 예산에는 카드 없이 확인 안내 · 모임 전 커피는 정상 추천")
 
 
 async def verify_search_location_and_budget():
@@ -437,6 +483,8 @@ async def verify_seoul_place_index():
         assert fallback["request"]["location"]["unmatched_exit"] == 2 and fallback["ranked"], fallback
         broad = await call(client, "recommend_venues", {"query": "서울 전역 카페", "region": "강남구"})
         assert broad["request"]["location"]["kind"] == "CITY" and broad["counts"]["ranked"] > 5, broad
+        outside_demo = await call(client, "recommend_venues", {"query": "인천 송도 카페"})
+        assert outside_demo["empty_reason"] == "REGION_UNSUPPORTED" and not outside_demo["ranked"], outside_demo
         print("PASS 출구 좌표 없는 경우 역 주변으로 검색 · 서울 전역 선택")
 
 
@@ -501,6 +549,64 @@ async def verify_curated_recommendations():
             assert all("weather_match" not in row for row in missing["ranked"]), missing
             print("PASS 예보가 없으면 날씨 가점과 근거 생략")
 
+            for at in (first, rain):
+                craving = await search("성수카페거리 맥주 땡긴다", at)
+                winner, fallback = craving["ranked"]
+                assert winner["name"] == "서울브루어리 성수", craving
+                assert winner["paired_menu"]["name"] == "서울브루어리 프라이드 치킨", craving
+                assert fallback["name"] == "성수오뎅", craving
+                assert fallback["paired_menu"]["name"] == "홀리 세트 (모둠 오뎅, 2인)", craving
+                assert all(len(row["matched_orders"]) == 1 for row in craving["ranked"]), craving
+            print("PASS 맥주가 당길 때 치킨 우선 · 치킨 없는 곳의 확인된 국물 안주는 후순위")
+
+            pairing_cases = (
+                ("맥주땡긴다", "서울브루어리 성수", "서울브루어리 프라이드 치킨"),
+                ("을지로 생맥주 한 잔 하고 싶다", "토리키조쿠 을지로3가점", "닭다리살 키조쿠 타레 1주문(꼬치 2개)"),
+                ("서촌에서 커피 한 잔", "파스텔서촌점", "초코청크쿠키"),
+                ("마포구 비 오는 날 막걸리가 당겨", "산울림1992", "해물파전"),
+            )
+            for query, venue_name, paired_name in pairing_cases:
+                result = await search(query, rain)
+                assert result["ranked"][0]["name"] == venue_name, result
+                assert result["ranked"][0]["paired_menu"]["name"] == paired_name, result
+            assert result["ranked"][0]["weather_match"]["label"] == "비 오는 날 · 아늑한 · 해물파전", result
+            print("PASS 장소 생략 맥주 · 을지로 생맥주/꼬치 · 서촌 커피/쿠키 · 마포구 막걸리/해물파전")
+
+            explicit = await search("성수카페거리 맥주랑 치킨", rain)
+            chicken_venue, = explicit["ranked"]
+            assert chicken_venue["name"] == "서울브루어리 성수", explicit
+            assert len(chicken_venue["matched_orders"]) == 2 and "paired_menu" not in chicken_venue, explicit
+            shorthand = await search("성수카페거리 치맥", rain)
+            assert shorthand["ranked"] == explicit["ranked"], shorthand
+            pancake = await search("마포구 막걸리랑 전", rain)
+            assert len(pancake["ranked"][0]["matched_orders"]) == 2, pancake
+            nonalcohol = await search("마포구 논알콜 칵테일 한 잔", rain)
+            assert nonalcohol["empty_reason"] == "NO_MENU" and nonalcohol["request"]["venue_category"] is None, nonalcohol
+            other = await search("성수카페거리 맥주랑 국물", rain)
+            assert [row["name"] for row in other["ranked"]] == ["성수오뎅"], other
+            assert "paired_menu" not in other["ranked"][0], other
+            beer_only = await search("성수카페거리 맥주만 땡겨", rain)
+            assert beer_only["ranked"] and all("paired_menu" not in row for row in beer_only["ranked"]), beer_only
+            typed_orders = {"region": "을지로", "venue_category": "PUB", "visit_at": rain.isoformat(),
+                            "orders": [{"types": ["menu_beer"]}]}
+            both_typed = await call(client, "recommend_venues", {
+                **typed_orders, "request_text": "성수카페거리 맥주랑 치킨",
+            })
+            assert both_typed["ranked"] == explicit["ranked"], both_typed
+            beer_only_typed = await call(client, "recommend_venues", {
+                **typed_orders, "request_text": "성수카페거리 카페에서 모임 끝나고 맥주만 마시고 싶어",
+            })
+            assert beer_only_typed["ranked"] == beer_only["ranked"], beer_only_typed
+            limited = await search("성수카페거리 맥주 땡긴다 2만원 이하", rain)
+            assert [row["name"] for row in limited["ranked"]] == ["성수오뎅"], limited
+            assert limited["ranked"][0]["budget_example"]["amount_krw"] == 16900, limited
+            assert "paired_menu" not in limited["ranked"][0], limited
+            confirmed_budget = await search("을지로 생맥주 한 잔 1만원 이하", rain)
+            confirmed, = confirmed_budget["ranked"]
+            assert confirmed["budget_example"]["amount_krw"] == 9800, confirmed
+            assert confirmed["paired_menu"]["name"] in {item["name"] for item in confirmed["budget_example"]["items"]}, confirmed
+            print("PASS 지정한 메뉴와 필수 예산 우선 · 주문 예시로 검증된 조합만 표시")
+
             sunny, rainy = compared["을지로 카페"]
             for at, expected in ((first, sunny), (rain, rainy)):
                 typed = await call(client, "recommend_venues", {
@@ -553,6 +659,14 @@ async def verify_typed_area_and_menu():
         assert {item["name"] for group in venue["matched_orders"] for item in group} == {
             "콜드브루", "아메리카노", "초코청크쿠키",
         }, cookie
+        wrong_plan = await call(client, "recommend_venues", {
+            **base, "request_text": "종로구에서 커피와 쿠키 있는 카페",
+            "venue_category": "PUB", "orders": [{"types": ["커피", "쿠키"]}],
+        })
+        assert wrong_plan["request"]["region"] == "종로구", wrong_plan
+        assert wrong_plan["request"]["venue_category"] == "CAFE", wrong_plan
+        assert [order["types"] for order in wrong_plan["request"]["orders"]] == [["menu_coffee"], ["menu_cookie"]]
+        assert [row["venue_id"] for row in wrong_plan["ranked"]] == [venue["venue_id"]], wrong_plan
         cake = await call(client, "recommend_venues", {**base, "query": "종로구 케이크 카페"})
         assert cake["status"] == "NO_MATCH" and cake["empty_reason"] == "NO_MENU", cake
         ambiguous = await call(client, "recommend_venues", {**base, "query": "강남구 종로구 카페"})
@@ -594,15 +708,184 @@ async def verify_partial_forecast_deadline():
     print("PASS 느린 예보 조회 중단 · 확인된 예보 유지 · 출처 미확인 예보 제외")
 
 
+async def verify_public_catalog_refresh():
+    from venue_nearby import ADMIN_MAPPING
+
+    region_ids = {
+        "seoul": "region:1168064000",
+        "songdo": "region:2818582000",
+        "suwon": "region:4111573000",
+    }
+    mapping = json.loads(ADMIN_MAPPING.read_text(encoding="utf-8"))
+    region_rows = {f"region:{row['region_code']}": row for row in mapping["regions"]}
+    locations = {
+        key: {"region_id": region_id, "nx": region_rows[region_id]["nx"], "ny": region_rows[region_id]["ny"]}
+        for key, region_id in region_ids.items()
+    }
+
+    def venue(venue_id, area, mood, budget, *, is_public=True):
+        return {
+            "venue_id": venue_id, "name": f"시험 카페 {venue_id}", "address": "시험 주소",
+            "region_id": region_ids[area], "venue_category": "CAFE", "is_public": is_public,
+            "mood_tag_ids": [mood], "avg_budget_krw": budget,
+        }
+
+    def menu(venue_id, name, tag, price, *, is_public=True):
+        return {
+            "menu_id": f"{venue_id}-{tag}", "venue_id": venue_id, "name": name, "is_public": is_public,
+            "menu_type_tag_ids": [tag], "price_krw": price,
+        }
+
+    seoul = venue("public-seoul", "seoul", "mood_daylight", 7000)
+    unrelated = venue("public-cake", "songdo", "mood_cozy", 7000)
+    hidden = venue("private-venue", "songdo", "mood_daylight", 7000, is_public=False)
+    venues = [seoul, unrelated, hidden]
+    menus = [
+        menu("public-seoul", "아메리카노", "menu_americano", 5000),
+        menu("public-cake", "치즈 케이크", "menu_cake", 6000),
+        menu("public-cake", "미공개 콜드브루", "menu_cold_brew", 5000, is_public=False),
+        menu("private-venue", "핸드드립", "menu_hand_drip", 5000),
+    ]
+
+    with TemporaryDirectory() as directory, project_fixture(locations) as (url, first, calls):
+        path = Path(directory) / "public_catalog.json"
+
+        def publish(version, **metadata):
+            pending = path.with_suffix(".next")
+            pending.write_text(json.dumps({"version": version, "venues": venues, "menus": menus, **metadata},
+                                          ensure_ascii=False), encoding="utf-8")
+            pending.replace(path)
+
+        publish("public-1")
+        async with session_for("--public-catalog", str(path), "--weather-base-url", url) as client:
+            async def search(query, at=first, **filters):
+                return await call(client, "recommend_venues", {
+                    "query": query, "visit_at": at.isoformat(), **filters,
+                })
+
+            songdo_query = "인천 송도 커피 카페"
+            suwon_query = "경기 수원시 팔달구 커피 카페"
+            empty = await search(songdo_query)
+            assert empty["status"] == "NO_MATCH" and empty["empty_reason"] == "NO_MENU", empty
+            assert empty["request"]["location"]["province"] == "인천광역시", empty
+            missing = await search(suwon_query)
+            assert missing["empty_reason"] == "NO_REGISTERED_VENUES" and not calls, missing
+            all_coffee = await search("수도권 커피 카페")
+            assert [row["venue_id"] for row in all_coffee["ranked"]] == ["public-seoul"], all_coffee
+            print("PASS 공개 스냅샷 · 서울 대조군 · 미공개 매장·메뉴와 불일치 메뉴 제외")
+
+            sunny = venue("public-songdo-sunny", "songdo", "mood_daylight", 7000)
+            rainy = venue("public-songdo-rainy", "songdo", "mood_cozy", 8500)
+            suwon = venue("public-suwon", "suwon", "mood_calm", 8000)
+            venues.extend([sunny, rainy, suwon])
+            menus.extend([
+                menu(sunny["venue_id"], "아이스 콜드브루", "menu_cold_brew", 5500),
+                menu(rainy["venue_id"], "따뜻한 핸드드립", "menu_hand_drip", 6500),
+                menu(suwon["venue_id"], "아메리카노", "menu_americano", 5000),
+                menu(suwon["venue_id"], "초코 쿠키", "menu_cookie", 3000),
+            ])
+            publish("public-2")
+            options = await call(client, "list_venue_tags", {})
+            assert {"수도권", "인천 부평구", "인천 연수구 송도1동", "경기도 수원시 팔달구 인계동"} <= set(options["regions"])
+            dry = await search(songdo_query)
+            rain = await search(songdo_query, first + timedelta(hours=1))
+            assert dry["catalog_source"] == "PUBLIC_SNAPSHOT" and dry["catalog_version"] == "public-2", dry
+            assert dry["weather_mapping_version"] == mapping["version"], dry
+            for result, lead, condition, evidence, price in (
+                (dry, sunny, "CLEAR", "아이스 콜드브루", 5500),
+                (rain, rainy, "RAIN", "따뜻한 핸드드립", 6500),
+            ):
+                assert result["forecast_status"] == "AVAILABLE" and len(result["ranked"]) == 2, result
+                assert {row["venue_id"] for row in result["ranked"]} == {sunny["venue_id"], rainy["venue_id"]}, result
+                first_row = result["ranked"][0]
+                assert first_row["venue_id"] == lead["venue_id"] and first_row["province"] == "인천광역시", first_row
+                assert first_row["forecast"]["condition"] == condition, first_row
+                assert first_row["forecast"]["region_id"] == region_ids["songdo"], first_row
+                assert evidence in first_row["weather_match"]["label"], first_row
+                assert first_row["matched_orders"][0][0]["price_krw"] == price, first_row
+
+            no_forecast = await search(songdo_query, first + timedelta(hours=12))
+            assert no_forecast["forecast_status"] == "NO_FORECAST" and len(no_forecast["ranked"]) == 2, no_forecast
+            assert all("weather_match" not in row for row in no_forecast["ranked"]), no_forecast
+            mood_required = await search("인천 송도 아늑한 커피 카페")
+            assert [row["venue_id"] for row in mood_required["ranked"]] == [rainy["venue_id"]], mood_required
+            budget_required = await search(songdo_query, first + timedelta(hours=1),
+                                           budget={"max_krw": 7000}, budget_mode="REQUIRE")
+            assert [row["venue_id"] for row in budget_required["ranked"]] == [sunny["venue_id"]], budget_required
+            for amount in ("8천원", "팔천 원"):
+                enforced = await call(client, "recommend_venues", {
+                    "region": "서울 강남구", "venue_category": "CAFE", "visit_at": first.isoformat(),
+                    "orders": [{"types": ["커피"]}], "budget": {"max_krw": 9000}, "budget_mode": "PREFER",
+                    "request_text": f"인천 송도 커피 카페, 한 사람당 {amount}을 넘지 않는 곳",
+                })
+                assert [row["venue_id"] for row in enforced["ranked"]] == [sunny["venue_id"]], enforced
+                assert enforced["request"]["budget"] == {"min_krw": None, "max_krw": 8000}, enforced
+                assert enforced["request"]["budget_mode"] == "REQUIRE", enforced
+            print("PASS 맑음·비·예보 없음 · 날씨는 분위기와 예산 필수 조건을 통과한 후보의 순위에만 적용")
+
+            new_suwon = await search(suwon_query)
+            suwon_row, = new_suwon["ranked"]
+            assert suwon_row["venue_id"] == suwon["venue_id"] and suwon_row["province"] == "경기도", suwon_row
+            assert suwon_row["forecast"]["region_id"] == region_ids["suwon"], suwon_row
+            typed = await call(client, "recommend_venues", {
+                "region": "경기도 수원시 팔달구 인계동", "venue_category": "CAFE",
+                "visit_at": first.isoformat(), "orders": [{"types": ["menu_coffee"]}],
+            })
+            assert [row["venue_id"] for row in typed["ranked"]] == [suwon["venue_id"]], typed
+            paired = await search("경기 수원시 팔달구 커피 땡겨")
+            assert paired["ranked"][0]["paired_menu"]["name"] == "초코 쿠키", paired
+            exact_budget = await search("경기 수원시 팔달구 8천원 이하 차분한 커피 카페")
+            assert exact_budget["ranked"][0]["avg_budget_krw"] == 8000, exact_budget
+            below_budget = await search("경기 수원시 팔달구 8천원 미만 차분한 커피 카페")
+            assert below_budget["empty_reason"] == "NO_BUDGET", below_budget
+            no_mood = await search("경기 수원시 팔달구 활기찬 커피 카페")
+            assert no_mood["empty_reason"] == "NO_MOOD", no_mood
+            print("PASS 같은 MCP 연결 · 송도·수원 신규 반영 · 예보·메뉴·분위기·예산 경계")
+
+            sunny["is_public"] = False
+            menus[-2]["is_public"] = False
+            publish("public-3")
+            after = await search(songdo_query)
+            assert after["catalog_version"] == "public-3", after
+            assert [row["venue_id"] for row in after["ranked"]] == [rainy["venue_id"]], after
+            assert (await search(suwon_query))["empty_reason"] == "NO_MENU"
+
+            path.write_text("{", encoding="utf-8")
+            failed = await client.call_tool("recommend_venues", arguments={"query": songdo_query})
+            assert failed.isError, failed
+            publish("public-4")
+            recovered = await search(songdo_query)
+            assert recovered["catalog_version"] == "public-4" and recovered["ranked"], recovered
+            print("PASS 공개 해제 즉시 반영 · 읽기 실패 후 같은 연결에서 새 스냅샷으로 복구")
+
+            preview = {
+                "preview_only": True, "independently_verified_menus": 0,
+                "source_basis": "로컬 팀 CSV", "budget_basis": "원본 평균예산 참고",
+            }
+            publish("preview-5", **preview)
+            before = len(calls)
+            blocked = await client.call_tool("recommend_venues", arguments={"query": songdo_query})
+            assert blocked.isError and len(calls) == before, blocked
+
+        async with session_for("--public-catalog", str(path), "--allow-preview-catalog") as client:
+            options = await call(client, "list_venue_tags", {})
+            preview_result = await call(client, "recommend_venues", {"query": songdo_query})
+            assert options["catalog_metadata"] == preview_result["catalog_metadata"] == preview, preview_result
+            assert preview_result["catalog_version"] == "preview-5" and preview_result["ranked"], preview_result
+            print("PASS 시연 스냅샷 기본 차단 · 로컬 허용 시 출처·예산 근거와 검증 상태 보존")
+
+
 async def verify_offline():
     await verify_project()
     await verify_csv_sample()
     await verify_concierge_ranking()
+    await verify_unverified_intent()
     await verify_search_location_and_budget()
     await verify_seoul_place_index()
     await verify_curated_recommendations()
     await verify_typed_area_and_menu()
     await verify_partial_forecast_deadline()
+    await verify_public_catalog_refresh()
 
 
 async def verify_live(dry, rain, missing):
