@@ -97,11 +97,34 @@ export interface VenueReviewItem {
   created_at: string;
 }
 
-export interface VenueDetail extends VenueItem {
+export interface VenueBudgetExample {
+  amount_krw: number;
+  items: Array<{ name: string; price_krw: number }>;
+  source_url: string;
+  checked_on: string;
+  limits: string;
+}
+
+interface RegisteredVenueDetail extends VenueItem {
+  curated_listing?: never;
   menu_tabs: MenuTab[];
   all_menus_count: number;
+  applied_playlist: { id: string; name: string } | null;
   recent_reviews?: VenueReviewItem[];
 }
+
+interface CuratedVenueDetail extends Pick<VenueItem, 'venue_id' | 'venue_name' | 'category' | 'sub_category' | 'road_address' | 'dong_name'> {
+  curated_listing: {
+    moods: string[];
+    representative_menus: string[];
+    seat_summary: string;
+    checked_on: string;
+    registry_url: string;
+    budget_example: VenueBudgetExample | null;
+  };
+}
+
+export type VenueDetail = RegisteredVenueDetail | CuratedVenueDetail;
 
 export interface MySummaryData {
   bookmarked_venues: Array<{

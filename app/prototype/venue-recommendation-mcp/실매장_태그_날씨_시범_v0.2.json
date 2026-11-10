@@ -1,0 +1,1711 @@
+{
+  "version": "0.2",
+  "compiled_on": "2026-11-10",
+  "basis": [
+    "실매장_태그_시범_v0.1.json",
+    "서울_매장_확장_검증_38곳.csv",
+    "손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv",
+    "로얄마일 운영사 공개 안내 및 메뉴"
+  ],
+  "notes": [
+    "실제 매장의 공개자료에서 확인한 일부 항목을 점주 등록으로 모의했습니다.",
+    "pilot_v 및 pilot_m은 검증용 식별자입니다. 보강 매장 로얄마일은 운영사 공개 주소로 식별합니다.",
+    "지역은 서울 내 시범 매장 전체 또는 지정 자치구입니다.",
+    "날씨 입력은 동일 방문 조건에 주입한 맑음·비·예보 없음입니다. 일반 영업시간 안에서 좌석 유형의 운영을 비교합니다.",
+    "좌석 상태는 공개 확인에 근거한 운영 상태입니다. 공석과 예약은 별도입니다.",
+    "같은 주문의 계열과 유형은 동일 메뉴 ID에서 충족해야 합니다. 여러 주문 조건은 각 메뉴가 따로 충족할 수 있습니다.",
+    "손님이 상위 태그를 고르면 등록된 하위 태그를 포함합니다. 분위기 일치 개수가 같을 때만 이용 가능한 야외 선호를 반영합니다.",
+    "예보 없을 때는 태그 순위를 유지합니다. 야외 필수의 경우 야외 보유가 확인된 매장을 운영 미판정으로 표시합니다.",
+    "로와이드의 테라스 보유는 확인됐고 우천 운영은 미확인입니다.",
+    "밀크티 양갱은 기존 수집본의 메뉴 사례입니다."
+  ],
+  "venues": [
+    {
+      "venue_id": "pilot_v_MA0101202504A0054143",
+      "name": "용용선생 마라도원",
+      "admin_dong": "성수2가3동",
+      "address": "서울특별시 성동구 아차산로11길 3",
+      "source_store_id": "MA0101202504A0054143",
+      "source_csv": "서울_매장_확장_검증_38곳.csv",
+      "mood_tag_ids": [
+        "mood_retro"
+      ],
+      "mood_evidence": {
+        "mood_retro": {
+          "observed": "서울관광재단의 차이니즈 노포 콘셉트를 복고 분위기로 분류했습니다.",
+          "urls": [
+            "https://korean.visitseoul.net/restaurants/Maradowon/KOP9xvv34"
+          ]
+        }
+      },
+      "district": "성동구",
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "observed": "실내 홀 좌석",
+            "urls": [
+              "https://korean.visitseoul.net/restaurants/Maradowon/KOP9xvv34",
+              "https://www.diningcode.com/profile.php?rid=83lHgjp89EK9"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "venue_id": "pilot_v_MA0101202308A0047504",
+      "name": "성수오뎅",
+      "admin_dong": "성수2가1동",
+      "address": "서울특별시 성동구 성덕정17길 11",
+      "source_store_id": "MA0101202308A0047504",
+      "source_csv": "손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv",
+      "mood_tag_ids": [
+        "mood_cozy"
+      ],
+      "mood_evidence": {
+        "mood_cozy": {
+          "observed": "예약 안내가 매장의 아늑한 분위기를 설명합니다.",
+          "urls": [
+            "https://m.booking.naver.com/booking/6/bizes/1147878/items/5956999?area=bmp&theme=place&service-target=map-pc&lang=ko"
+          ]
+        }
+      },
+      "district": "성동구",
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "observed": "업체 사진의 실내 바 좌석, 업체 예약 안내에 1명부터 예약과 현장 방문 가능 표기",
+            "urls": [
+              "https://map.naver.com/p/entry/place/1234978037?placePath=%2Fbooking"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "venue_id": "pilot_v_MA0101202504A0007790",
+      "name": "그레이핍플 성수점",
+      "admin_dong": "성수1가1동",
+      "address": "서울특별시 성동구 왕십리로 94-1",
+      "source_store_id": "MA0101202504A0007790",
+      "source_csv": "손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv",
+      "mood_tag_ids": [],
+      "mood_evidence": {},
+      "district": "성동구",
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "observed": "브랜드의 해당 지점 사진에 일반 실내 테이블과 바 의자",
+            "urls": [
+              "https://www.graypipple.com/store/store_view.php?sh=%EC%84%B1%EC%88%98&sido=&board_id=25"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "venue_id": "pilot_v_MA010120220811763793",
+      "name": "단일서울",
+      "admin_dong": "성수1가1동",
+      "address": "서울특별시 성동구 왕십리로 66-33",
+      "source_store_id": "MA010120220811763793",
+      "source_csv": "손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv",
+      "mood_tag_ids": [],
+      "mood_evidence": {},
+      "district": "성동구",
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "observed": "한국관광공사 안내에 매장 안 공용 메인 테이블",
+            "urls": [
+              "https://korean.visitkorea.or.kr/detail/ms_detail.do?cotid=e51c6064-fb8e-49a4-9ec9-cb66489f594c"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "venue_id": "pilot_v_MA010120220812594063",
+      "name": "성수 대림창고",
+      "admin_dong": "성수2가1동",
+      "address": "서울특별시 성동구 성수이로 78",
+      "source_store_id": "MA010120220812594063",
+      "source_csv": "서울_매장_확장_검증_38곳.csv",
+      "mood_tag_ids": [
+        "mood_retro",
+        "mood_gallery"
+      ],
+      "mood_evidence": {
+        "mood_retro": {
+          "observed": "옛 정미소 구조를 보존한 빈티지 공간 설명을 복고 분위기로 분류했습니다.",
+          "urls": [
+            "https://access.visitkorea.or.kr/food/detail.do?cotId=db497b75-f1ce-47c1-a48c-20a8385e818b",
+            "https://love.seoul.go.kr/articles/10330"
+          ]
+        },
+        "mood_gallery": {
+          "observed": "옛 정미소를 보존하고 설치 미술을 전시하는 공간입니다.",
+          "urls": [
+            "https://love.seoul.go.kr/articles/10330"
+          ]
+        }
+      },
+      "district": "성동구",
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "observed": "실내 홀 좌석. 정원 소개는 있으나 일반 야외 좌석은 미확인.",
+            "urls": [
+              "https://love.seoul.go.kr/articles/10330",
+              "https://www.diningcode.com/profile.php?rid=TpMlBoL70Tge"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "venue_id": "pilot_v_MA010120220812374911",
+      "name": "로와이드 서울숲",
+      "admin_dong": "성수1가2동",
+      "address": "서울특별시 성동구 서울숲2길 22-1",
+      "source_store_id": "MA010120220812374911",
+      "source_csv": "서울_매장_확장_검증_38곳.csv",
+      "mood_tag_ids": [
+        "mood_relaxed",
+        "mood_daylight",
+        "mood_gallery"
+      ],
+      "mood_evidence": {
+        "mood_relaxed": {
+          "observed": "서울시가 테라스 구역을 여유로운 공간으로 설명합니다.",
+          "urls": [
+            "https://love.seoul.go.kr/articles/10330"
+          ]
+        },
+        "mood_daylight": {
+          "observed": "서울시가 공간에 햇살이 잘 든다고 설명합니다.",
+          "urls": [
+            "https://love.seoul.go.kr/articles/10330"
+          ]
+        },
+        "mood_gallery": {
+          "observed": "2층에서 전시와 팝업을 여는 공간입니다.",
+          "urls": [
+            "https://love.seoul.go.kr/articles/10330"
+          ]
+        }
+      },
+      "district": "성동구",
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "CONFIRMED",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "observed": "실내 테이블과 2층 테라스. 에이드 메뉴는 계절에 따라 달라질 수 있음.",
+            "urls": [
+              "https://love.seoul.go.kr/articles/10330",
+              "https://www.ktriptips.com/kor/food/2895111"
+            ]
+          },
+          "outdoor": {
+            "observed": "서울숲점의 야외 테라스를 확인했습니다.",
+            "urls": [
+              "https://love.seoul.go.kr/articles/10330",
+              "https://www.ktriptips.com/kor/food/2895111"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "venue_id": "pilot_v_MA0101202305A0080350",
+      "name": "서울브루어리 성수",
+      "admin_dong": "성수2가1동",
+      "address": "서울특별시 성동구 연무장길 28-12",
+      "source_store_id": "MA0101202305A0080350",
+      "source_csv": "손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv",
+      "mood_tag_ids": [],
+      "mood_evidence": {},
+      "district": "성동구",
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "CONFIRMED",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "observed": "운영사 안내에 일반 실내 탭하우스",
+            "urls": [
+              "https://www.seoulbrewery.com/BRAND"
+            ]
+          },
+          "outdoor": {
+            "observed": "실내 홀과 1층 야외 테라스. 옥상의 일반 영업시간 개방은 미확인.",
+            "urls": [
+              "https://heypop.kr/place/73593/",
+              "https://www.diningcode.com/profile.php?rid=2VTdj9NjNk9j"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "venue_id": "pilot_v_MA0101202508A0037997",
+      "name": "제이드앤워터 성수 LCDC점",
+      "district": "성동구",
+      "admin_dong": "성수2가3동",
+      "address": "서울특별시 성동구 연무장17길 10",
+      "source_store_id": "MA0101202508A0037997",
+      "source_csv": "서울_매장_확장_검증_38곳.csv",
+      "mood_tag_ids": [
+        "mood_relaxed",
+        "mood_urban_view"
+      ],
+      "mood_evidence": {
+        "mood_relaxed": {
+          "observed": "관광재단이 여유로운 분위기와 개방감 있는 홀을 안내합니다.",
+          "urls": [
+            "https://korean.visitseoul.net/restaurants/JadeWaterSeongsuLCDC/KOPhuefly"
+          ]
+        },
+        "mood_urban_view": {
+          "observed": "LCDC 4층 홀에서 성수 일대 전경을 볼 수 있습니다.",
+          "urls": [
+            "https://korean.visitseoul.net/restaurants/JadeWaterSeongsuLCDC/KOPhuefly"
+          ]
+        }
+      },
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "observed": "LCDC 4층 실내 홀.",
+            "urls": [
+              "https://korean.visitseoul.net/restaurants/JadeWaterSeongsuLCDC/KOPhuefly",
+              "https://lcdc-seoul.com/lcdc/shop/"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "venue_id": "pilot_v_MA010120220803881868",
+      "name": "수연산방",
+      "district": "성북구",
+      "admin_dong": "성북동",
+      "address": "서울특별시 성북구 성북로26길 8",
+      "source_store_id": "MA010120220803881868",
+      "source_csv": "서울_매장_확장_검증_38곳.csv",
+      "mood_tag_ids": [
+        "mood_hanok",
+        "mood_tranquil"
+      ],
+      "mood_evidence": {
+        "mood_hanok": {
+          "observed": "전통 한옥 고택을 활용한 찻집입니다.",
+          "urls": [
+            "https://mediahub.seoul.go.kr/archives/2019586"
+          ]
+        },
+        "mood_tranquil": {
+          "observed": "서울시가 고즈넉한 한옥 전통 찻집으로 소개합니다.",
+          "urls": [
+            "https://mediahub.seoul.go.kr/archives/2019586"
+          ]
+        }
+      },
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "CONFIRMED",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "observed": "실내 좌석과 지붕이 있는 실외 툇마루. 계절별 이용은 매장 안내에 따름.",
+            "urls": [
+              "https://mediahub.seoul.go.kr/archives/2019586",
+              "https://200life.tistory.com/8"
+            ]
+          },
+          "outdoor": {
+            "observed": "실내 좌석과 지붕이 있는 실외 툇마루. 계절별 이용은 매장 안내에 따름.",
+            "urls": [
+              "https://mediahub.seoul.go.kr/archives/2019586",
+              "https://200life.tistory.com/8"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "venue_id": "pilot_v_MA010120220813167101",
+      "name": "적당",
+      "district": "중구",
+      "admin_dong": "명동",
+      "address": "서울특별시 중구 을지로 29",
+      "source_store_id": "MA010120220813167101",
+      "source_csv": "서울_매장_확장_검증_38곳.csv",
+      "mood_tag_ids": [
+        "mood_modern",
+        "mood_calm"
+      ],
+      "mood_evidence": {
+        "mood_modern": {
+          "observed": "관광공사가 적당의 모던한 인테리어를 설명합니다.",
+          "urls": [
+            "https://korean.visitkorea.or.kr/detail/rem_detail.do?cotid=000a93d2-4ed5-4a30-b7ff-8536e9ed7fea"
+          ]
+        },
+        "mood_calm": {
+          "observed": "이 지점의 차분한 분위기를 묘사한 방문 사례입니다.",
+          "urls": [
+            "https://polle.com/place/4p30o0/%EC%A0%81%EB%8B%B9"
+          ]
+        }
+      },
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "observed": "건물 1층 후문 쪽 실내 테이블.",
+            "urls": [
+              "https://korean.visitkorea.or.kr/detail/rem_detail.do?cotid=000a93d2-4ed5-4a30-b7ff-8536e9ed7fea",
+              "https://esendial.tistory.com/8372"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "venue_id": "pilot_v_MA010120220800186207",
+      "name": "산울림1992",
+      "district": "마포구",
+      "admin_dong": "서강동",
+      "address": "서울특별시 마포구 서강로9길 60",
+      "source_store_id": "MA010120220800186207",
+      "source_csv": "서울_매장_확장_검증_38곳.csv",
+      "mood_tag_ids": [
+        "mood_cozy",
+        "mood_conversation"
+      ],
+      "mood_evidence": {
+        "mood_cozy": {
+          "observed": "예약 안내가 이 지점의 아늑한 분위기를 설명합니다.",
+          "urls": [
+            "https://autoreserve.com/ko/restaurants/mfqgu33ticuUcinGZUa8"
+          ]
+        },
+        "mood_conversation": {
+          "observed": "예약 안내에서 넓은 테이블 간격과 대화하기 편한 환경을 설명합니다.",
+          "urls": [
+            "https://autoreserve.com/ko/restaurants/mfqgu33ticuUcinGZUa8"
+          ]
+        }
+      },
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "observed": "지하 1층 실내 홀과 바 테이블.",
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=dYGzVuySFVs8"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "venue_id": "pilot_v_MA010120220813733429",
+      "name": "부베트 압구정점",
+      "district": "강남구",
+      "admin_dong": "압구정동",
+      "address": "서울특별시 강남구 논현로 854",
+      "source_store_id": "MA010120220813733429",
+      "source_csv": "손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv",
+      "mood_tag_ids": [],
+      "mood_evidence": {},
+      "seats": {
+        "indoor": "UNKNOWN",
+        "outdoor": "UNKNOWN",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {}
+      }
+    },
+    {
+      "venue_id": "pilot_v_MA010120220800146919",
+      "name": "코마츠",
+      "district": "강남구",
+      "admin_dong": "논현2동",
+      "address": "서울특별시 강남구 학동로31길 15",
+      "source_store_id": "MA010120220800146919",
+      "source_csv": "손님_추천_1차_예산_우천좌석_순위비교_2026-11-10.csv",
+      "mood_tag_ids": [],
+      "mood_evidence": {},
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "observed": "해당 주소의 방문 기록에 실내 카운터 좌석",
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=OHOob33PgdO3"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "venue_id": "pilot_v_public_royal_mile",
+      "name": "메이필드호텔 서울 로얄마일",
+      "district": "강서구",
+      "admin_dong": null,
+      "address": "서울특별시 강서구 방화대로 94 본관 1층",
+      "source_store_id": null,
+      "source_csv": null,
+      "source_note": "우천 야외석 휴장 검증을 위해 보강한 사례입니다. 독립 상가업소번호는 미확인입니다.",
+      "mood_tag_ids": [
+        "mood_garden"
+      ],
+      "mood_evidence": {
+        "mood_garden": {
+          "observed": "운영사가 야외 정원을 전망으로 안내합니다.",
+          "urls": [
+            "https://mayfield.co.kr/dining/royalmile.html"
+          ]
+        }
+      },
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "CONFIRMED",
+        "outdoor_in_rain": "CLOSED",
+        "evidence": {
+          "indoor": {
+            "observed": "운영사가 실내 홀 50석을 안내합니다.",
+            "urls": [
+              "https://mayfield.co.kr/dining/royalmile.html"
+            ]
+          },
+          "outdoor": {
+            "observed": "운영사가 정원 테라스 50석을 안내합니다.",
+            "urls": [
+              "https://mayfield.co.kr/dining/royalmile.html"
+            ]
+          },
+          "outdoor_in_rain": {
+            "observed": "운영사가 비가 올 때 테라스 운영을 중단한다고 명시합니다.",
+            "urls": [
+              "https://mayfield.co.kr/dining/royalmile.html"
+            ],
+            "source_level": "OPERATOR_POLICY"
+          }
+        }
+      }
+    }
+  ],
+  "menus": [
+    {
+      "menu_id": "pilot_m_MA0101202504A0054143_mala",
+      "venue_id": "pilot_v_MA0101202504A0054143",
+      "name": "직화마라탕(2인)",
+      "evidence": {
+        "observed": "대표메뉴 안내에 직화마라탕(2인)과 마라육수가 명시되어 있습니다. 관광재단의 중국식 콘셉트와 마라탕 설명을 함께 확인했습니다.",
+        "urls": [
+          "https://korean.visitseoul.net/restaurants/Maradowon/KOP9xvv34"
+        ]
+      },
+      "cuisine_tag_ids": [
+        "cuisine_chinese"
+      ],
+      "menu_type_tag_ids": [
+        "menu_malatang"
+      ]
+    },
+    {
+      "menu_id": "pilot_m_MA0101202308A0047504_holy_set",
+      "venue_id": "pilot_v_MA0101202308A0047504",
+      "name": "홀리 세트 (모둠 오뎅, 2인)",
+      "evidence": {
+        "observed": "지점 메뉴의 모둠 오뎅과 예약 안내의 오뎅 육수를 확인했습니다. 같은 주소의 일본식 오뎅 제공 기록을 계열 근거로 사용했습니다.",
+        "urls": [
+          "https://map.naver.com/p/entry/place/1234978037?placePath=%2Fmenu",
+          "https://m.booking.naver.com/booking/6/bizes/1147878/items/5956999?area=bmp&theme=place&service-target=map-pc&lang=ko",
+          "https://www.diningcode.com/profile.php?rid=OGaSCNMAe0Fv"
+        ]
+      },
+      "cuisine_tag_ids": [
+        "cuisine_japanese"
+      ],
+      "menu_type_tag_ids": [
+        "menu_fishcake_soup"
+      ]
+    },
+    {
+      "menu_id": "pilot_m_MA0101202308A0047504_kirin_draft",
+      "venue_id": "pilot_v_MA0101202308A0047504",
+      "name": "기린 생맥주",
+      "evidence": {
+        "observed": "지점 메뉴에 기린 생맥주가 기재되어 있습니다.",
+        "urls": [
+          "https://map.naver.com/p/entry/place/1234978037?placePath=%2Fmenu"
+        ]
+      },
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_draft_beer"
+      ]
+    },
+    {
+      "menu_id": "pilot_m_MA0101202504A0007790_cheesecake",
+      "venue_id": "pilot_v_MA0101202504A0007790",
+      "name": "뉴욕 치즈케이크",
+      "evidence": {
+        "observed": "지점 주문 메뉴에서 뉴욕 치즈케이크를 확인했습니다.",
+        "urls": [
+          "https://app.passorder.co.kr/normal/e8d93dce-7550-42ab-9e81-d412a5a33bdb/menus"
+        ]
+      },
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_cheesecake"
+      ]
+    },
+    {
+      "menu_id": "pilot_m_MA0101202504A0007790_americano",
+      "venue_id": "pilot_v_MA0101202504A0007790",
+      "name": "아메리카노",
+      "evidence": {
+        "observed": "지점 주문 메뉴에서 아메리카노를 확인했습니다.",
+        "urls": [
+          "https://app.passorder.co.kr/normal/e8d93dce-7550-42ab-9e81-d412a5a33bdb/menus"
+        ]
+      },
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_americano"
+      ]
+    },
+    {
+      "menu_id": "pilot_m_MA010120220811763793_hand_drip",
+      "venue_id": "pilot_v_MA010120220811763793",
+      "name": "핸드드립 커피",
+      "evidence": {
+        "observed": "한국관광공사의 대표메뉴 설명에 핸드드립 커피가 있습니다.",
+        "urls": [
+          "https://korean.visitkorea.or.kr/detail/ms_detail.do?cotid=e51c6064-fb8e-49a4-9ec9-cb66489f594c"
+        ]
+      },
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_hand_drip"
+      ]
+    },
+    {
+      "menu_id": "pilot_m_MA010120220812374911_salt_bread",
+      "venue_id": "pilot_v_MA010120220812374911",
+      "name": "소금빵",
+      "evidence": {
+        "observed": "서울시 소개가 다양한 소금빵을 대표 메뉴로 명시합니다.",
+        "urls": [
+          "https://love.seoul.go.kr/articles/10330"
+        ]
+      },
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_salt_bread"
+      ]
+    },
+    {
+      "menu_id": "pilot_m_MA0101202305A0080350_hopfen_draft",
+      "venue_id": "pilot_v_MA0101202305A0080350",
+      "name": "서울 호펜바이세 (드래프트)",
+      "evidence": {
+        "observed": "운영사가 크래프트 맥주로 소개하고 성수점 드래프트 제공을 명시합니다.",
+        "urls": [
+          "https://www.seoulbrewery.com/features"
+        ]
+      },
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_draft_beer",
+        "menu_craft_beer"
+      ]
+    },
+    {
+      "menu_id": "pilot_m_MA0101202305A0080350_goulash",
+      "venue_id": "pilot_v_MA0101202305A0080350",
+      "name": "체코식 다크 라거 굴라쉬",
+      "evidence": {
+        "observed": "지점 QR 메뉴가 굴라쉬를 비프 스튜로 설명합니다.",
+        "urls": [
+          "https://tag-here.com/menu/seoulbrewery-seongsu/view"
+        ]
+      },
+      "cuisine_tag_ids": [
+        "cuisine_czech"
+      ],
+      "menu_type_tag_ids": [
+        "menu_goulash"
+      ]
+    },
+    {
+      "menu_id": "pilot_m_MA010120220812594063_panettone",
+      "venue_id": "pilot_v_MA010120220812594063",
+      "name": "파네토네",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_bread"
+      ],
+      "evidence": {
+        "observed": "수집본과 성수이로 78 지점의 메뉴 목록에서 확인했습니다.",
+        "urls": [
+          "https://polle.com/place/3sFKT9/%EB%8C%80%EB%A6%BC%EC%B0%BD%EA%B3%A0"
+        ]
+      }
+    },
+    {
+      "menu_id": "pilot_m_MA010120220812374911_americano",
+      "venue_id": "pilot_v_MA010120220812374911",
+      "name": "아메리카노",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_americano"
+      ],
+      "evidence": {
+        "observed": "매장 소개가 아메리카노와 원두 선택을 안내합니다.",
+        "urls": [
+          "https://www.ktriptips.com/kor/food/2895111"
+        ]
+      }
+    },
+    {
+      "menu_id": "pilot_m_MA0101202508A0037997_shrimp_sando",
+      "venue_id": "pilot_v_MA0101202508A0037997",
+      "name": "옥앤수 새우산도",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_sando"
+      ],
+      "evidence": {
+        "observed": "서울관광재단의 해당 지점 대표 메뉴입니다.",
+        "urls": [
+          "https://korean.visitseoul.net/restaurants/JadeWaterSeongsuLCDC/KOPhuefly"
+        ]
+      }
+    },
+    {
+      "menu_id": "pilot_m_MA0101202508A0037997_kimchi_fried_rice",
+      "venue_id": "pilot_v_MA0101202508A0037997",
+      "name": "옥앤수 김치 프라이드 라이스",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_fried_rice"
+      ],
+      "evidence": {
+        "observed": "서울관광재단 대표 메뉴에서 해당 메뉴명을 확인했습니다.",
+        "urls": [
+          "https://korean.visitseoul.net/restaurants/JadeWaterSeongsuLCDC/KOPhuefly"
+        ]
+      }
+    },
+    {
+      "menu_id": "pilot_m_MA0101202508A0037997_chorizo_pasta",
+      "venue_id": "pilot_v_MA0101202508A0037997",
+      "name": "옥앤수 초리조 라구 파스타",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_pasta"
+      ],
+      "evidence": {
+        "observed": "서울관광재단 대표 메뉴에서 해당 메뉴명을 확인했습니다.",
+        "urls": [
+          "https://korean.visitseoul.net/restaurants/JadeWaterSeongsuLCDC/KOPhuefly"
+        ]
+      }
+    },
+    {
+      "menu_id": "pilot_m_MA010120220803881868_jujube_tea",
+      "venue_id": "pilot_v_MA010120220803881868",
+      "name": "대추차",
+      "cuisine_tag_ids": [
+        "cuisine_korean"
+      ],
+      "menu_type_tag_ids": [
+        "menu_traditional_tea"
+      ],
+      "evidence": {
+        "observed": "서울시가 이 메뉴를 한옥 전통 찻집의 전통 차로 소개합니다.",
+        "urls": [
+          "https://mediahub.seoul.go.kr/archives/2019586",
+          "https://korean.visitseoul.net/restaurants/%EC%88%98%EC%97%B0%EC%82%B0%EB%B0%A9/KOP000979"
+        ]
+      }
+    },
+    {
+      "menu_id": "pilot_m_MA010120220803881868_pumpkin_bingsu",
+      "venue_id": "pilot_v_MA010120220803881868",
+      "name": "단호박빙수",
+      "cuisine_tag_ids": [
+        "cuisine_korean"
+      ],
+      "menu_type_tag_ids": [
+        "menu_bingsu"
+      ],
+      "evidence": {
+        "observed": "서울시와 서울관광재단이 소개한 전통 찻집의 빙수 메뉴입니다.",
+        "urls": [
+          "https://mediahub.seoul.go.kr/archives/2019586",
+          "https://korean.visitseoul.net/restaurants/%EC%88%98%EC%97%B0%EC%82%B0%EB%B0%A9/KOP000979"
+        ]
+      }
+    },
+    {
+      "menu_id": "pilot_m_MA010120220803881868_rice_cake",
+      "venue_id": "pilot_v_MA010120220803881868",
+      "name": "죽순 찹쌀떡",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_rice_cake"
+      ],
+      "evidence": {
+        "observed": "서울관광재단이 이 찻집의 다과로 소개합니다.",
+        "urls": [
+          "https://korean.visitseoul.net/restaurants/%EC%88%98%EC%97%B0%EC%82%B0%EB%B0%A9/KOP000979"
+        ]
+      }
+    },
+    {
+      "menu_id": "pilot_m_MA010120220813167101_milk_tea_yanggaeng",
+      "venue_id": "pilot_v_MA010120220813167101",
+      "name": "밀크티 양갱",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_yanggaeng"
+      ],
+      "evidence": {
+        "observed": "한국관광공사와 방문 기록에 나온 수집 사례입니다. 시범에서 양갱 메뉴로 분류했습니다.",
+        "urls": [
+          "https://korean.visitkorea.or.kr/detail/rem_detail.do?cotid=000a93d2-4ed5-4a30-b7ff-8536e9ed7fea",
+          "https://polle.com/place/4p30o0/%EC%A0%81%EB%8B%B9"
+        ]
+      }
+    },
+    {
+      "menu_id": "pilot_m_MA010120220813167101_baekseolgi",
+      "venue_id": "pilot_v_MA010120220813167101",
+      "name": "백설기 앙버터",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_rice_cake"
+      ],
+      "evidence": {
+        "observed": "관광공사가 백설기와 팥으로 만든 간식으로 설명합니다.",
+        "urls": [
+          "https://korean.visitkorea.or.kr/detail/rem_detail.do?cotid=000a93d2-4ed5-4a30-b7ff-8536e9ed7fea"
+        ]
+      }
+    },
+    {
+      "menu_id": "pilot_m_MA010120220800186207_seafood_pajeon",
+      "venue_id": "pilot_v_MA010120220800186207",
+      "name": "해물파전",
+      "cuisine_tag_ids": [
+        "cuisine_korean"
+      ],
+      "menu_type_tag_ids": [
+        "menu_pajeon"
+      ],
+      "evidence": {
+        "observed": "예약 메뉴가 해물파전을 한식 안주로 안내합니다.",
+        "urls": [
+          "https://autoreserve.com/ko/restaurants/mfqgu33ticuUcinGZUa8"
+        ]
+      }
+    },
+    {
+      "menu_id": "pilot_m_MA010120220800186207_makgeolli",
+      "venue_id": "pilot_v_MA010120220800186207",
+      "name": "복순도가 손막걸리",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_makgeolli"
+      ],
+      "evidence": {
+        "observed": "지점 예약 메뉴의 막걸리 목록에서 확인했습니다.",
+        "urls": [
+          "https://autoreserve.com/ko/restaurants/mfqgu33ticuUcinGZUa8"
+        ]
+      }
+    },
+    {
+      "menu_id": "pilot_m_MA010120220813733429_onion_soup",
+      "venue_id": "pilot_v_MA010120220813733429",
+      "name": "프렌치 어니언 수프",
+      "cuisine_tag_ids": [
+        "cuisine_french"
+      ],
+      "menu_type_tag_ids": [
+        "menu_western_soup"
+      ],
+      "evidence": {
+        "observed": "압구정 지점 예약 메뉴에 프렌치 어니언 수프가 있습니다.",
+        "urls": [
+          "https://autoreserve.com/ko/restaurants/45B8S6sGQf8SAGhER3gp"
+        ]
+      }
+    },
+    {
+      "menu_id": "pilot_m_MA010120220800146919_shio_ramen",
+      "venue_id": "pilot_v_MA010120220800146919",
+      "name": "시오라멘",
+      "cuisine_tag_ids": [
+        "cuisine_japanese"
+      ],
+      "menu_type_tag_ids": [
+        "menu_ramen",
+        "menu_soup"
+      ],
+      "evidence": {
+        "observed": "학동로31길 지점 메뉴에 닭육수와 소금타래를 사용한 라멘으로 설명됩니다.",
+        "urls": [
+          "https://www.diningcode.com/profile.php?rid=OHOob33PgdO3"
+        ]
+      }
+    },
+    {
+      "menu_id": "pilot_m_public_royal_mile_americano",
+      "venue_id": "pilot_v_public_royal_mile",
+      "name": "아메리카노",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_americano"
+      ],
+      "evidence": {
+        "observed": "호텔 공식 메뉴 커피 항목에 기재되어 있습니다.",
+        "urls": [
+          "https://mayfield.co.kr/assets/pdffile/royalmile_menu_261016.pdf"
+        ]
+      }
+    },
+    {
+      "menu_id": "pilot_m_public_royal_mile_cheesecake",
+      "venue_id": "pilot_v_public_royal_mile",
+      "name": "쿠앤크 치즈 케이크",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_cheesecake"
+      ],
+      "evidence": {
+        "observed": "호텔 공식 케이크 메뉴에서 확인했습니다.",
+        "urls": [
+          "https://mayfield.co.kr/assets/pdffile/royalmile_menu_261016.pdf"
+        ]
+      }
+    },
+    {
+      "menu_id": "pilot_m_public_royal_mile_jujube_tea",
+      "venue_id": "pilot_v_public_royal_mile",
+      "name": "대추차",
+      "cuisine_tag_ids": [
+        "cuisine_korean"
+      ],
+      "menu_type_tag_ids": [
+        "menu_traditional_tea"
+      ],
+      "evidence": {
+        "observed": "호텔 공식 메뉴의 한국 전통차 항목에 기재되어 있습니다.",
+        "urls": [
+          "https://mayfield.co.kr/assets/pdffile/royalmile_menu_261016.pdf"
+        ]
+      }
+    }
+  ],
+  "cases": [
+    {
+      "name": "서울 커피 · 야외 필수 · 맑음",
+      "query": {
+        "district": null,
+        "preferred_moods": [],
+        "orders": [
+          {
+            "cuisine": null,
+            "types": [
+              "menu_coffee"
+            ]
+          }
+        ],
+        "seating": "REQUIRE_OUTDOOR",
+        "weather": "CLEAR"
+      },
+      "expected": {
+        "ranked": [
+          {
+            "venue_id": "pilot_v_MA010120220812374911",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA010120220812374911_americano"
+              ]
+            ],
+            "seat": "OUTDOOR"
+          },
+          {
+            "venue_id": "pilot_v_public_royal_mile",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_public_royal_mile_americano"
+              ]
+            ],
+            "seat": "OUTDOOR"
+          }
+        ],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "서울 커피 · 야외 필수 · 비",
+      "query": {
+        "district": null,
+        "preferred_moods": [],
+        "orders": [
+          {
+            "cuisine": null,
+            "types": [
+              "menu_coffee"
+            ]
+          }
+        ],
+        "seating": "REQUIRE_OUTDOOR",
+        "weather": "RAIN"
+      },
+      "expected": {
+        "ranked": [],
+        "pending": [
+          {
+            "venue_id": "pilot_v_MA010120220812374911",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA010120220812374911_americano"
+              ]
+            ],
+            "seat": "OUTDOOR_RAIN_UNVERIFIED"
+          }
+        ],
+        "excluded": [
+          {
+            "venue_id": "pilot_v_public_royal_mile",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_public_royal_mile_americano"
+              ]
+            ],
+            "seat": "OUTDOOR_CLOSED_RAIN"
+          }
+        ]
+      }
+    },
+    {
+      "name": "서울 커피 · 야외 필수 · 예보 없음",
+      "query": {
+        "district": null,
+        "preferred_moods": [],
+        "orders": [
+          {
+            "cuisine": null,
+            "types": [
+              "menu_coffee"
+            ]
+          }
+        ],
+        "seating": "REQUIRE_OUTDOOR",
+        "weather": "NO_FORECAST"
+      },
+      "expected": {
+        "ranked": [
+          {
+            "venue_id": "pilot_v_MA010120220812374911",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA010120220812374911_americano"
+              ]
+            ],
+            "seat": "OUTDOOR_WEATHER_UNKNOWN"
+          },
+          {
+            "venue_id": "pilot_v_public_royal_mile",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_public_royal_mile_americano"
+              ]
+            ],
+            "seat": "OUTDOOR_WEATHER_UNKNOWN"
+          }
+        ],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "서울 커피 · 야외 선호 · 맑음",
+      "query": {
+        "district": null,
+        "preferred_moods": [],
+        "orders": [
+          {
+            "cuisine": null,
+            "types": [
+              "menu_coffee"
+            ]
+          }
+        ],
+        "seating": "PREFER_OUTDOOR",
+        "weather": "CLEAR"
+      },
+      "expected": {
+        "ranked": [
+          {
+            "venue_id": "pilot_v_MA010120220812374911",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA010120220812374911_americano"
+              ]
+            ],
+            "seat": "OUTDOOR"
+          },
+          {
+            "venue_id": "pilot_v_public_royal_mile",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_public_royal_mile_americano"
+              ]
+            ],
+            "seat": "OUTDOOR"
+          },
+          {
+            "venue_id": "pilot_v_MA010120220811763793",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA010120220811763793_hand_drip"
+              ]
+            ],
+            "seat": "INDOOR_CONFIRMED"
+          },
+          {
+            "venue_id": "pilot_v_MA0101202504A0007790",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA0101202504A0007790_americano"
+              ]
+            ],
+            "seat": "INDOOR_CONFIRMED"
+          }
+        ],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "서울 커피 · 야외 선호 · 비",
+      "query": {
+        "district": null,
+        "preferred_moods": [],
+        "orders": [
+          {
+            "cuisine": null,
+            "types": [
+              "menu_coffee"
+            ]
+          }
+        ],
+        "seating": "PREFER_OUTDOOR",
+        "weather": "RAIN"
+      },
+      "expected": {
+        "ranked": [
+          {
+            "venue_id": "pilot_v_MA010120220811763793",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA010120220811763793_hand_drip"
+              ]
+            ],
+            "seat": "INDOOR_CONFIRMED"
+          },
+          {
+            "venue_id": "pilot_v_MA010120220812374911",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA010120220812374911_americano"
+              ]
+            ],
+            "seat": "INDOOR_OUTDOOR_UNVERIFIED"
+          },
+          {
+            "venue_id": "pilot_v_MA0101202504A0007790",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA0101202504A0007790_americano"
+              ]
+            ],
+            "seat": "INDOOR_CONFIRMED"
+          },
+          {
+            "venue_id": "pilot_v_public_royal_mile",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_public_royal_mile_americano"
+              ]
+            ],
+            "seat": "INDOOR_FALLBACK"
+          }
+        ],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "서울 커피 · 야외 선호 · 예보 없음",
+      "query": {
+        "district": null,
+        "preferred_moods": [],
+        "orders": [
+          {
+            "cuisine": null,
+            "types": [
+              "menu_coffee"
+            ]
+          }
+        ],
+        "seating": "PREFER_OUTDOOR",
+        "weather": "NO_FORECAST"
+      },
+      "expected": {
+        "ranked": [
+          {
+            "venue_id": "pilot_v_MA010120220811763793",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA010120220811763793_hand_drip"
+              ]
+            ],
+            "seat": "WEATHER_NOT_APPLIED"
+          },
+          {
+            "venue_id": "pilot_v_MA010120220812374911",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA010120220812374911_americano"
+              ]
+            ],
+            "seat": "WEATHER_NOT_APPLIED"
+          },
+          {
+            "venue_id": "pilot_v_MA0101202504A0007790",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA0101202504A0007790_americano"
+              ]
+            ],
+            "seat": "WEATHER_NOT_APPLIED"
+          },
+          {
+            "venue_id": "pilot_v_public_royal_mile",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_public_royal_mile_americano"
+              ]
+            ],
+            "seat": "WEATHER_NOT_APPLIED"
+          }
+        ],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "중식 국물 + 복고풍 선호",
+      "query": {
+        "district": null,
+        "preferred_moods": [
+          "복고풍"
+        ],
+        "orders": [
+          {
+            "cuisine": "중식",
+            "types": [
+              "국물"
+            ]
+          }
+        ],
+        "seating": "ANY",
+        "weather": "NO_FORECAST"
+      },
+      "expected": {
+        "ranked": [
+          {
+            "venue_id": "pilot_v_MA0101202504A0054143",
+            "matched_mood_ids": [
+              "mood_retro"
+            ],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA0101202504A0054143_mala"
+              ]
+            ],
+            "seat": "WEATHER_NOT_APPLIED"
+          }
+        ],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "양식 국물",
+      "query": {
+        "district": null,
+        "preferred_moods": [],
+        "orders": [
+          {
+            "cuisine": "cuisine_western",
+            "types": [
+              "menu_soup"
+            ]
+          }
+        ],
+        "seating": "ANY",
+        "weather": "NO_FORECAST"
+      },
+      "expected": {
+        "ranked": [
+          {
+            "venue_id": "pilot_v_MA010120220813733429",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA010120220813733429_onion_soup"
+              ]
+            ],
+            "seat": "WEATHER_NOT_APPLIED"
+          }
+        ],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "일식이며 면과 국물 조건을 모두 만족",
+      "query": {
+        "district": null,
+        "preferred_moods": [],
+        "orders": [
+          {
+            "cuisine": "cuisine_japanese",
+            "types": [
+              "menu_noodle",
+              "menu_soup"
+            ]
+          }
+        ],
+        "seating": "ANY",
+        "weather": "NO_FORECAST"
+      },
+      "expected": {
+        "ranked": [
+          {
+            "venue_id": "pilot_v_MA010120220800146919",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA010120220800146919_shio_ramen"
+              ]
+            ],
+            "seat": "WEATHER_NOT_APPLIED"
+          }
+        ],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "국물 요리와 생맥주를 각각 주문",
+      "query": {
+        "district": "성동구",
+        "preferred_moods": [],
+        "orders": [
+          {
+            "cuisine": null,
+            "types": [
+              "menu_soup"
+            ]
+          },
+          {
+            "cuisine": null,
+            "types": [
+              "menu_draft_beer"
+            ]
+          }
+        ],
+        "seating": "ANY",
+        "weather": "NO_FORECAST"
+      },
+      "expected": {
+        "ranked": [
+          {
+            "venue_id": "pilot_v_MA0101202308A0047504",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA0101202308A0047504_holy_set"
+              ],
+              [
+                "pilot_m_MA0101202308A0047504_kirin_draft"
+              ]
+            ],
+            "seat": "WEATHER_NOT_APPLIED"
+          }
+        ],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "강서구 한식 계열 케이크 한 메뉴",
+      "query": {
+        "district": "강서구",
+        "preferred_moods": [],
+        "orders": [
+          {
+            "cuisine": "cuisine_korean",
+            "types": [
+              "menu_cake"
+            ]
+          }
+        ],
+        "seating": "ANY",
+        "weather": "NO_FORECAST"
+      },
+      "expected": {
+        "ranked": [],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "강서구 전통차와 케이크 각각 주문",
+      "query": {
+        "district": "강서구",
+        "preferred_moods": [],
+        "orders": [
+          {
+            "cuisine": "cuisine_korean",
+            "types": [
+              "menu_tea"
+            ]
+          },
+          {
+            "cuisine": null,
+            "types": [
+              "menu_cake"
+            ]
+          }
+        ],
+        "seating": "ANY",
+        "weather": "NO_FORECAST"
+      },
+      "expected": {
+        "ranked": [
+          {
+            "venue_id": "pilot_v_public_royal_mile",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_public_royal_mile_jujube_tea"
+              ],
+              [
+                "pilot_m_public_royal_mile_cheesecake"
+              ]
+            ],
+            "seat": "WEATHER_NOT_APPLIED"
+          }
+        ],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "한식 전·부침개 부모 선택",
+      "query": {
+        "district": null,
+        "preferred_moods": [],
+        "orders": [
+          {
+            "cuisine": "cuisine_korean",
+            "types": [
+              "menu_jeon"
+            ]
+          }
+        ],
+        "seating": "ANY",
+        "weather": "NO_FORECAST"
+      },
+      "expected": {
+        "ranked": [
+          {
+            "venue_id": "pilot_v_MA010120220800186207",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA010120220800186207_seafood_pajeon"
+              ]
+            ],
+            "seat": "WEATHER_NOT_APPLIED"
+          }
+        ],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "샌드위치 부모 선택",
+      "query": {
+        "district": "성동구",
+        "preferred_moods": [],
+        "orders": [
+          {
+            "cuisine": null,
+            "types": [
+              "menu_sandwich"
+            ]
+          }
+        ],
+        "seating": "ANY",
+        "weather": "NO_FORECAST"
+      },
+      "expected": {
+        "ranked": [
+          {
+            "venue_id": "pilot_v_MA0101202508A0037997",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA0101202508A0037997_shrimp_sando"
+              ]
+            ],
+            "seat": "WEATHER_NOT_APPLIED"
+          }
+        ],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "중구 밀크티 필수",
+      "query": {
+        "district": "중구",
+        "preferred_moods": [],
+        "orders": [
+          {
+            "cuisine": null,
+            "types": [
+              "menu_milk_tea"
+            ]
+          }
+        ],
+        "seating": "ANY",
+        "weather": "NO_FORECAST"
+      },
+      "expected": {
+        "ranked": [],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "중구 양갱 필수",
+      "query": {
+        "district": "중구",
+        "preferred_moods": [],
+        "orders": [
+          {
+            "cuisine": null,
+            "types": [
+              "menu_yanggaeng"
+            ]
+          }
+        ],
+        "seating": "ANY",
+        "weather": "NO_FORECAST"
+      },
+      "expected": {
+        "ranked": [
+          {
+            "venue_id": "pilot_v_MA010120220813167101",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA010120220813167101_milk_tea_yanggaeng"
+              ]
+            ],
+            "seat": "WEATHER_NOT_APPLIED"
+          }
+        ],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "성동구 케이크 필수",
+      "query": {
+        "district": "성동구",
+        "preferred_moods": [],
+        "orders": [
+          {
+            "cuisine": null,
+            "types": [
+              "menu_cake"
+            ]
+          }
+        ],
+        "seating": "ANY",
+        "weather": "NO_FORECAST"
+      },
+      "expected": {
+        "ranked": [
+          {
+            "venue_id": "pilot_v_MA0101202504A0007790",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA0101202504A0007790_cheesecake"
+              ]
+            ],
+            "seat": "WEATHER_NOT_APPLIED"
+          }
+        ],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "성동구 빵과 레트로 선호",
+      "query": {
+        "district": "성동구",
+        "preferred_moods": [
+          "레트로"
+        ],
+        "orders": [
+          {
+            "cuisine": null,
+            "types": [
+              "menu_bread"
+            ]
+          }
+        ],
+        "seating": "ANY",
+        "weather": "NO_FORECAST"
+      },
+      "expected": {
+        "ranked": [
+          {
+            "venue_id": "pilot_v_MA010120220812594063",
+            "matched_mood_ids": [
+              "mood_retro"
+            ],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA010120220812594063_panettone"
+              ]
+            ],
+            "seat": "WEATHER_NOT_APPLIED"
+          },
+          {
+            "venue_id": "pilot_v_MA010120220812374911",
+            "matched_mood_ids": [],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA010120220812374911_salt_bread"
+              ]
+            ],
+            "seat": "WEATHER_NOT_APPLIED"
+          }
+        ],
+        "pending": [],
+        "excluded": []
+      }
+    },
+    {
+      "name": "성북구 고즈넉한 전통차",
+      "query": {
+        "district": "성북구",
+        "preferred_moods": [
+          "고즈넉한"
+        ],
+        "orders": [
+          {
+            "cuisine": null,
+            "types": [
+              "menu_tea"
+            ]
+          }
+        ],
+        "seating": "ANY",
+        "weather": "NO_FORECAST"
+      },
+      "expected": {
+        "ranked": [
+          {
+            "venue_id": "pilot_v_MA010120220803881868",
+            "matched_mood_ids": [
+              "mood_tranquil"
+            ],
+            "matched_menu_groups": [
+              [
+                "pilot_m_MA010120220803881868_jujube_tea"
+              ]
+            ],
+            "seat": "WEATHER_NOT_APPLIED"
+          }
+        ],
+        "pending": [],
+        "excluded": []
+      }
+    }
+  ]
+}

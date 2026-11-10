@@ -11,10 +11,11 @@ afterEach(async () => {
   }
 });
 
-async function backend(name: string) {
+async function backend(name: string, delayMs = 0) {
   const server = createHttpServer(async (request, response) => {
     let body = '';
     for await (const chunk of request) body += chunk;
+    if (delayMs) await new Promise(resolve => setTimeout(resolve, delayMs));
     response.setHeader('Content-Type', 'application/json');
     response.end(JSON.stringify({ name, url: request.url, method: request.method, body,
       cookie: request.headers.cookie, idempotency: request.headers['idempotency-key'] }));
@@ -54,3 +55,17 @@ test('forwards ads and common APIs to separate hosts without losing request cont
       cookie: 'session=example', idempotency: 'test-key' });
   }
 }, 20000);
+
+test('keeps a slow audio preparation response alive beyond the ordinary API proxy timeout', async () => {
+  const recommendation = await backend('audio-preparation', 5500);
+  const vite = await createViteServer({configFile: false, logLevel: 'silent',
+    server: {host: '127.0.0.1', port: 0, proxy: createApiProxy({VITE_RECOMMENDATION_API_TARGET: recommendation})}});
+  opened.push(vite); await vite.listen();
+  const address = vite.httpServer?.address();
+  if (!address || typeof address === 'string') throw new Error('missing Vite port');
+  const path = '/api/playlists/owned-playlist/youtube-audio';
+  const response = await fetch(`http://127.0.0.1:${address.port}${path}`, {method: 'POST',
+    headers: {'Content-Type': 'application/json'}, body: '{"track_id":"track","video_id":"testVID0001"}'});
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({name: 'audio-preparation', url: path, method: 'POST'});
+}, 15000);

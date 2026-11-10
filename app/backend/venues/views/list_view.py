@@ -1,19 +1,20 @@
-import json
-from typing import Any, Dict, List
 from django.http import JsonResponse
-from django.views.decorators.http import require_GET
 
 from backend.venues.services.ranking_service import filter_and_rank_venues
 from backend.venues.services.event_service import check_and_send_nearby_event_promo
 
+from .access import consumer_get
 
-@require_GET
-def venue_list_api(request):
+
+@consumer_get
+def venue_list_api(request, *, consumer):
     """
     GET /api/venues
     - 쿼리 파라미터 기반 매장 탐색 및 Two-Tower 추천 랭킹 API
     """
-    gu = request.GET.get('sigungu') or request.GET.get('gu') or '강남구'
+    gu = (request.GET.get('sigungu') or request.GET.get('gu') or '강남구').strip()
+    if any(character in gu for character in ("/", "\\", ":", "\x00")):
+        return JsonResponse({'success': False, 'message': '지역 이름을 확인해 주세요.'}, status=400)
     dong = request.GET.get('dong', '').strip()
     category_raw = request.GET.get('category', 'ALL').strip()
     price_tier_raw = request.GET.get('price_tier', '').strip()
@@ -25,8 +26,10 @@ def venue_list_api(request):
     weather = request.GET.get('weather', 'CLEAR').strip().upper()
     time_slot = request.GET.get('time_slot', 'AFTERNOON').strip().upper()
 
-    # 유저 식별자 (쿠키 또는 헤더 또는 쿼리)
-    user_id = request.GET.get('user_id') or request.COOKIES.get('cafe_guest') or 'guest_anonymous'
+    if consumer is None:
+        user_id = request.GET.get('user_id') or request.COOKIES.get('cafe_guest') or 'guest_anonymous'
+    else:
+        user_id = f'platform:{consumer.pk}'
 
     # 카테고리 정규화
     cat = 'ALL'
@@ -98,8 +101,8 @@ def venue_list_api(request):
     except ValueError:
         display_limit = 100
 
-    # 유저 동네 탐색 시 당일 주변 이벤트 프로모 알림 자동 체크
-    check_and_send_nearby_event_promo(user_id=user_id, gu_name=gu)
+    if consumer is None:
+        check_and_send_nearby_event_promo(user_id=user_id, gu_name=gu)
 
     return JsonResponse({
         'success': True,

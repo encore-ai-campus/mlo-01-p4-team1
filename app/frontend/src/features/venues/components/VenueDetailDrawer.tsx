@@ -11,6 +11,7 @@ interface VenueDetailDrawerProps {
   onOpenEventModal?: (event: VenueEventSummary) => void;
   userId?: string;
   currentWeather?: string;
+  readOnly?: boolean;
 }
 
 export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({
@@ -20,6 +21,7 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({
   onOpenEventModal,
   userId = 'guest_anonymous',
   currentWeather = 'CLEAR',
+  readOnly = false,
 }) => {
   const [reviewContent, setReviewContent] = useState<string>('');
   const [reviewRating, setReviewRating] = useState<number>(5);
@@ -75,7 +77,7 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({
     }
   };
 
-  const activeEvent = venue.active_events && venue.active_events.length > 0 ? venue.active_events[0] : null;
+  const activeEvent = venue.curated_listing ? null : venue.active_events?.[0];
 
   return (
     <div style={{
@@ -87,7 +89,7 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({
       justifyContent: 'flex-end',
       backdropFilter: 'blur(3px)',
     }}>
-      <div style={{
+      <div role="dialog" aria-modal="true" aria-label={venue.venue_name + ' 매장 상세'} style={{
         width: '540px',
         maxWidth: '100%',
         height: '100%',
@@ -138,6 +140,7 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({
             <button
               type="button"
               onClick={onClose}
+              aria-label="상세 닫기"
               style={{
                 background: 'rgba(255,255,255,0.2)',
                 border: '1px solid rgba(255,255,255,0.35)',
@@ -178,6 +181,23 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({
 
         {/* 2. 본문 컨텐츠 */}
         <div style={{ padding: '20px', flex: 1 }}>
+          {venue.curated_listing ? <section aria-label="공개 자료로 확인한 매장 정보">
+            <h3>확인한 매장 정보</h3>
+            {!!venue.curated_listing.moods.length && <p>{venue.curated_listing.moods.join(' · ')}</p>}
+            {venue.curated_listing.seat_summary && <p>{venue.curated_listing.seat_summary}</p>}
+            <h4>대표 메뉴</h4>
+            <p>{venue.curated_listing.representative_menus.join(' · ')}</p>
+            {venue.curated_listing.budget_example ? <div>
+              <h4>1인 주문 예시 {venue.curated_listing.budget_example.amount_krw.toLocaleString('ko-KR')}원</h4>
+              <ul>{venue.curated_listing.budget_example.items.map(item =>
+                <li key={item.name}>{item.name} · {item.price_krw.toLocaleString('ko-KR')}원</li>
+              )}</ul>
+              <p>{venue.curated_listing.budget_example.limits}</p>
+              <a href={venue.curated_listing.budget_example.source_url} target="_blank" rel="noreferrer">공개 메뉴 확인</a>
+            </div> : <p>1인 주문 가격 미확인</p>}
+            <p>{venue.curated_listing.checked_on} 확인 · <a href={venue.curated_listing.registry_url}
+              target="_blank" rel="noreferrer">상가정보 출처</a></p>
+          </section> : <>
             {/* 2-0. 매장 분위기 & 가격/영업시간 핵심 요약 바 */}
             <div style={{
               display: 'flex',
@@ -198,23 +218,25 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowClosureModal(true)}
-                style={{
-                  fontSize: '11.5px',
-                  color: '#b91c1c',
-                  background: '#fee2e2',
-                  border: '1px solid #fca5a5',
-                  padding: '6px 11px',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                🚨 폐업 제보
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => setShowClosureModal(true)}
+                  style={{
+                    fontSize: '11.5px',
+                    color: '#b91c1c',
+                    background: '#fee2e2',
+                    border: '1px solid #fca5a5',
+                    padding: '6px 11px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  🚨 폐업 제보
+                </button>
+              )}
             </div>
 
           {/* 실시간 파트너 음악 배너 */}
@@ -252,123 +274,134 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({
                 {activeEvent.discount_info}
               </div>
 
-              <button
-                type="button"
-                onClick={() => onOpenEventModal && onOpenEventModal(activeEvent)}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  backgroundColor: '#e11d48',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: 800,
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(225, 29, 72, 0.3)',
-                }}
-              >
-                🙋 [참여할게요] 클릭 및 현장 QR 인증권 받기
-              </button>
-            </div>
-          )}
-
-          {/* 5개 탭 16종 상세 메뉴판 */}
-          <MenuCategoryTabs menuTabs={venue.menu_tabs} />
-
-          {/* 날씨 스냅샷 한줄평 작성 폼 */}
-          <div style={{ marginTop: '28px', paddingTop: '20px', borderTop: '1px solid #e2e8f0' }}>
-            <h4 style={{ fontSize: '15px', fontWeight: 800, margin: '0 0 10px 0' }}>
-              📸 날씨 스냅샷 한줄평 남기기
-            </h4>
-            <form onSubmit={handleReviewSubmit}>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                <select
-                  value={reviewRating}
-                  onChange={(e) => setReviewRating(Number(e.target.value))}
-                  style={{
-                    padding: '8px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                  }}
-                >
-                  <option value={5}>⭐⭐⭐⭐⭐ (5점)</option>
-                  <option value={4}>⭐⭐⭐⭐ (4점)</option>
-                  <option value={3}>⭐⭐⭐ (3점)</option>
-                </select>
-
-                <input
-                  type="text"
-                  value={reviewContent}
-                  onChange={(e) => setReviewContent(e.target.value)}
-                  placeholder={`오늘 ${currentWeather} 날씨에 어울리는 방문 소감을 남겨주세요`}
-                  style={{
-                    flex: 1,
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '13px',
-                  }}
-                />
-
+              {!readOnly && (
                 <button
-                  type="submit"
-                  disabled={reviewSubmitting || !reviewContent.trim()}
+                  type="button"
+                  onClick={() => onOpenEventModal && onOpenEventModal(activeEvent)}
                   style={{
-                    padding: '8px 16px',
-                    backgroundColor: '#2563eb',
+                    width: '100%',
+                    padding: '10px',
+                    backgroundColor: '#e11d48',
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: '8px',
-                    fontWeight: 700,
-                    fontSize: '13px',
-                    cursor: reviewSubmitting ? 'not-allowed' : 'pointer',
+                    fontWeight: 800,
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(225, 29, 72, 0.3)',
                   }}
                 >
-                  등록
+                  🙋 [참여할게요] 클릭 및 현장 QR 인증권 받기
                 </button>
-              </div>
-            </form>
+              )}
+            </div>
+          )}
 
-            {/* 방문자 날씨 한줄평 리스트 */}
-            {venue.recent_reviews && venue.recent_reviews.length > 0 && (
-              <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {venue.recent_reviews.map((rev) => (
-                  <div
-                    key={rev.interaction_id}
+          {venue.applied_playlist && (
+            <section aria-label="현재 매장 선곡표" style={{ background: '#eff6ff', borderRadius: 12, padding: 14, marginBottom: 16 }}>
+              <strong>현재 매장 선곡표</strong>
+              <div>{venue.applied_playlist.name}</div>
+            </section>
+          )}
+          <h3>메뉴 {venue.all_menus_count}개</h3>
+          <MenuCategoryTabs menuTabs={venue.menu_tabs} />
+
+          {/* 날씨 스냅샷 한줄평 작성 폼 */}
+          {!readOnly && (
+            <div style={{ marginTop: '28px', paddingTop: '20px', borderTop: '1px solid #e2e8f0' }}>
+              <h4 style={{ fontSize: '15px', fontWeight: 800, margin: '0 0 10px 0' }}>
+                📸 날씨 스냅샷 한줄평 남기기
+              </h4>
+              <form onSubmit={handleReviewSubmit}>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <select
+                    value={reviewRating}
+                    onChange={(e) => setReviewRating(Number(e.target.value))}
                     style={{
-                      backgroundColor: '#f8fafc',
+                      padding: '8px',
                       borderRadius: '8px',
-                      padding: '10px 12px',
-                      border: '1px solid #e2e8f0',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '13px',
+                      fontWeight: 600,
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
-                        {rev.user_id}
-                      </span>
-                      <span style={{ color: '#eab308', fontSize: '11px', fontWeight: 700 }}>
-                        {'⭐'.repeat(rev.rating || 5)}
-                      </span>
+                    <option value={5}>⭐⭐⭐⭐⭐ (5점)</option>
+                    <option value={4}>⭐⭐⭐⭐ (4점)</option>
+                    <option value={3}>⭐⭐⭐ (3점)</option>
+                  </select>
+
+                  <input
+                    type="text"
+                    value={reviewContent}
+                    onChange={(e) => setReviewContent(e.target.value)}
+                    placeholder={`오늘 ${currentWeather} 날씨에 어울리는 방문 소감을 남겨주세요`}
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '13px',
+                    }}
+                  />
+
+                  <button
+                    type="submit"
+                    disabled={reviewSubmitting || !reviewContent.trim()}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#2563eb',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: 700,
+                      fontSize: '13px',
+                      cursor: reviewSubmitting ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    등록
+                  </button>
+                </div>
+              </form>
+
+              {/* 방문자 날씨 한줄평 리스트 */}
+              {venue.recent_reviews && venue.recent_reviews.length > 0 && (
+                <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {venue.recent_reviews.map((rev) => (
+                    <div
+                      key={rev.interaction_id}
+                      style={{
+                        backgroundColor: '#f8fafc',
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        border: '1px solid #e2e8f0',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
+                          {rev.user_id}
+                        </span>
+                        <span style={{ color: '#eab308', fontSize: '11px', fontWeight: 700 }}>
+                          {'⭐'.repeat(rev.rating || 5)}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#1e293b', lineHeight: 1.4 }}>
+                        {rev.content}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                        당시 날씨: {rev.weather_condition} ({rev.weather_temp}℃)
+                      </div>
                     </div>
-                    <div style={{ fontSize: '13px', color: '#1e293b', lineHeight: 1.4 }}>
-                      {rev.content}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
-                      당시 날씨: {rev.weather_condition} ({rev.weather_temp}℃)
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          </>}
         </div>
       </div>
 
       {/* 폐업 제보 모달 */}
-      {showClosureModal && (
+      {!readOnly && !venue.curated_listing && showClosureModal && (
         <div style={{
           position: 'fixed',
           inset: 0,

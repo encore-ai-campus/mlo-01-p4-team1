@@ -1,5 +1,12 @@
 """Synthetic provider only: no HTTP client, API key, real registration number or file upload."""
 FIXTURES = {
+    'demo-linked-venue-000001': {
+        'business': 'synthetic-business-venue-000001',
+        'location': 'catalog:VN_SL_000001',
+        'venue_id': 'VN_SL_000001',
+        'match': 'MATCHED',
+        'status': 'ACTIVE',
+    },
     'demo-active-001': {'business': 'synthetic-business-one', 'location': 'synthetic-location-one', 'match': 'MATCHED', 'status': 'ACTIVE'},
     'demo-branch-002': {'business': 'synthetic-business-one', 'location': 'synthetic-location-two', 'match': 'MATCHED', 'status': 'ACTIVE'},
     'demo-mismatch': {'business': 'synthetic-business-mismatch', 'location': 'synthetic-location-mismatch', 'match': 'NOT_MATCHED', 'status': 'UNKNOWN'},

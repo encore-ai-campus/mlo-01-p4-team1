@@ -8,6 +8,7 @@ from backend.common.identity import raw_request
 from backend.recommendation.errors import require
 from . import authorization as auth
 from .fixtures import FIXTURES
+from .music import DEMO_PLAYLISTS
 from .models import (Workspace, WorkspaceClaim, BusinessCheckJob, ClaimDecision, BusinessEntity,
     WorkspaceMembership, InvitationReceiver, WorkspaceInvitation, ReauthenticationGrant,
     IdempotencyRecord, AuthorizationAudit, InternalOutbox, WorkspaceMusicState)
@@ -29,6 +30,20 @@ def audit(request, user, action, resource, workspace=None):
     InternalOutbox.objects.create(audit=row,payload={'event_id':str(row.pk),'action':action,
         'workspace_id':str(workspace.pk) if workspace else None,'actor_account_id':str(user.pk),
         'resource_id':str(resource.pk),'resource_version':row.resource_version})
+
+
+def claim_payload(body):
+    fixture = FIXTURES.get(body['fixture_id'])
+    require(fixture is not None, 'INVALID_REQUEST', '합성 시연 fixture를 선택해 주세요.', 400)
+    venue_id = fixture.get('venue_id')
+    if not venue_id:
+        return body
+
+    from backend.venues.repositories.csv_lazy_repo import get_venue_repo
+
+    venue = get_venue_repo().get_venue_by_id(venue_id)
+    require(venue is not None and venue['venue_id'] == venue_id, 'VENUE_UNAVAILABLE', '연결할 매장을 찾을 수 없습니다.', 409)
+    return {**body, 'display_name': venue['venue_name'], 'address': venue['road_address']}
 
 
 def claim_data(row):
@@ -71,7 +86,7 @@ def invitation_data(row):
 def music_data(row):
     return {'workspace_id':str(row.workspace_id),'revision':row.version,'preferences':row.preferences,
             'exclusions':row.exclusions,'applied_playlist':row.applied_playlist,
-            'playlists':[{'id':'demo-calm','name':'합성 차분한 선곡표'},{'id':'demo-bright','name':'합성 밝은 선곡표'}],
+            'playlists':[{'id': identifier, 'name': name} for identifier, name in DEMO_PLAYLISTS.items()],
             'notice':'권한·공유 상태 확인용 합성 선곡표입니다. 기존 개인 추천 기록은 유지됩니다.'}
 
 
@@ -257,16 +272,16 @@ def mutate(operation,request,body,values,context):
     user=context['user']; row=None
     if operation=='createWorkspaceClaim':
         auth.business(user)
-        require(body['fixture_id'] in FIXTURES,'INVALID_REQUEST','합성 시연 fixture를 선택해 주세요.',400)
-        row=WorkspaceClaim.objects.create(applicant=user,payload_ciphertext=crypto.seal(body),fixture_id=body['fixture_id'])
+        payload = claim_payload(body)
+        row=WorkspaceClaim.objects.create(applicant=user,payload_ciphertext=crypto.seal(payload),fixture_id=body['fixture_id'])
         audit(request,user,'claim.created',row)
         return claim_data(row),201
     if 'claim' in context:
         row=context['claim'];revision(request,row)
         if operation=='editWorkspaceClaim':
             require(row.state in ('DRAFT','NEEDS_MORE'),'STATE_CONFLICT','초안·보완 상태에서만 수정할 수 있습니다.',409)
-            require(body['fixture_id'] in FIXTURES,'INVALID_REQUEST','합성 시연 fixture를 선택해 주세요.',400)
-            row.payload_ciphertext=crypto.seal(body);row.fixture_id=body['fixture_id'];row.content_revision+=1;row.version+=1;row.save()
+            payload = claim_payload(body)
+            row.payload_ciphertext=crypto.seal(payload);row.fixture_id=body['fixture_id'];row.content_revision+=1;row.version+=1;row.save()
             audit(request,user,'claim.edited',row)
             return claim_data(row),200
         if operation=='requestBusinessCheck':
