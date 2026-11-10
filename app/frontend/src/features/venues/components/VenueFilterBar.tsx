@@ -201,7 +201,7 @@ export const VenueFilterBar: React.FC<VenueFilterBarProps> = ({
             cursor: 'pointer',
           }}
         >
-          🎵 음악 파트너 매장
+          🎧 추천 음악 큐레이션
         </button>
 
         <button
