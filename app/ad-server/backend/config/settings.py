@@ -1,10 +1,16 @@
 import os
+import sys
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+# Keep standalone manage.py/WSGI imports working without a shell-specific PYTHONPATH.
+# Append the exact repository app root so this host's api/tests modules keep precedence.
+APP_SOURCE_ROOT = BASE_DIR.parents[1]
+if (APP_SOURCE_ROOT / 'ads_analytics_v2' / '__init__.py').is_file() and str(APP_SOURCE_ROOT) not in sys.path:
+    sys.path.append(str(APP_SOURCE_ROOT))
 load_dotenv(BASE_DIR / ".env", override=False)
 DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
@@ -17,6 +23,12 @@ ALLOWED_HOSTS = [
     if value.strip()
 ]
 CSRF_TRUSTED_ORIGINS = [value.strip() for value in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if value.strip()]
+# Fixed server configuration, never a browser-provided cookie name.
+ADS_CSRF_COOKIE_ALIASES = tuple(
+    name.strip()
+    for name in os.environ.get("ADS_CSRF_COOKIE_ALIASES", "platform_csrf").split(",")
+    if name.strip()
+)
 INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -83,9 +95,32 @@ ADS_API_CONTRACT_VERSION = os.environ.get("ADS_API_CONTRACT_VERSION", "")
 # 미확정 수명·소재 변경·예산을 환경 기본값으로 확정하지 않습니다.
 ADS_GUEST_CONTEXT_PROVIDER = os.environ.get("ADS_GUEST_CONTEXT_PROVIDER", "api.common_bridge.resolve_guest")
 ADS_COMMON_API_URL = os.environ.get("ADS_COMMON_API_URL", "")
+# Explicit DEBUG-only origin allowlist for the private local Docker bridge.
+ADS_COMMON_DEV_HTTP_ORIGINS = [value.strip() for value in os.environ.get("ADS_COMMON_DEV_HTTP_ORIGINS", "").split(",") if value.strip()]
 ADS_INTERNAL_SECRET = os.environ.get("ADS_INTERNAL_SECRET", "")
 ADS_PUBLIC_POLICY_PROVIDER = os.environ.get(
     "ADS_PUBLIC_POLICY_PROVIDER", "domains.ads.runtime_policy.get_public_policy"
 )
 ADS_DELIVERY_SIGNING_KEY = os.environ.get("ADS_DELIVERY_SIGNING_KEY", "")
 ADS_PUBLIC_BASE_URL = os.environ.get("ADS_PUBLIC_BASE_URL", "")
+
+# V2 is opt-in. The producer staging DB and consumer projection DB must differ.
+ADS_V2_ENABLED = os.environ.get('ADS_V2_ENABLED', '0') == '1'
+ADS_V2_SOURCE_MONGODB_URI = os.environ.get('ADS_V2_SOURCE_MONGODB_URI', '')
+ADS_V2_SOURCE_MONGODB_DATABASE = os.environ.get('ADS_V2_SOURCE_MONGODB_DATABASE', '')
+ADS_V2_SINK_MONGODB_URI = os.environ.get('ADS_V2_SINK_MONGODB_URI', '')
+ADS_V2_SINK_MONGODB_DATABASE = os.environ.get('ADS_V2_SINK_MONGODB_DATABASE', '')
+ADS_V2_SOURCE_ID = os.environ.get('ADS_V2_SOURCE_ID', '')
+ADS_V2_MEDIA_ID = os.environ.get('ADS_V2_MEDIA_ID', '')
+ADS_V2_INTERVAL_SECONDS = int(os.environ.get('ADS_V2_INTERVAL_SECONDS', '300'))
+ADS_V2_STALE_SECONDS = int(os.environ.get('ADS_V2_STALE_SECONDS', '600'))
+ADS_V2_KAFKA_BOOTSTRAP_SERVERS = os.environ.get('ADS_V2_KAFKA_BOOTSTRAP_SERVERS', '')
+ADS_V2_KAFKA_TOPIC = os.environ.get('ADS_V2_KAFKA_TOPIC', '')
+ADS_V2_KAFKA_USERNAME = os.environ.get('ADS_V2_KAFKA_USERNAME', '')
+ADS_V2_KAFKA_PASSWORD = os.environ.get('ADS_V2_KAFKA_PASSWORD', '')
+ADS_V2_KAFKA_CA_FILE = os.environ.get('ADS_V2_KAFKA_CA_FILE', '')
+ADS_V2_KAFKA_PARTITIONS = int(os.environ.get('ADS_V2_KAFKA_PARTITIONS', '0'))
+ADS_V2_KAFKA_REPLICATION_FACTOR = int(os.environ.get('ADS_V2_KAFKA_REPLICATION_FACTOR', '0'))
+ADS_V2_SPARK_MASTER = os.environ.get('ADS_V2_SPARK_MASTER', '')
+ADS_V2_CHECKPOINT = os.environ.get('ADS_V2_CHECKPOINT', '')
+ADS_V2_SPARK_JARS = os.environ.get('ADS_V2_SPARK_JARS', '')

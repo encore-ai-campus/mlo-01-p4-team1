@@ -14,6 +14,7 @@ from api.ads import (
 from api.ads_public import PublicAdEventsView, PublicAdImageView, PublicAdsView
 from api.health import HealthView
 from api.readiness import ReadinessView
+from api.ads_analytics import AdsAnalyticsView
 
 urlpatterns = [
     path("api/health", HealthView.as_view(), name="health"),
@@ -27,6 +28,7 @@ urlpatterns = [
     ),
     path("api/admin/ads", AdsCollectionView.as_view(), name="ads-management"),
     path("api/admin/ads/summary", AdsSummaryView.as_view(), name="ads-summary"),
+    path("api/admin/ads/analytics", AdsAnalyticsView.as_view(), name="ads-analytics"),
     path("api/admin/ads/preview", AdPreviewView.as_view(), name="ads-preview"),
     path("api/admin/ads/<str:ad_id>/stop", AdStopView.as_view(), name="ads-stop"),
     path("api/admin/ads/<str:ad_id>", AdUpdateView.as_view(), name="ads-update"),
