@@ -70,7 +70,7 @@ export const VenueCard: React.FC<VenueCardProps> = ({ venue, onSelectVenue, onSe
             🎯 {venue.match_score}% 취향 매칭
           </span>
 
-          {venue.is_partner && (
+          {(venue.recommendation_style || venue.is_partner) && (
             <span style={{
               backgroundColor: '#f3e8ff',
               color: '#7c3aed',
@@ -79,7 +79,7 @@ export const VenueCard: React.FC<VenueCardProps> = ({ venue, onSelectVenue, onSe
               fontSize: '11px',
               fontWeight: 700,
             }}>
-              🎵 음악 파트너
+              🎧 {venue.recommendation_style || '날씨 맞춤 추천 BGM'}
             </span>
           )}
 

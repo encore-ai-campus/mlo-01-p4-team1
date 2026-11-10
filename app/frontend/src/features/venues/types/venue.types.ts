@@ -57,6 +57,7 @@ export interface VenueItem {
   is_partner: boolean;
   mood_tags: string[];
   music_mood?: string;
+  recommendation_style?: string;
   latitude: number;
   longitude: number;
   is_open_now: boolean;

@@ -73,19 +73,20 @@ def venue_list_api(request, *, consumer):
         bbox=bbox,
     )
 
-    # 추가 메모리 필터: 동 단위 & 검색어(q) & 파트너 전용
+    # 추가 메모리 필터: 동 단위 & 검색어(q) & 날씨·음악 큐레이션(구 partner_only) 필터
     filtered_results = []
     for item in results:
         if dong and dong not in item.get('dong_name', ''):
             continue
-        if partner_only and not item.get('is_partner'):
+        if partner_only and not (item.get('is_partner') or item.get('recommendation_style')):
             continue
         if q:
             q_lower = q.lower()
             name_match = q_lower in item.get('venue_name', '').lower()
             dong_match = q_lower in item.get('dong_name', '').lower()
+            style_match = q_lower in item.get('recommendation_style', '').lower()
             menu_match = any(q_lower in m.get('menu_name', '').lower() for m in item.get('matched_menus_preview', []))
-            if not (name_match or dong_match or menu_match):
+            if not (name_match or dong_match or style_match or menu_match):
                 continue
 
         # active_event 단일 대표 이벤트 추출

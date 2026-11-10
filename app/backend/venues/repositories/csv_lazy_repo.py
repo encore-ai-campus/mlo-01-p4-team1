@@ -610,9 +610,12 @@ class CsvLazyRepository:
         mood_raw = (row.get('매장분위기') or row.get('mood_tags') or '').strip()
         mood_tags = [t.strip() for t in re.split(r'[|;,]', mood_raw) if t.strip()]
 
-        # 파트너 매장 여부 (Y/N 및 True/False 모두 지원)
+        # 파트너 매장 여부 (현재 실운영 기준 제휴 매장은 없으므로 기본 False, 호환성 유지)
         partner_raw = str(row.get('파트너매장_여부') or row.get('is_partner') or 'N').strip().lower()
         is_partner = partner_raw in ('y', 'true', '1', 'yes')
+
+        # 추천 음악 스타일 (날씨 및 매장 분위기 맞춤 BGM 큐레이션)
+        recommendation_style = (row.get('추천음악_스타일') or row.get('recommendation_style') or '편안하고 아늑한 어쿠스틱 팝/재즈').strip()
 
         music_mood = (row.get('music_mood') or ('JAZZ' if category == 'PUB' else 'ACOUSTIC')).strip().upper()
 
@@ -663,6 +666,8 @@ class CsvLazyRepository:
             'recommended_time_slot': recommended_time_slot,
             'mood_tags': mood_tags,
             'music_mood': music_mood,
+            'recommendation_style': recommendation_style,
+            '추천음악_스타일': recommendation_style,
             'is_partner': is_partner,
             'rating': rating,
             'review_count': review_count,
