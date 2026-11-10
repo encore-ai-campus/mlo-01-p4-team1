@@ -92,7 +92,9 @@ declare global {
 }
 
 function pinLabel(venue: VenueItem) {
-  return '지도에서 ' + venue.venue_name + ' 상세 보기';
+  const category = venue.category === 'CAFE' ? '카페' : '주점';
+  const event = venue.active_event && !venue.active_event.is_ended ? ', 이벤트 진행 중' : '';
+  return '지도에서 ' + category + ' ' + venue.venue_name + event + ' 상세 보기';
 }
 
 function CoordinatePins({ venues, onSelectVenue }: Pick<VenueInteractiveMapProps, 'venues' | 'onSelectVenue'>) {
@@ -151,12 +153,9 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
   const markersLayerRef = useRef<any>(null);
   const lastGuRef = useRef<string>('');
   const suppressMoveEventRef = useRef<boolean>(false);
-  const onBoundsChangeRef = useRef(onBoundsChange);
-  onBoundsChangeRef.current = onBoundsChange;
   const [locationError, setLocationError] = useState('');
   const [leafletReady, setLeafletReady] = useState(Boolean(window.L));
   const [leafletUnavailable, setLeafletUnavailable] = useState(false);
-  const moveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const cameraTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [pendingBounds, setPendingBounds] = useState<{ bounds: MapBounds; nearestGu: string } | null>(null);
 
@@ -193,7 +192,6 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
   }, []);
 
   useEffect(() => () => {
-    clearTimeout(moveTimerRef.current);
     clearTimeout(cameraTimerRef.current);
     mapInstanceRef.current?.remove();
     mapInstanceRef.current = null;
@@ -226,7 +224,7 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
       markersLayerRef.current = L.layerGroup().addTo(map);
       mapInstanceRef.current = map;
 
-      // 사용자가 지도를 드래그(Pan)하거나 줌(Zoom)했을 때 현재 보고 있는 맵 영역(BBox) 기준으로 매장 자동 갱신
+      // 지도 이동 후 사용자가 재검색 버튼을 누르면 새 영역을 적용한다.
       const handleUserMapMove = () => {
         if (suppressMoveEventRef.current) return;
         const b = map.getBounds();
@@ -250,13 +248,7 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
         });
 
         setPendingBounds({ bounds: newBounds, nearestGu });
-        clearTimeout(moveTimerRef.current);
-        moveTimerRef.current = setTimeout(() => {
-          if (onBoundsChangeRef.current) {
-            onBoundsChangeRef.current(newBounds, nearestGu);
-          }
-        }, 350);
-      };
+          };
 
       map.on('dragend', handleUserMapMove);
       map.on('zoomend', handleUserMapMove);
@@ -293,7 +285,9 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
         transform: scale, transition: 'transform 0.15s ease',
       });
       pin.className = 'fp-marker';
-      pin.textContent = pinNumber + ' ' + shortName;
+      const categoryIcon = v.category === 'CAFE' ? '☕' : '🍺';
+      const eventIcon = v.active_event && !v.active_event.is_ended ? ' 🔥' : '';
+      pin.textContent = pinNumber + ' ' + categoryIcon + ' ' + shortName + eventIcon;
 
       const customIcon = L.divIcon({
         className: 'custom-venue-pin',

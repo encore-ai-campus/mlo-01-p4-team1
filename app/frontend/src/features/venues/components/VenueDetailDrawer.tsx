@@ -2,6 +2,7 @@ import './venue-detail.css';
 import React, { useEffect, useRef, useState } from 'react';
 import { VenueDetail, VenueEventSummary } from '../types/venue.types';
 import { MenuCategoryTabs } from './MenuCategoryTabs';
+import { LiveMusicBanner } from './LiveMusicBanner';
 import { fetchMySummary, postClosureReport, postReview, toggleBookmark } from '../api/venues.api';
 
 interface VenueDetailDrawerProps {
@@ -116,6 +117,7 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isO
           </dl>
           {!readOnly && !venue.curated_listing && <button type="button" className="fitplace-detail-report-link" onClick={() => setShowReport(true)}>폐업·정보 오류 제보</button>}
         </section>
+        {!venue.curated_listing && <LiveMusicBanner banner={venue.music_banner} />}
         {venue.curated_listing && <section className="fitplace-detail-section" aria-label="공개 자료로 확인한 매장 정보">
           <h3>확인한 매장 정보</h3><p>{venue.curated_listing.moods.join(' · ')}</p><p>{venue.curated_listing.seat_summary}</p>
           <h4>대표 메뉴</h4><p>{venue.curated_listing.representative_menus.join(' · ')}</p>
