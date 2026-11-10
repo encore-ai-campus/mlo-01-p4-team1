@@ -36,7 +36,7 @@ ANALYSIS_DIR = BY_GU_DIR.parent.parent if BY_GU_DIR.exists() else (APP_ROOT_DIR 
 
 
 def _discover_region_csv_dirs() -> List[Path]:
-    """서울 25개 구(by_gu) + 경기도 31개 시·군(by_city) CSV 디렉토리 전체 자동 탐색"""
+    """서울 25개 구(by_gu) + 경기도 30개 시·군(by_city) + 인천광역시 10개 구·군(by_gu) CSV 디렉토리 전체 자동 탐색"""
     dirs: List[Path] = []
     seen = set()
     sub_paths = [
@@ -44,6 +44,7 @@ def _discover_region_csv_dirs() -> List[Path]:
         ('gyeonggi_4cities_20261109', 'by_city'),
         ('gyeonggi_11cities_20261109', 'by_city'),
         ('gyeonggi_remaining16_20261109', 'by_city'),
+        ('incheon_venues_20261110', 'by_gu'),
     ]
     for base in _ANALYSIS_CANDIDATES:
         for folder, sub in sub_paths:
@@ -70,7 +71,7 @@ FALLBACK_MENUS_CANDIDATES = [
     REPO_ROOT_DIR / 'analysis' / 'seoul_venues_20261106' / 'seoul_venue_menus_demo_sample.csv',
 ]
 
-# 수도권(서울 25개 구 + 경기 30개 시·군) 중심 좌표 사전
+# 수도권(서울 25개 구 + 경기 30개 시·군 + 인천 10개 구·군 = 총 65개 시·군·구) 중심 좌표 사전
 METRO_CENTER_COORDS: Dict[str, tuple[float, float]] = {
     # 서울특별시 25개 자치구
     '강남구': (37.5172, 127.0286), '서초구': (37.4837, 127.0324), '송파구': (37.5145, 127.1059),
@@ -93,6 +94,11 @@ METRO_CENTER_COORDS: Dict[str, tuple[float, float]] = {
     '안성시': (37.0232, 127.2620), '양주시': (37.7046, 127.1577), '포천시': (37.8957, 127.2056),
     '동두천시': (37.9018, 127.0569), '과천시': (37.4272, 126.9917), '여주시': (37.2847, 127.6162),
     '양평군': (37.5089, 127.5015), '가평군': (37.7729, 127.4523), '연천군': (38.0459, 127.0595),
+    # 인천광역시 10개 구·군
+    '남동구': (37.4473, 126.7314), '부평구': (37.5070, 126.7218), '미추홀구': (37.4636, 126.6505),
+    '연수구': (37.4102, 126.6783), '계양구': (37.5374, 126.7377), '강화군': (37.7465, 126.4881),
+    '동구': (37.4739, 126.6432), '옹진군': (37.4463, 126.6368), '인천 서구': (37.5454, 126.6759),
+    '인천 중구': (37.4737, 126.6217),
 }
 
 # 주점/카페 매장별 특성(상호명/세부카테고리) 기반 다양화 실존 메뉴 풀 (동일 기본 템플릿 16종을 매장 특성에 맞춰 분화)
@@ -381,9 +387,20 @@ class CsvLazyRepository:
             self._fallback_menus_loaded = False
 
     def _find_region_csv(self, region_name: str, suffix: str) -> Optional[Path]:
-        """서울 25개 구(by_gu) 및 경기도 31개 시·군(by_city) 폴더에서 {region_name}_{suffix}.csv 탐색"""
+        """서울 25개 구(by_gu), 경기도 30개 시·군(by_city), 인천광역시 10개 구·군(by_gu) 폴더에서 {region_name}_{suffix}.csv 탐색"""
+        if region_name.startswith('인천 '):
+            short_gu = region_name.replace('인천 ', '').strip()
+            fname = f"{short_gu}_{suffix}.csv"
+            for d in REGION_CSV_DIRS:
+                if 'incheon' in str(d).lower():
+                    candidate = d / fname
+                    if candidate.exists():
+                        return candidate
         fname = f"{region_name}_{suffix}.csv"
         for d in REGION_CSV_DIRS:
+            # 서울 '중구' 조회 시 인천 '중구'가 먼저 매칭되지 않도록 구분
+            if region_name in ('중구', '서구') and 'incheon' in str(d).lower():
+                continue
             candidate = d / fname
             if candidate.exists():
                 return candidate
@@ -544,6 +561,8 @@ class CsvLazyRepository:
         raw_gu = (row.get('자치구') or row.get('gu_name') or '').strip()
         # 경기도 '수원시 권선구' 등의 경우 상위 시/군('수원시')과 원본 구 명칭 모두 호환
         gu_name = raw_gu.split()[0] if ('시 ' in raw_gu and not raw_gu.startswith('서울')) else raw_gu
+        if venue_id.startswith('VN_IC_') and gu_name in ('중구', '서구'):
+            gu_name = f"인천 {gu_name}"
         dong_name = (row.get('행정동') or row.get('dong_name') or '').strip()
         road_address = (row.get('도로명주소') or row.get('road_address') or '').strip()
 
@@ -923,12 +942,15 @@ class CsvLazyRepository:
         return matched[:limit]
 
     def get_all_available_gus(self) -> List[str]:
-        """지원 가능한 서울 25개 자치구 및 경기도 30개 시·군 전체 목록 반환"""
+        """지원 가능한 서울 25개 자치구, 경기도 30개 시·군, 인천광역시 10개 구·군 전체 목록 반환"""
         with self._lock:
             gus = set(self._gu_venues_cache.keys())
             for d in REGION_CSV_DIRS:
+                is_incheon = 'incheon' in str(d).lower()
                 for p in d.glob('*_venues.csv'):
                     gu = p.name.replace('_venues.csv', '')
+                    if is_incheon and gu in ('중구', '서구'):
+                        gu = f"인천 {gu}"
                     gus.add(gu)
             if not gus:
                 return list(METRO_CENTER_COORDS.keys())

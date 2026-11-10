@@ -169,6 +169,14 @@ export const OwnerVenueClaimModal: React.FC<OwnerVenueClaimModalProps> = ({
                         <option key={c} value={c}>{c}</option>
                       ))}
                     </optgroup>
+                    <optgroup label="인천광역시 (10개 구·군)">
+                      {[
+                        '강화군', '계양구', '남동구', '동구', '미추홀구',
+                        '부평구', '연수구', '옹진군', '인천 서구', '인천 중구',
+                      ].map((ic) => (
+                        <option key={ic} value={ic}>{ic}</option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
                 <div style={{ flex: 1 }}>

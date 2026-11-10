@@ -15,7 +15,7 @@ DEBUG = LOCAL_DEMO
 ALLOWED_HOSTS = [value.strip() for value in os.environ.get('DJANGO_ALLOWED_HOSTS','127.0.0.1,localhost,testserver').split(',') if value.strip()]
 CSRF_TRUSTED_ORIGINS = [value.strip() for value in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS','').split(',') if value.strip()]
 INSTALLED_APPS = ['django.contrib.auth', 'django.contrib.contenttypes', 'django.contrib.sessions', 'rest_framework',
-                  'backend.recommendation', 'backend.music', 'backend.common', 'backend.accounts', 'backend.workspaces']
+                  'backend.recommendation', 'backend.music', 'backend.common', 'backend.accounts', 'backend.workspaces', 'backend.venues']
 MIDDLEWARE = ['django.middleware.security.SecurityMiddleware',
               'django.contrib.sessions.middleware.SessionMiddleware',
               'backend.common.identity.GuestCookieMiddleware',

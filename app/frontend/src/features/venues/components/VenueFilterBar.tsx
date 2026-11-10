@@ -61,6 +61,11 @@ export const VenueFilterBar: React.FC<VenueFilterBarProps> = ({
     '파주시', '평택시', '포천시', '하남시', '화성시',
   ];
 
+  const incheonGuList = [
+    '강화군', '계양구', '남동구', '동구', '미추홀구',
+    '부평구', '연수구', '옹진군', '인천 서구', '인천 중구',
+  ];
+
   const budgetOptions: Array<{ label: string; value: BudgetTier }> = [
     { label: '1만원 미만', value: 'UNDER_10K' },
     { label: '1만~2만원 미만', value: '10K_20K' },
@@ -103,6 +108,11 @@ export const VenueFilterBar: React.FC<VenueFilterBarProps> = ({
             <optgroup label="경기도 (30개 시·군)">
               {gyeonggiCityList.map((c) => (
                 <option key={c} value={c}>{c}</option>
+              ))}
+            </optgroup>
+            <optgroup label="인천광역시 (10개 구·군)">
+              {incheonGuList.map((ic) => (
+                <option key={ic} value={ic}>{ic}</option>
               ))}
             </optgroup>
           </select>

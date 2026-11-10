@@ -68,6 +68,17 @@ const GU_CENTER_COORDS: Record<string, [number, number]> = {
   양평군: [37.4912, 127.4876],
   가평군: [37.8315, 127.5096],
   연천군: [38.0966, 127.0750],
+  // 인천광역시 10개 구·군
+  남동구: [37.4473, 126.7314],
+  부평구: [37.5070, 126.7218],
+  미추홀구: [37.4636, 126.6505],
+  연수구: [37.4102, 126.6783],
+  계양구: [37.5374, 126.7377],
+  강화군: [37.7465, 126.4881],
+  동구: [37.4739, 126.6432],
+  옹진군: [37.4463, 126.6368],
+  '인천 서구': [37.5454, 126.6759],
+  '인천 중구': [37.4737, 126.6217],
 };
 
 declare global {
@@ -319,7 +330,7 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
           gap: '10px',
         }}
       >
-        <span>📍 {gu.endsWith('구') ? `서울특별시 ${gu}` : `경기도 ${gu}`} 실제 위경도 핀 ({Math.min(venues.length, 40)}개 표시)</span>
+        <span>📍 {(gu.startsWith('인천 ') || ['남동구', '부평구', '미추홀구', '연수구', '계양구', '강화군', '동구', '옹진군'].includes(gu)) ? `인천광역시 ${gu.replace('인천 ', '')}` : (gu.endsWith('구') ? `서울특별시 ${gu}` : `경기도 ${gu}`)} 실제 위경도 핀 ({Math.min(venues.length, 40)}개 표시)</span>
         <span style={{ color: '#2563eb' }}>☕ 카페</span>
         <span style={{ color: '#7c3aed' }}>🍺 주점</span>
         <span style={{ color: '#dc2626' }}>🔥 이벤트 진행중</span>

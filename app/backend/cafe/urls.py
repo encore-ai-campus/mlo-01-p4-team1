@@ -11,6 +11,7 @@ from backend.recommendation.youtube_queue_api import YoutubeQueue
 urlpatterns = [
     path('', include('backend.workspaces.urls')),
     path('', include('backend.accounts.urls')),
+    path('', include('backend.venues.urls')),
     path('api/auth/sso/login',sso.SSOLogin.as_view()),
     path('api/auth/sso/callback',sso.SSOCallback.as_view()),
     path('api/admin/operations/kibana',sso.KibanaDashboard.as_view()),
@@ -64,7 +65,7 @@ urlpatterns = [
     path('api/playlists/<str:pk>/tracks/<str:track_id>/reaction',api.TrackReaction.as_view()),
     path('api/playlists/<str:pk>/rating',api.PlaylistRating.as_view()),
     path('api/playlist-families/<str:pk>/exclusions',api.Exclusions.as_view()),
-    *[path(route, frontend.index) for route in ('','playlist','login','signup','mypage','account/recovery',
+    *[path(route, frontend.index) for route in ('','playlist','venues','admin/venues/closures','login','signup','mypage','account/recovery',
         'admin/passkey','admin/ads','admin/music','admin/music/youtube','admin/feedback/exclusions')],
     path('platform', frontend.index),
     path('platform/<path:route>', lambda request,route: frontend.index(request)),
