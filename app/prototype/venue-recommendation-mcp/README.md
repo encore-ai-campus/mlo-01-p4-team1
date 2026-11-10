@@ -1,36 +1,41 @@
-# 손님용 매장 추천 MCP v0.2
+# 손님용 매장 추천 MCP
 
-기존 `/api/weather`의 방문 시각 예보와 공통 분위기·메뉴 태그를 조합하는 읽기 전용 도구입니다. Python SDK의 `stdio` 방식으로 실행합니다.
+서울의 역·동·주요 장소를 위치 자료에서 찾고 방문 시각 예보, 분위기, 메뉴와 예산을 반영합니다. 시연 자료는 기존 250곳과 검증 CSV의 성수 13곳·을지로 14곳을 사용합니다.
 
-| 도구 | 역할 |
-| --- | --- |
-| `list_venue_tags` | 분위기·요리 계열·메뉴 유형 목록 조회 |
-| `recommend_venues` | 지역·방문 시각·태그·좌석 조건으로 매장과 메뉴 ID 조회 |
+## 로컬 시연
 
-예보를 확인할 수 없으면 확인 불가 사유를 반환합니다. 우천 운영 정책이 확인되지 않은 야외 필수 후보는 확인 필요로 분리합니다. 매장·메뉴 ID는 등록 자료의 값을 그대로 사용합니다.
+백엔드 Python 3.14와 MCP Python 3.12를 각각 준비합니다. 프런트엔드는 저장소의 pnpm 잠금 파일을 사용합니다. 저장소 루트에서 실행하는 PowerShell 예시입니다.
 
-## 실행
-
-Python 3.12 전용 환경에서 이 폴더의 의존성을 준비합니다.
-
-```sh
-python -m pip install -r requirements.txt
-python -B venue_recommendation_mcp.py --weather-base-url http://127.0.0.1:8000
+```powershell
+Set-Location app/frontend
+pnpm install --frozen-lockfile
+pnpm build
+Set-Location ..
+py -3.14 -m venv .local/venue-api
+py -3.12 -m venv .local/venue-mcp
+& ./.local/venue-api/Scripts/python.exe -m pip install -r backend/requirements.lock
+& ./.local/venue-mcp/Scripts/python.exe -m pip install -r prototype/venue-recommendation-mcp/requirements.txt
+& ./.local/venue-api/Scripts/python.exe -B prototype/venue-recommendation-mcp/run_local_demo.py --mcp-python .local/venue-mcp/Scripts/python.exe
 ```
 
-MCP 호스트가 위 서버 명령을 실행합니다. 날씨 기본 주소는 `VENUE_WEATHER_BASE_URL`로도 지정할 수 있습니다. 기본 실행은 공개 자료 기반 시범 등록본을 사용합니다. 팀 시연 CSV의 1매장을 사용하려면 아래 인수를 추가합니다.
+[시연 화면](http://127.0.0.1:18748/venues)에서 ‘성수카페거리 2만원 이하 아늑한 술집’ 또는 ‘을지로 1만원 이하 술집’을 검색합니다. 성수오뎅과 토리키조쿠에서 주문 예시와 공개 메뉴 출처를 확인할 수 있습니다. 예보 캐시가 있다면 실행 명령에 `--kma-cache 경로`를 붙입니다. 해당 시각의 유효 예보가 없으면 화면에서 미확인으로 표시합니다.
 
-```text
---catalog fixtures/csv_sample_catalog.json --locations fixtures/csv_sample_locations.json
-```
+## MCP 연결
 
-이 자료는 백엔드 시연 CSV의 매장 ID 1개와 태그를 붙인 메뉴 ID 3개를 사용합니다. 운영 LLM·호스트 연결과 실제 점주 등록 데이터 연결은 별도 단계입니다. [매장 CSV](../../backend/venues/sample_data/seoul_venues_demo_sample.csv) · [메뉴 CSV](../../backend/venues/sample_data/seoul_venue_menus_demo_sample.csv)
+- `list_venue_tags`는 사용할 태그와 검색 지역을 조회합니다.
+- `recommend_venues`는 `query` 한 개로 호출하거나 `region`, `venue_category`, `required_moods`, `orders`, `budget`을 직접 전달할 수 있습니다. `visit_at`을 생략하면 서울 현재 시각을 사용합니다.
+- 예산이 필수 조건이면 `budget_mode`를 `REQUIRE`로 전달합니다. `budget_example`에 공개 메뉴로 확인한 1인 주문 금액·구성·출처가 들어갑니다. 최소 주문·추가요금·당일 가격은 별도 확인이 필요합니다.
+- `ranked`, `pending`, `excluded`와 `forecast_status`는 추천·확인 필요·제외 및 예보 상태를 구분합니다. 위치가 모호하면 `location_candidates`를 돌려줍니다.
 
 ## 검증
 
-```sh
-python -B verify_tag_weather.py
-python -B verify_venue_recommendation_mcp.py
+`app`에서 실행합니다.
+
+```powershell
+& ./.local/venue-mcp/Scripts/python.exe -B prototype/venue-recommendation-mcp/verify_tag_weather.py
+& ./.local/venue-mcp/Scripts/python.exe -B prototype/venue-recommendation-mcp/verify_venue_recommendation_mcp.py
 ```
 
-검증은 공식 SDK가 서버를 시작하고 로컬 HTTP 예보를 호출하는 방식으로 진행합니다. 맑음·비·예보 누락과 야외 필수·선호를 확인하고 팀 시연 CSV의 원본 매장·메뉴 ID를 대조합니다.
+공식 SDK로 도구를 호출해 성수·을지로 맑음·비 순위, 필수 분위기, 예산 포함·제외 경계, 예보 누락을 확인합니다. 예보 비교는 통제된 로컬 시험 자료를 사용합니다.
+
+위치 자료와 출처는 `seoul_location_index.json`, 매장·좌석·메뉴 근거는 `fixtures/csv_sample_catalog.json`에 기록했습니다.

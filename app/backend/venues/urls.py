@@ -1,5 +1,6 @@
 from django.urls import path
 from backend.venues import views
+from backend.venues.views.concierge_view import ai_concierge_options_api
 
 urlpatterns = [
     # 1. 고정 하위 경로 우선 매칭 (동적 <venue_id>보다 반드시 앞에 위치해야 함)
@@ -12,6 +13,7 @@ urlpatterns = [
     path('api/venues/notifications', views.venue_notifications_api, name='venue-notifications'),
     path('api/venues/interactions', views.venue_interaction_generic_api, name='venue-interactions'),
     path('api/venues/ai-concierge', views.ai_concierge_api, name='venue-ai-concierge'),
+    path('api/venues/ai-concierge/options', ai_concierge_options_api, name='venue-ai-concierge-options'),
     path('api/venues/concierge/recommend', views.ai_concierge_api, name='venue-concierge-recommend'),
 
     # 2. 매장 탐색 목록

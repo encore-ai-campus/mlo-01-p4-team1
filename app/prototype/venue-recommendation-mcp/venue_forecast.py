@@ -12,6 +12,7 @@ import httpx
 KST = timezone(timedelta(hours=9))
 HOUR = timedelta(hours=1)
 PROJECT_FORECAST_MAX_AGE = timedelta(minutes=120)
+FORECAST_LOOKUP_BUDGET_SECONDS = 6.0
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 
 
@@ -47,8 +48,9 @@ def missing(provider, reason):
 
 def project_forecast(payload, location, visit_at, now):
     provider = "project_weather"
-    if payload.get("is_test") is True:
-        return missing(provider, "TEST_FORECAST")
+    if payload.get("is_test") is not False:
+        reason = "TEST_FORECAST" if payload.get("is_test") is True else "SOURCE_NOT_VERIFIED"
+        return missing(provider, reason)
     if (payload.get("region_id"), payload.get("nx"), payload.get("ny")) != (
         location["region_id"], location["nx"], location["ny"]
     ):
@@ -159,6 +161,10 @@ async def fetch_forecasts(locations, visit_at, *, project_url=None, demo_open_me
         unique.setdefault(key, location)
         keys[venue_id] = key
 
+    if not unique:
+        return results
+
+    fetched = {}
     async with httpx.AsyncClient(timeout=4.0, limits=httpx.Limits(max_connections=6)) as client:
         async def fetch(location):
             try:
@@ -184,7 +190,17 @@ async def fetch_forecasts(locations, visit_at, *, project_url=None, demo_open_me
             except (ValueError, TypeError, KeyError, IndexError, AttributeError, OverflowError):
                 return missing(provider, "INVALID_FORECAST_RESPONSE")
 
-        values = await asyncio.gather(*(fetch(location) for location in unique.values()))
-    fetched = dict(zip(unique, values, strict=True))
-    results.update({venue_id: fetched[key] for venue_id, key in keys.items()})
+        async def collect(key, location):
+            fetched[key] = await fetch(location)
+
+        try:
+            async with asyncio.timeout(FORECAST_LOOKUP_BUDGET_SECONDS):
+                async with asyncio.TaskGroup() as tasks:
+                    for key, location in unique.items():
+                        tasks.create_task(collect(key, location))
+        except TimeoutError:
+            pass
+
+    deadline = missing(provider, "FORECAST_DEADLINE")
+    results.update({venue_id: fetched.get(key, deadline) for venue_id, key in keys.items()})
     return results

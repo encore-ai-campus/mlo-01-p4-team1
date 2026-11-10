@@ -97,6 +97,12 @@ def verify_pilot(pilot, tags):
             raise ValueError(f"분위기 근거가 일치하지 않습니다. {venue['name']}")
         if any(not item["urls"] for item in venue["mood_evidence"].values()):
             raise ValueError(f"분위기 근거 링크가 없습니다. {venue['name']}")
+        if example := venue.get("budget_example"):
+            prices = [item["price_krw"] for item in example["items"]]
+            if (not prices or any(type(price) is not int or price <= 0 for price in prices)
+                    or type(example["amount_krw"]) is not int or sum(prices) != example["amount_krw"]
+                    or not example["source_url"].startswith("https://") or not example["checked_on"]):
+                raise ValueError(f"1인 주문 예시의 금액 또는 근거 오류 {venue['name']}")
         seats = venue["seats"]
         for kind in ("indoor", "outdoor"):
             if seats[kind] not in ("CONFIRMED", "ABSENT", "UNKNOWN"):

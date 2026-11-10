@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useVenueList } from '../hooks/useVenueList';
 import { useVenueDetail } from '../hooks/useVenueDetail';
 import { GatewayRoleTabs } from '../components/GatewayRoleTabs';
 import { PartnerPromoBanner } from '../components/PartnerPromoBanner';
 import { GeminiConciergeSection } from '../components/GeminiConciergeSection';
+import { VenueConciergeSection } from '../components/VenueConciergeSection';
+import { fetchVisitOptions } from '../api/visitRecommendation.api';
+import { VisitRecommendationSection } from '../components/VisitRecommendationSection';
 import { VenueFilterBar } from '../components/VenueFilterBar';
 import { VenueCard } from '../components/VenueCard';
 import { VenueInteractiveMap } from '../components/VenueInteractiveMap';
@@ -15,8 +18,21 @@ import { OwnerVenueClaimModal } from '../components/OwnerVenueClaimModal';
 import { OwnerEventPublishModal } from '../components/OwnerEventPublishModal';
 import { MenuItem, VenueEventSummary } from '../types/venue.types';
 
-export const VenueExplorePage: React.FC = () => {
+export const VenueExplorePage: React.FC<{ showVisitRecommendations?: boolean }> = ({
+  showVisitRecommendations = false,
+}) => {
   const currentUserId = 'demo_user_final';
+  const [venueMcpEnabled, setVenueMcpEnabled] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchVisitOptions(controller.signal)
+      .then(options => setVenueMcpEnabled(options !== null))
+      .catch(() => {
+        if (!controller.signal.aborted) setVenueMcpEnabled(false);
+      });
+    return () => controller.abort();
+  }, []);
 
   const {
     gu,
@@ -157,12 +173,11 @@ export const VenueExplorePage: React.FC = () => {
         onSelectEvent={(ev) => handleOpenEvent(ev)}
       />
 
-      {/* 3. Gemini 3.8 Flash AI 매장 & 미식 컨시어지 섹션 */}
-      <GeminiConciergeSection
-        gu={gu}
-        weather={weather}
-        onSelectVenue={handleOpenDetail}
-      />
+      {/* 3. 방문 조건과 자연어 매장 추천 */}
+      {venueMcpEnabled ? <>
+        {showVisitRecommendations && <VisitRecommendationSection onOpenVenue={handleOpenDetail} />}
+        <VenueConciergeSection key={gu} gu={gu} onSelectVenue={handleOpenDetail} />
+      </> : <GeminiConciergeSection gu={gu} weather={weather} onSelectVenue={handleOpenDetail} />}
 
       {/* 4. PA 5단계 가격 & 필터 바 */}
       <VenueFilterBar

@@ -75,7 +75,7 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({
     }
   };
 
-  const activeEvent = venue.active_events && venue.active_events.length > 0 ? venue.active_events[0] : null;
+  const activeEvent = venue.curated_listing ? null : venue.active_events?.[0];
 
   return (
     <div style={{
@@ -178,6 +178,23 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({
 
         {/* 2. 본문 컨텐츠 */}
         <div style={{ padding: '20px', flex: 1 }}>
+          {venue.curated_listing ? <section aria-label="공개 자료로 확인한 매장 정보">
+            <h3>확인한 매장 정보</h3>
+            {!!venue.curated_listing.moods.length && <p>{venue.curated_listing.moods.join(' · ')}</p>}
+            {venue.curated_listing.seat_summary && <p>{venue.curated_listing.seat_summary}</p>}
+            <h4>대표 메뉴</h4>
+            <p>{venue.curated_listing.representative_menus.join(' · ')}</p>
+            {venue.curated_listing.budget_example ? <div>
+              <h4>1인 주문 예시 {venue.curated_listing.budget_example.amount_krw.toLocaleString('ko-KR')}원</h4>
+              <ul>{venue.curated_listing.budget_example.items.map(item =>
+                <li key={item.name}>{item.name} · {item.price_krw.toLocaleString('ko-KR')}원</li>
+              )}</ul>
+              <p>{venue.curated_listing.budget_example.limits}</p>
+              <a href={venue.curated_listing.budget_example.source_url} target="_blank" rel="noreferrer">공개 메뉴 확인</a>
+            </div> : <p>1인 주문 가격 미확인</p>}
+            <p>{venue.curated_listing.checked_on} 확인 · <a href={venue.curated_listing.registry_url}
+              target="_blank" rel="noreferrer">상가정보 출처</a></p>
+          </section> : <>
             {/* 2-0. 매장 분위기 & 가격/영업시간 핵심 요약 바 */}
             <div style={{
               display: 'flex',
@@ -364,11 +381,12 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({
               </div>
             )}
           </div>
+          </>}
         </div>
       </div>
 
       {/* 폐업 제보 모달 */}
-      {showClosureModal && (
+      {!venue.curated_listing && showClosureModal && (
         <div style={{
           position: 'fixed',
           inset: 0,

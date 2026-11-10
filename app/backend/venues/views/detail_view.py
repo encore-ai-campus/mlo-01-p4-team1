@@ -3,6 +3,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 
 from backend.venues.repositories.csv_lazy_repo import get_venue_repo
+from backend.venues.repositories.curated_venue_detail import curated_venue_detail
 from backend.venues.models.status_overlay import VenueStatusOverlay
 from backend.venues.models.interaction import VenueInteraction
 from backend.venues.services.open_hours_service import is_venue_open_now
@@ -16,6 +17,9 @@ def venue_detail_api(request, venue_id: str):
     GET /api/venues/<venue_id>
     - 매장 상세 정보, 5개 탭 전체 메뉴판, 음악 배너, 실시간 이벤트 정보 반환
     """
+    if curated := curated_venue_detail(venue_id):
+        return JsonResponse({"success": True, "venue": curated})
+
     repo = get_venue_repo()
     venue = repo.get_venue_by_id(venue_id)
 
