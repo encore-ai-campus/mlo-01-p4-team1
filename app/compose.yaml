@@ -97,12 +97,26 @@ services:
       context: .
       dockerfile: docker/api.Dockerfile
       target: development
-    environment: *api-env
+    environment:
+      <<: *api-env
+      # Optional local integration; disabled unless explicitly configured.
+      PLATFORM_LOCAL_MVP: ${PLATFORM_LOCAL_MVP:-0}
+      VENUE_MCP_SERVER: ${VENUE_MCP_SERVER:-}
+      VENUE_MCP_SERVICE_ENABLED: ${VENUE_MCP_SERVICE_ENABLED:-0}
+      VENUE_MCP_PUBLIC_CATALOG: ${VENUE_MCP_PUBLIC_CATALOG:-}
+      VENUE_MCP_PYTHON: /opt/mlo/venue-mcp/bin/python
+      VENUE_WEATHER_BASE_URL: ${VENUE_WEATHER_BASE_URL:-}
+      VENUE_LLM_PROVIDER: ${VENUE_LLM_PROVIDER:-}
+      VENUE_LLM_MODEL: ${VENUE_LLM_MODEL:-}
+      GEMINI_ENABLED: ${GEMINI_ENABLED:-0}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_TIMEOUT_MS: ${GEMINI_TIMEOUT_MS:-8000}
     volumes:
       - .:/workspace/app:ro
       - common_local_data:/workspace/app/.local
       - youtube_review_data:/workspace/app/.local-preview-logs
-    command: ["python", "-m", "backend.manage", "runserver", "0.0.0.0:8001"]
+    # ASGI lifespan starts and stops the MCP subprocess; WSGI runserver cannot.
+    command: ["python", "-m", "uvicorn", "backend.cafe.asgi:application", "--host", "0.0.0.0", "--port", "8001"]
     ports:
       - "127.0.0.1:8001:8001"
     depends_on:

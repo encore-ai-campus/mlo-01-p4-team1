@@ -1,4 +1,4 @@
-"""Local Django host for the existing read-only venue MCP server."""
+"""Django ASGI host for the existing read-only venue MCP server."""
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -186,13 +186,25 @@ class VenueMcpApplication:
 
 def with_local_venue_mcp(application):
     server = os.environ.get("VENUE_MCP_SERVER")
-    if not settings.LOCAL_DEMO or not server:
+    if not server:
+        return application
+
+    # Production execution must be explicitly configured and must not use the
+    # local fixtures or permit preview-only catalog snapshots. This only enables
+    # the host; request authentication and platform readiness remain separate.
+    local_demo = settings.LOCAL_DEMO
+    if not local_demo and os.environ.get("VENUE_MCP_SERVICE_ENABLED") != "1":
+        return application
+    public_catalog = os.environ.get("VENUE_MCP_PUBLIC_CATALOG")
+    if not local_demo and not public_catalog:
+        logger.warning("Venue MCP disabled: published catalog is not configured")
         return application
 
     command = [os.environ.get("VENUE_MCP_PYTHON") or sys.executable, "-B", "-X", "utf8", server]
-    public_catalog = os.environ.get("VENUE_MCP_PUBLIC_CATALOG")
     if public_catalog:
-        command.extend(("--public-catalog", public_catalog, "--allow-preview-catalog"))
+        command.extend(("--public-catalog", public_catalog))
+        if local_demo:
+            command.append("--allow-preview-catalog")
     else:
         for variable, option in (
             ("VENUE_MCP_CATALOG", "--catalog"),

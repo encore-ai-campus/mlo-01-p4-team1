@@ -38,17 +38,42 @@ MENU_MARKER = " (매장 메뉴판 미확인)"
 
 
 def source_pairs(source_dir, areas=None):
-    available = {path.name.removesuffix("_venues.csv"): path for path in source_dir.glob("*_venues.csv")}
-    names = sorted(set(areas)) if areas else sorted(available)
-    if not names:
+    """Read each requested folder once, keeping identically named areas distinct."""
+    directories = [source_dir] if isinstance(source_dir, (str, Path)) else list(source_dir)
+    if not directories:
         raise ValueError("*_venues.csv와 *_menus.csv 파일 쌍이 필요합니다.")
+    resolved = [Path(directory).resolve() for directory in directories]
+    if len(resolved) != len(set(resolved)):
+        raise ValueError("같은 원본 폴더가 중복 지정되었습니다.")
+    requested = set(areas or [])
+    found = set()
+    pending = []
+    for directory in resolved:
+        if not directory.is_dir():
+            raise ValueError(f"원본 폴더를 찾을 수 없습니다: {directory}")
+        available = sorted(directory.glob("*_venues.csv"))
+        if not available:
+            raise ValueError(f"매장·메뉴 파일 쌍이 없는 원본 폴더입니다: {directory}")
+        for venue_path in available:
+            name = venue_path.name.removesuffix("_venues.csv")
+            if requested and name not in requested:
+                continue
+            found.add(name)
+            menu_path = directory / f"{name}_menus.csv"
+            if not menu_path.is_file():
+                raise ValueError(f"매장·메뉴 파일 쌍을 확인해 주세요: {name}")
+            pending.append((name, venue_path, menu_path))
+    if missing := requested - found:
+        raise ValueError(f"매장·메뉴 파일 쌍을 확인해 주세요: {', '.join(sorted(missing))}")
+    if not pending:
+        raise ValueError("*_venues.csv와 *_menus.csv 파일 쌍이 필요합니다.")
+    counts = Counter(name for name, _, _ in pending)
+    occurrences = Counter()
     pairs = []
-    for name in names:
-        venue_path = available.get(name)
-        menu_path = source_dir / f"{name}_menus.csv"
-        if venue_path is None or not menu_path.is_file():
-            raise ValueError(f"매장·메뉴 파일 쌍을 확인해 주세요: {name}")
-        pairs.append((name, venue_path, menu_path))
+    for name, venue_path, menu_path in pending:
+        occurrences[name] += 1
+        label = f"{name}#{occurrences[name]}" if counts[name] > 1 else name
+        pairs.append((label, venue_path, menu_path))
     return pairs
 
 
@@ -138,6 +163,7 @@ def prepare(source_dir, areas=None):
     pub_subtypes = CONFIRMED_PUB_SUBTYPES | EXPLICIT_PUB_SUBTYPES
     for district, venue_path, menu_path in source_pairs(source_dir, areas):
         raw_venues, source = read_export(venue_path, VENUE_FIELDS)
+        source['area'] = district
         sources.append(source)
         for raw in raw_venues:
             research_fields = ('매장분위기_조사', '매장특징_조사', '대표메뉴_조사', '좌석_편의_조사')
@@ -156,6 +182,7 @@ def prepare(source_dir, areas=None):
                 '제한사항': raw.get('제한사항', ''),
             }, 'update')
         raw_menus, source = read_export(menu_path, MENU_FIELDS)
+        source['area'] = district
         sources.append(source)
         totals = Counter()
         excluded_venues, excluded_menus = Counter(), Counter()
@@ -532,7 +559,8 @@ def write_snapshot(data, output, *, replace=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--source-dir', type=Path, required=True, help='팀의 *_venues.csv와 *_menus.csv 폴더')
+    parser.add_argument('--source-dir', type=Path, required=True, action='append',
+                        help='팀의 *_venues.csv와 *_menus.csv 폴더. 여러 지역 폴더는 옵션을 반복 지정')
     parser.add_argument('--areas', nargs='+', help='파일 이름의 접두어. 생략하면 폴더 안의 모든 파일 쌍')
     parser.add_argument('--output', type=Path, required=True, help='로컬 검증용 JSON 경로')
     parser.add_argument('--replace', action='store_true', help='기존 출력 스냅샷을 검증된 변환 결과로 교체')

@@ -1,6 +1,6 @@
 """The synthetic playlist catalog shared by workspace and customer views."""
 
-from .fixtures import FIXTURES
+from .fixtures import resolve_fixture
 from .models import WorkspaceMusicState
 from backend.accounts.models import MemberProfile
 from backend.recommendation.models import Playlist
@@ -13,13 +13,17 @@ DEMO_PLAYLISTS = {
 }
 
 
-def approved_owner_playlists(workspace):
-    """Only the active store owner's currently approved personal playlists."""
-    owner_ids = MemberProfile.objects.filter(
+def active_owner_profiles(workspace):
+    return MemberProfile.objects.filter(
         user__is_active=True, user__workspacemembership__workspace=workspace,
         user__workspacemembership__role='OWNER', user__workspacemembership__status='ACTIVE',
         user__servicemembership__kind='BUSINESS', user__servicemembership__status='ACTIVE',
-    ).values_list('owner_id', flat=True)
+    )
+
+
+def approved_owner_playlists(workspace):
+    """Only the active store owner's currently approved personal playlists."""
+    owner_ids = active_owner_profiles(workspace).values_list('owner_id', flat=True)
     return Playlist.objects.filter(
         family__owner_id__in=[str(value) for value in owner_ids],
         family__approved_playlist_id=F('id'),
@@ -32,21 +36,23 @@ def playlist_name(playlist):
 
 
 def public_applied_playlist(venue_id):
-    links = [(fixture_id, fixture) for fixture_id, fixture in FIXTURES.items()
-             if fixture.get("venue_id") == venue_id]
-    if len(links) != 1:
-        return None
-
-    fixture_id, fixture = links[0]
+    # Catalog linking remains a local demonstration: approval is not proof
+    # of real-world ownership. Require both the catalog ID and its claim.
+    location_key = f"catalog:{venue_id}"
     try:
-        state = WorkspaceMusicState.objects.select_related('workspace').get(
+        state = WorkspaceMusicState.objects.select_related('workspace', 'workspace__workspaceclaim').get(
             workspace__status="ACTIVE",
             workspace__mode="DEMO",
-            workspace__location_key=fixture["location"],
-            workspace__workspaceclaim__fixture_id=fixture_id,
+            workspace__location_key=location_key,
             workspace__workspaceclaim__state="APPROVED",
         )
     except (WorkspaceMusicState.DoesNotExist, WorkspaceMusicState.MultipleObjectsReturned):
+        return None
+
+    fixture = resolve_fixture(state.workspace.workspaceclaim.fixture_id)
+    if not fixture or fixture.get("venue_id") != venue_id or fixture.get("location") != location_key:
+        return None
+    if not active_owner_profiles(state.workspace).exists():
         return None
 
     playlist_id = state.applied_playlist

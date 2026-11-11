@@ -1,19 +1,23 @@
 import hashlib
 import json
 import secrets
+import csv
+import logging
 from datetime import timedelta
+from django.conf import settings
 from django.db import transaction
 from backend.accounts import crypto, services as account_services
 from backend.common.identity import raw_request
 from backend.recommendation.errors import require
 from . import authorization as auth
-from .fixtures import FIXTURES
+from .fixtures import resolve_fixture
 from .music import DEMO_PLAYLISTS, approved_owner_playlists, playlist_name
 from .models import (Workspace, WorkspaceClaim, BusinessCheckJob, ClaimDecision, BusinessEntity,
     WorkspaceMembership, InvitationReceiver, WorkspaceInvitation, ReauthenticationGrant,
     IdempotencyRecord, AuthorizationAudit, InternalOutbox, WorkspaceMusicState)
 
 PREFIX='/api/platform/v1'
+logger = logging.getLogger(__name__)
 
 
 def sha(value):
@@ -33,30 +37,42 @@ def audit(request, user, action, resource, workspace=None):
 
 
 def claim_payload(body):
-    fixture = FIXTURES.get(body['fixture_id'])
+    fixture = resolve_fixture(body['fixture_id'])
     require(fixture is not None, 'INVALID_REQUEST', '합성 시연 fixture를 선택해 주세요.', 400)
     venue_id = fixture.get('venue_id')
     if not venue_id:
         return body
 
     from backend.venues.repositories.csv_lazy_repo import get_venue_repo
+    from backend.venues.models.status_overlay import VenueStatusOverlay
 
-    venue = get_venue_repo().get_venue_by_id(venue_id)
+    repo = get_venue_repo()
+    if body['fixture_id'].startswith('catalog:'):
+        try:
+            venue = repo.get_source_venue_by_id(venue_id)
+        except (OSError, UnicodeError, csv.Error, ValueError):
+            logger.warning('매장 원본 확인 실패: 승인 보류')
+            require(False, 'VENUE_REFRESH_FAILED', '매장 정보를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.', 503)
+    else:
+        venue = repo.get_venue_by_id(venue_id)
     require(venue is not None and venue['venue_id'] == venue_id, 'VENUE_UNAVAILABLE', '연결할 매장을 찾을 수 없습니다.', 409)
+    require(not VenueStatusOverlay.objects.filter(venue_id=venue_id, status='CLOSED_HIDDEN').exists(),
+            'VENUE_UNAVAILABLE', '연결할 수 없는 매장입니다.', 409)
     return {**body, 'display_name': venue['venue_name'], 'address': venue['road_address']}
 
 
 def claim_data(row):
     body=crypto.unseal(row.payload_ciphertext)
+    direct_demo=body.get('_direct_demo') is True
     check=BusinessCheckJob.objects.filter(claim=row,content_revision=row.content_revision).first()
     return {'id':str(row.pk),'revision':row.version,'content_revision':row.content_revision,'state':row.state,
         'mode':'DEMO','display_name':body['display_name'],'address':body['address'],'applicant_relation':body['applicant_relation'],
         'review_context':{'applicant_label':row.applicant.memberprofile.nickname,'fixture_id':row.fixture_id,
-                          'authority_evidence_kind':'DEMO_SCENARIO' if row.state=='APPROVED' else 'PENDING','policy_version':'platform-local-v0.6'},
+                          'authority_evidence_kind':'UNVERIFIED' if direct_demo else ('DEMO_SCENARIO' if row.state=='APPROVED' else 'PENDING'),'policy_version':'platform-local-v0.6'},
         'match_result':check.match_result if check else 'UNCHECKED',
         'business_status':check.business_status if check else 'UNKNOWN',
         'approved_workspace_id':str(row.approved_workspace_id) if row.approved_workspace_id else None,
-        'notice':'합성 사업자정보 시연 · 실제 국세청 확인이 아닙니다.'}
+            'notice':'소유 확인 없이 연결된 로컬 시연 매장입니다.' if direct_demo else '합성 사업자정보 시연 · 실제 국세청 확인이 아닙니다.'}
 
 
 def check_data(row):
@@ -174,6 +190,36 @@ def lock_related_accounts(context, body):
 def read(operation, request, values):
     context=contextual(request,operation,values)
     user=context['user']
+    if operation=='searchClaimVenues':
+        auth.business(user)
+        region = request.query_params.get('region', '').strip()
+        query = request.query_params.get('q', '').strip()
+        require(set(request.query_params) <= {'region', 'q'} and 2 <= len(query) <= 100 and 1 <= len(region) <= 40,
+                'INVALID_REQUEST', '지역과 두 글자 이상의 매장명을 입력해 주세요.', 400)
+        from backend.venues.repositories.csv_lazy_repo import get_venue_repo
+        from backend.venues.models.status_overlay import VenueStatusOverlay
+        repo = get_venue_repo()
+        require(region in repo.get_all_available_gus(), 'INVALID_REQUEST', '매장 지역을 확인해 주세요.', 400)
+        # Claim search only offers IDs that can later be validated against a
+        # regional source CSV. The separate fixed demo fixture stays available.
+        if not repo.source_region_available(region):
+            return {'items': []}
+        try:
+            region_venues = repo.get_source_venues_by_region(region)
+        except (OSError, UnicodeError, csv.Error, ValueError):
+            logger.warning('매장 검색 원본 확인 실패')
+            require(False, 'VENUE_REFRESH_FAILED', '매장 정보를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.', 503)
+        hidden_ids = set(VenueStatusOverlay.objects.filter(status='CLOSED_HIDDEN').values_list('venue_id', flat=True))
+        matches = []
+        for venue in region_venues:
+            venue_id = venue.get('venue_id', '')
+            name = venue.get('venue_name', '')
+            if venue_id in hidden_ids or query.casefold() not in name.casefold() or not resolve_fixture('catalog:' + venue_id):
+                continue
+            matches.append({'venue_id': venue_id, 'venue_name': name, 'road_address': venue.get('road_address', '')})
+            if len(matches) == 20:
+                break
+        return {'items': matches}
     if operation=='listOwnWorkspaceClaims':
         auth.business(user)
         return page(request,WorkspaceClaim.objects.filter(applicant=user),claim_data)
@@ -271,6 +317,30 @@ def write(operation,request,body,values):
 
 def mutate(operation,request,body,values,context):
     user=context['user']; row=None
+    if operation=='connectWorkspaceForDemo':
+        # Without ownership verification the first claim cannot establish real
+        # authority. Never make this endpoint available outside the local demo.
+        require(settings.LOCAL_DEMO, 'NOT_FOUND', '요청을 찾을 수 없습니다.', 404)
+        auth.business(user)
+        fixture=resolve_fixture(body['fixture_id'])
+        require(fixture and fixture.get('venue_id') and fixture.get('location', '').startswith('catalog:'),
+                'VENUE_UNAVAILABLE', '연결할 매장을 찾을 수 없습니다.', 409)
+        payload=claim_payload(body)
+        business,_=BusinessEntity.objects.get_or_create(mode='DEMO',registration_lookup=crypto.digest('platform-business',fixture['business']),
+            defaults={'registration_ciphertext':crypto.seal({'fixture':fixture['business']}),'display_name':'시연 매장'})
+        business=BusinessEntity.objects.select_for_update().get(pk=business.pk)
+        require(not Workspace.objects.filter(business=business,location_key=fixture['location']).exists(),
+                'WORKSPACE_ALREADY_LINKED','이미 연결되었거나 확인이 필요한 매장입니다.',409)
+        store=Workspace.objects.create(business=business,location_key=fixture['location'],display_name=payload['display_name'],
+            address_ciphertext=crypto.seal(payload['address']),status='ACTIVE')
+        WorkspaceMembership.objects.create(workspace=store,user=user,role='OWNER',granted_by=user)
+        WorkspaceMusicState.objects.create(workspace=store)
+        payload['_direct_demo']=True
+        row=WorkspaceClaim.objects.create(applicant=user,payload_ciphertext=crypto.seal(payload),fixture_id=body['fixture_id'],
+            state='APPROVED',approved_workspace=store)
+        audit(request,user,'workspace.connected_demo',store,store)
+        audit(request,user,'claim.connected_demo',row,store)
+        return claim_data(row),201
     if operation=='createWorkspaceClaim':
         auth.business(user)
         payload = claim_payload(body)
@@ -305,12 +375,20 @@ def mutate(operation,request,body,values,context):
                 auth.business(row.applicant)
                 require(BusinessCheckJob.objects.filter(claim=row,content_revision=row.content_revision,state='SUCCEEDED',match_result='MATCHED',business_status='ACTIVE').exists(),
                         'BUSINESS_CHECK_REQUIRED','현재 내용의 확인 근거가 필요합니다.',409)
-                fixture=FIXTURES[row.fixture_id]
+                fixture=resolve_fixture(row.fixture_id)
+                require(fixture is not None, 'VENUE_UNAVAILABLE', '연결할 매장을 찾을 수 없습니다.', 409)
+                # A reviewer must approve the same name and address that were
+                # submitted. If the source catalog changes in the meantime,
+                # require the applicant to review and resubmit the claim.
+                payload=crypto.unseal(row.payload_ciphertext)
+                refreshed_payload=claim_payload(payload)
+                require(all(payload.get(key)==refreshed_payload.get(key) for key in ('display_name','address')),
+                        'VENUE_CHANGED','매장 정보가 변경되었습니다. 신청 내용을 다시 확인해 주세요.',409)
                 business,_=BusinessEntity.objects.get_or_create(mode='DEMO',registration_lookup=crypto.digest('platform-business',fixture['business']),
                     defaults={'registration_ciphertext':crypto.seal({'fixture':fixture['business']}),'display_name':'합성 사업자'})
+                business=BusinessEntity.objects.select_for_update().get(pk=business.pk)
                 require(not Workspace.objects.filter(business=business,location_key=fixture['location']).exists(),
                         'WORKSPACE_ALREADY_LINKED','이미 연결되었거나 확인이 필요한 매장입니다.',409)
-                payload=crypto.unseal(row.payload_ciphertext)
                 store=Workspace.objects.create(business=business,location_key=fixture['location'],display_name=payload['display_name'],
                     address_ciphertext=crypto.seal(payload['address']),status='ACTIVE')
                 WorkspaceMembership.objects.create(workspace=store,user=row.applicant,role='OWNER',granted_by=user)

@@ -68,6 +68,12 @@ export function venueCatalogNotice(metadata?: VisitCatalogMetadata) {
     + (metadata.budget_basis ? ' · 1인 평균 예산은 참고값' : '');
 }
 
+export function canOpenVenueDetail(source: string | undefined, metadata?: VisitCatalogMetadata) {
+  // The local preview detail endpoint is not an operational snapshot API.
+  // Use the metadata on this result, not earlier options that may be stale.
+  return source !== 'PUBLIC_SNAPSHOT' || metadata?.preview_only === true;
+}
+
 export function VisitCards({ venues, onOpenVenue, distanceFrom, previewCatalog = false }: {
   venues: VisitVenue[];
   onOpenVenue?: (venueId: string) => void;
@@ -223,7 +229,7 @@ export function VisitRecommendationSection({ options, onOpenVenue }: {
       {catalogNotice && <p>{catalogNotice}</p>}
       {result.ranked.length > 0
         ? <VisitCards venues={result.ranked}
-          onOpenVenue={result.catalog_source === 'PUBLIC_SNAPSHOT' ? undefined : onOpenVenue}
+          onOpenVenue={canOpenVenueDetail(result.catalog_source, result.catalog_metadata) ? onOpenVenue : undefined}
           previewCatalog={catalogMetadata?.preview_only} />
         : <p>지역이나 방문 조건을 바꿔 다시 조회해 주세요.</p>}
     </div>}

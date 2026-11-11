@@ -455,6 +455,7 @@ class CsvLazyRepository:
         # 폴백 데이터셋 전체 로드 여부
         self._fallback_venues_loaded = False
         self._fallback_menus_loaded = False
+        self._venue_region_index: Optional[Dict[str, str]] = None
 
         # 1. 실시간 수집된 메뉴 데이터(seoul_venue_menus_demo_sample.csv + live_harvested_sample.json) 사전 로드
         self._load_live_harvested_menus()
@@ -473,6 +474,56 @@ class CsvLazyRepository:
             self._gu_menus_loaded.clear()
             self._fallback_venues_loaded = False
             self._fallback_menus_loaded = False
+            self._venue_region_index = None
+
+    def refresh_source_data(self) -> None:
+        """Discard all cached source data before a fresh catalog read.
+
+        Unlike clear_cache, this also clears disk and menu overlays. The source
+        CSVs themselves are not modified.
+        """
+        with self._lock:
+            self.clear_cache()
+            self._disk_venues_buffer.clear()
+            self._disk_menus_buffer.clear()
+            if hasattr(self, '_enriched_gu_ready'):
+                self._enriched_gu_ready.clear()
+            self._live_menus_by_vid.clear()
+            self._live_menus_by_name.clear()
+            self._live_menus_loaded = False
+            self._load_live_harvested_menus()
+
+    def get_source_venue_by_id(self, venue_id: str) -> Optional[Dict[str, str]]:
+        """Read an exact identity from regional CSVs, without sample fallback.
+
+        Used for approval; unreadable or ambiguous catalogs must not approve a
+        match merely because an older cache or sample happens to contain it.
+        """
+        with self._lock:
+            found = None
+            seen_paths = set()
+            for region in self.get_all_available_gus():
+                path = self._find_region_csv(region, 'venues')
+                if not path or path in seen_paths:
+                    continue
+                seen_paths.add(path)
+                with path.open(encoding='utf-8-sig', newline='') as stream:
+                    reader = csv.DictReader(stream)
+                    if not reader.fieldnames or 'venue_id' not in reader.fieldnames:
+                        raise ValueError(f'Missing venue_id in catalog: {path.name}')
+                    for row in reader:
+                        if (row.get('venue_id') or '').strip() != venue_id:
+                            continue
+                        if found is not None:
+                            raise ValueError(f'Duplicate venue ID in regional catalogs: {venue_id}')
+                        found = {
+                            'venue_id': venue_id,
+                            'venue_name': (row.get('매장명') or row.get('venue_name') or '').strip(),
+                            'road_address': (row.get('도로명주소') or row.get('road_address') or '').strip(),
+                        }
+                        if not found['venue_name'] or not found['road_address']:
+                            raise ValueError(f'Missing venue identity in regional catalogs: {venue_id}')
+            return found
 
     def _find_region_csv(self, region_name: str, suffix: str) -> Optional[Path]:
         """서울 25개 구(by_gu), 경기도 30개 시·군(by_city), 인천광역시 10개 구·군(by_gu) 폴더에서 {region_name}_{suffix}.csv 탐색"""
@@ -497,6 +548,33 @@ class CsvLazyRepository:
         if fallback.exists():
             return fallback
         return None
+
+    def source_region_available(self, region_name: str) -> bool:
+        """Report whether a regional source exists, excluding sample fallback."""
+        return self._find_region_csv(region_name, 'venues') is not None
+
+    def get_source_venues_by_region(self, region_name: str) -> List[Dict[str, str]]:
+        """Read source identities for owner search without cached sample rows."""
+        with self._lock:
+            path = self._find_region_csv(region_name, 'venues')
+            if path is None:
+                return []
+            results, seen = [], set()
+            with path.open(encoding='utf-8-sig', newline='') as stream:
+                reader = csv.DictReader(stream)
+                if not reader.fieldnames or 'venue_id' not in reader.fieldnames:
+                    raise ValueError(f'Missing venue_id in catalog: {path.name}')
+                for row in reader:
+                    identifier = (row.get('venue_id') or '').strip()
+                    name = (row.get('매장명') or row.get('venue_name') or '').strip()
+                    address = (row.get('도로명주소') or row.get('road_address') or '').strip()
+                    if not identifier or not name or not address:
+                        continue
+                    if identifier in seen:
+                        raise ValueError(f'Duplicate venue ID in regional catalog: {identifier}')
+                    seen.add(identifier)
+                    results.append({'venue_id': identifier, 'venue_name': name, 'road_address': address})
+            return results
 
     def _load_live_harvested_menus(self) -> None:
         """
@@ -885,9 +963,8 @@ class CsvLazyRepository:
             if num_part.isdigit():
                 alias = f"venue_seoul_{int(num_part):04d}"
                 self._venue_map.setdefault(alias, v)
-        elif idx_1based <= 9999:
-            alias = f"venue_seoul_{idx_1based:04d}"
-            self._venue_map.setdefault(alias, v)
+        # A row number is not a venue identity. In particular, a Gyeonggi or
+        # Incheon venue must never acquire a Seoul venue alias from its position.
 
     def _load_gu_venues_from_disk(self, gu_name: str) -> List[Dict[str, Any]]:
         """특정 구/시의 매장 CSV 파일 지연 로딩 및 메뉴 PK 조인 기반 예산 산출"""
@@ -949,6 +1026,9 @@ class CsvLazyRepository:
                     reader = csv.DictReader(f)
                     for idx, row in enumerate(reader, start=1):
                         v = self._cast_venue_row(row)
+                        # Do not let sample rows hide a region's real CSV.
+                        if self._find_region_csv(v['gu_name'], 'venues'):
+                            continue
                         self._apply_research_overlay(v)
                         self._enrich_venue_menus_and_budget(v)
                         self._register_alias_ids(idx, v)
@@ -1083,6 +1163,34 @@ class CsvLazyRepository:
                 self._load_fallback_venues_for_gu("")
                 if venue_id in self._venue_map:
                     return self._venue_map[venue_id]
+
+            # Index IDs only, then load the requested region. Loading every
+            # region's menus for a single missing ID is prohibitively expensive.
+            if self._venue_region_index is None:
+                index: Dict[str, str] = {}
+                for region in self.get_all_available_gus():
+                    # Match the same selected source used by get_venues_by_gu;
+                    # duplicate region files in lower-priority paths are ignored.
+                    path = self._find_region_csv(region, 'venues')
+                    if not path:
+                        continue
+                    try:
+                        with path.open(encoding='utf-8-sig', newline='') as stream:
+                            for row in csv.DictReader(stream):
+                                identifier = (row.get('venue_id') or '').strip()
+                                if identifier:
+                                    index.setdefault(identifier, region)
+                    except (OSError, csv.Error, UnicodeError) as error:
+                        logger.warning('[LazyRepo] Could not index %s: %s', path, error)
+                self._venue_region_index = index
+            # Legacy Seoul links use a numeric alias; use only the matching
+            # canonical Seoul ID to discover a region, never a row position.
+            alias_match = re.fullmatch(r'venue_seoul_(\d+)', venue_id)
+            canonical_id = f"VN_SL_{int(alias_match.group(1)):06d}" if alias_match else venue_id
+            region = self._venue_region_index.get(canonical_id)
+            if region:
+                self.get_venues_by_gu(region)
+                return self._venue_map.get(venue_id)
 
             return None
 

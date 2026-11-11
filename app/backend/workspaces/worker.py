@@ -4,12 +4,12 @@ from datetime import timedelta
 from django.db import transaction
 from django.db.models import Q
 from .authorization import dbnow
-from .fixtures import FIXTURES
+from .fixtures import resolve_fixture
 from .models import BusinessCheckJob, WorkspaceClaim
 
 
 def obtain(fixture_id):
-    return FIXTURES.get(fixture_id)
+    return resolve_fixture(fixture_id)
 
 
 def run_one():
