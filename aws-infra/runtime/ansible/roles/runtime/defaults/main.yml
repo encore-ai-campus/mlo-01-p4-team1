@@ -12,3 +12,4 @@ runtime_payload_remote: /var/lib/mlo/incoming/runtime
 runtime_host_binding: /etc/mlo/host-binding.json
 runtime_host_binding_source: ""
 runtime_operation: install
+runtime_execution_target: compose

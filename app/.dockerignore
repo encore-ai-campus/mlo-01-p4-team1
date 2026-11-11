@@ -33,5 +33,19 @@
 **/*.p12
 **/*.pfx
 analysis
-prototype
+# Include only the runtime files needed by the venue MCP, never private survey
+# snapshots, fixture data, test inputs, or the other prototype directories.
+prototype/*
+!prototype/venue-recommendation-mcp/
+prototype/venue-recommendation-mcp/*
+!prototype/venue-recommendation-mcp/requirements.lock
+!prototype/venue-recommendation-mcp/venue_recommendation_mcp.py
+!prototype/venue-recommendation-mcp/venue_csv_catalog.py
+!prototype/venue-recommendation-mcp/venue_forecast.py
+!prototype/venue-recommendation-mcp/venue_nearby.py
+!prototype/venue-recommendation-mcp/venue_public_catalog.py
+!prototype/venue-recommendation-mcp/venue_search_intent.py
+!prototype/venue-recommendation-mcp/verify_tag_weather.py
+!prototype/venue-recommendation-mcp/seoul_location_index.json
+!prototype/venue-recommendation-mcp/공통_태그_목록_v0.2.csv
 docs/acceptance/assets

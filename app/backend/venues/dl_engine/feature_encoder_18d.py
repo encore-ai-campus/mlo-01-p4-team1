@@ -1,6 +1,20 @@
 import numpy as np
 from typing import Any, Dict, List, Optional, Union
 
+CHAIN_FLAG_VALUES = frozenset({'체인점', 'Y', '프랜차이즈', 'CHAIN', 'TRUE', '1'})
+LOCAL_BRAND_DEFAULTS = frozenset({'', '개인매장', '단독매장'})
+
+
+def is_chain_venue(venue: Dict[str, Any]) -> bool:
+    """Return True when a venue belongs to a franchise chain by normalized type, flag, or brand."""
+    franchise_val = str(venue.get('프랜차이즈여부', '')).strip().upper()
+    brand_val = str(venue.get('brand_name') or venue.get('브랜드명') or '개인매장').strip()
+    return (
+        venue.get('store_type') == 'CHAIN'
+        or franchise_val in CHAIN_FLAG_VALUES
+        or brand_val not in LOCAL_BRAND_DEFAULTS
+    )
+
 
 class FeatureEncoder18D:
     """
@@ -59,6 +73,8 @@ class FeatureEncoder18D:
         """
         vec = np.zeros(2, dtype=np.float32)
         w = str(weather).upper()
+        if w in ('', 'UNKNOWN', 'MISSING', 'NONE'):
+            return vec
         if any(keyword in w for keyword in ['RAIN', 'SNOW', '비', '눈', '흐림', 'CLOUDY']):
             vec[0] = 1.0
             vec[1] = 0.1
@@ -188,10 +204,8 @@ class FeatureEncoder18D:
         venue_text = f"{venue.get('venue_name', '')} {venue.get('sub_category', '')} {' '.join(moods)}"
         vec[8:14] = self.encode_tastes(venue_text, venue.get('category', ''))
 
-        # [14~15] 로컬 vs 프랜차이즈 (매장명 체인 여부 휴리스틱)
-        v_name = venue.get('venue_name', '')
-        is_chain = any(c in v_name for c in ['스타벅스', '투썸', '이디야', '메가커피', '컴포즈', '역전할머니'])
-        if is_chain:
+        # [14~15] 로컬 vs 프랜차이즈 (정규화된 store_type / 프랜차이즈여부 / 브랜드명 기준)
+        if is_chain_venue(venue):
             vec[14] = 0.0
             vec[15] = 1.0
         else:

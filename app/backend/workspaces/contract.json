@@ -12,6 +12,32 @@
     }
   ],
   "paths": {
+    "/claim-venues": {
+      "get": {
+        "operationId": "searchClaimVenues",
+        "summary": "Find catalog venues for a synthetic workspace claim",
+        "security": [{"sessionCookie": []}],
+        "parameters": [
+          {"name": "region", "in": "query", "required": true, "schema": {"type": "string", "minLength": 1, "maxLength": 40}},
+          {"name": "q", "in": "query", "required": true, "schema": {"type": "string", "minLength": 2, "maxLength": 100}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Up to 20 matching venues; synthetic local workflow only",
+            "content": {"application/json": {"schema": {
+              "type": "object", "required": ["data", "request_id"],
+              "properties": {
+                "request_id": {"type": "string"},
+                "data": {"type": "object", "required": ["items"], "properties": {"items": {
+                  "type": "array", "maxItems": 20, "items": {"type": "object", "required": ["venue_id", "venue_name", "road_address"],
+                    "properties": {"venue_id": {"type": "string"}, "venue_name": {"type": "string"}, "road_address": {"type": "string"}}}
+                }}}
+              }
+            }}}
+          }
+        }
+      }
+    },
     "/policies": {
       "get": {
         "operationId": "getPolicies",
@@ -2788,6 +2814,26 @@
               }
             }
           }
+        }
+      }
+    },
+    "/workspace-connections": {
+      "post": {
+        "operationId": "connectWorkspaceForDemo",
+        "summary": "Connect an available catalog venue immediately in the local demo; ownership is not verified",
+        "security": [{"sessionCookie": []}],
+        "parameters": [
+          {"name": "X-CSRFToken", "in": "header", "required": true, "schema": {"type": "string", "minLength": 1, "maxLength": 200}},
+          {"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"type": "string", "minLength": 16, "maxLength": 200}}
+        ],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ClaimDraftInput"}}}},
+        "responses": {
+          "201": {"description": "Connected in the local demo", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "properties": {"data": {"$ref": "#/components/schemas/Claim"}, "request_id": {"type": "string", "minLength": 1, "maxLength": 200}}, "required": ["data", "request_id"]}}}},
+          "400": {"description": "Invalid request", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "401": {"description": "Login required", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "403": {"description": "Forbidden", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "409": {"description": "Already connected or unavailable", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "503": {"description": "Source unavailable", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
         }
       }
     },
@@ -10112,7 +10158,8 @@
                 "type": "string",
                 "enum": [
                   "PENDING",
-                  "DEMO_SCENARIO"
+                  "DEMO_SCENARIO",
+                  "UNVERIFIED"
                 ]
               },
               "policy_version": {
@@ -10702,10 +10749,9 @@
             ]
           },
           "playlist_id": {
-            "enum": [
-              "demo-calm",
-              "demo-bright"
-            ]
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
           },
           "preferences": {
             "type": "object",

@@ -4,6 +4,74 @@ from integration import resources
 
 def scalar_list(value):return value if isinstance(value,list) else [value]
 def statements(value):return json.loads(value)['Statement']
+
+def audit_s3_prefix_actions(statement):
+    """AWS accepts s3:prefix only on these listing actions, not multipart lists."""
+    has_prefix=any(key.casefold()=='s3:prefix'
+                   for entries in statement.get('Condition',{}).values()
+                   for key in entries)
+    if has_prefix:
+        actions={action.casefold() for action in scalar_list(statement.get('Action',[]))}
+        require(bool(actions) and actions<={'s3:listbucket','s3:listbucketversions'},
+                's3:prefix combined with an unsupported action')
+def audit_checkpoint_probes(states, binding):
+    account = binding['account_ids']['encore1']
+    bucket = 'arn:aws:s3:::' + binding['bucket_names']['lake']
+    keys = [f'aws/{binding["environment"]}/{binding["generation"]}/{q}/checkpoint'
+            for q in ('weather-stream', 'feedback-postgresql')]
+    controls = ('control-a', 'control-b')
+    probes = [
+        {'Effect': 'Allow', 'Action': ['s3:GetObject'], 'Resource': [f'{bucket}/{key}' for key in keys]},
+        {'Effect': 'Allow', 'Action': ['s3:ListBucket'], 'Resource': [bucket],
+         'Condition': {'StringEquals': {'s3:prefix': keys}}},
+    ]
+
+    def probe_statements(resource):
+        rows = statements(resource['values']['policy'])
+        return [row for row in rows if any(key.endswith('/checkpoint') for key in scalar_list(row['Resource']))
+                or any(key.endswith('/checkpoint') for condition in row.get('Condition', {}).values()
+                       for key in scalar_list(condition.get('s3:prefix', [])))]
+
+    def expected(endpoint_id=None, principal=None):
+        result = []
+        for node in controls if principal else (None,):
+            for probe in probes:
+                conditions = {**probe.get('Condition', {}).get('StringEquals', {})}
+                if endpoint_id:
+                    conditions['aws:SourceVpce'] = endpoint_id
+                row = {**probe}
+                if conditions:
+                    row['Condition'] = {'StringEquals': conditions}
+                if principal:
+                    row['Principal'] = principal
+                    row.setdefault('Condition', {})['ArnEquals'] = {
+                        'aws:PrincipalArn': f'arn:aws:iam::{account}:role/p4-runtime-{node}'}
+                result.append(row)
+        return result
+
+    def canonical(rows):
+        return sorted(json.dumps(row, sort_keys=True) for row in rows)
+
+    for alias in ACCOUNTS:
+        account_resources = resources(states[alias])
+        endpoint = next(row for row in account_resources if row['address'] == 'module.account.aws_vpc_endpoint.s3')
+        endpoint_id = endpoint['values']['id']
+        endpoint_expected = expected(principal='*') if alias == 'encore1' else []
+        require(canonical(probe_statements(endpoint)) == canonical(endpoint_expected),
+                'Gateway checkpoint probes widened or missing')
+        control_addresses = {f'module.account.aws_iam_role_policy.runtime["{name}"]' for name in controls}
+        for resource in account_resources:
+            if resource['type'] == 'aws_iam_role_policy':
+                bound = alias == 'encore1' and resource['address'] in control_addresses
+                required = expected(endpoint_id) if bound else []
+                require(canonical(probe_statements(resource)) == canonical(required),
+                        'Runtime checkpoint probes widened or missing')
+            if resource['type'] == 'aws_s3_bucket_policy':
+                bound = alias == 'encore1' and resource['address'] == 'module.account.module.lake[0].aws_s3_bucket_policy.this'
+                required = expected(endpoint_id, {'AWS': f'arn:aws:iam::{account}:root'}) if bound else []
+                require(canonical(probe_statements(resource)) == canonical(required),
+                        'Lake checkpoint probes widened or missing')
+
 def audit(states):
     all_resources=[r for s in states.values() for r in resources(s)]
     select=lambda t:[r['values'] for r in all_resources if r['type']==t]
@@ -55,6 +123,7 @@ def audit(states):
         ss=statements(v['policy'])
         require(any(s['Effect']=='Deny' and s.get('Condition',{}).get('Bool',{}).get('aws:SecureTransport')=='false' for s in ss),'TLS deny required')
         for s in ss:
+            audit_s3_prefix_actions(s)
             if s['Effect']=='Allow':
                 require(s['Principal']!='*' and '*' not in scalar_list(s['Principal']['AWS']),'public bucket grant forbidden')
                 require('aws:PrincipalArn' in s.get('Condition',{}).get('ArnEquals',{}),'exact bucket role condition required')
@@ -66,6 +135,7 @@ def audit(states):
             for principal in s['Principal'].values():require('*' not in scalar_list(principal),'wildcard principal forbidden')
     for v in select('aws_iam_role_policy'):
         for s in statements(v['policy']):
+            audit_s3_prefix_actions(s)
             actions=[a.casefold() for a in scalar_list(s['Action'])];res=scalar_list(s['Resource'])
             require(all('*' not in a and '?' not in a for a in actions),'wildcard IAM action')
             if 'iam:passrole' in actions:
@@ -97,6 +167,7 @@ def audit(states):
     for v in select('aws_lb_listener'):
         require(v['protocol']=='HTTP' and v['default_action'][0]['fixed_response'][0]['status_code']=='403','origin bypass allowed')
     require(all(v['condition'][0]['http_header'][0]['http_header_name']=='X-P4-Origin' for v in select('aws_lb_listener_rule')),'origin header missing')
+    audit_checkpoint_probes(states, fixture_binding())
     # Deployment input is unbound: no SSM payload or OIDC role may be guessed.
     require(not select('aws_ssm_document') and not select('aws_iam_openid_connect_provider'),'unbound execution resource created')
     return True

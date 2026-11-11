@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ConciergeBriefing, BudgetTier, VenueCategory } from '../types/venue.types';
 import { postAiConcierge } from '../api/venues.api';
+import { withMinimumRecommendationDelay, RecommendationLoading } from './RecommendationLoading';
 
 interface GeminiConciergeSectionProps {
   gu: string;
@@ -15,24 +16,25 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
   const [error, setError] = useState<string | null>(null);
 
   const quickChips = [
-    { label: '☔ 비 오는 날 2만원대 전집·막걸리 추천', q: '비 오는 날 감성으로 2만원대 전집과 막걸리 마실 포차나 주점 추천해줘', cat: 'PUB' as VenueCategory, tier: '20K_30K' as BudgetTier },
-    { label: '☀️ 1만원 미만 카공하기 좋은 로스터리 카페', q: '조용하고 커피 맛있는 1만원 미만 작업/카공 카페 추천해줘', cat: 'CAFE' as VenueCategory, tier: 'UNDER_10K' as BudgetTier },
-    { label: '🌙 심야에 분위기 좋은 감성 하이볼 & 이자카야', q: '밤늦게까지 영업하고 분위기 있는 하이볼 맛집 추천해줘', cat: 'PUB' as VenueCategory, tier: '20K_30K' as BudgetTier },
-    { label: '🍰 달콤한 수플레 & 베이커리 데이트 코스', q: '비주얼 예쁘고 달콤한 디저트와 커피가 있는 카페 추천해줘', cat: 'CAFE' as VenueCategory, tier: '10K_20K' as BudgetTier },
+    { label: '비 오는 날, 2만원대 전·막걸리', q: '비 오는 날 감성으로 2만원대 전집과 막걸리 마실 포차나 주점 추천해줘', cat: 'PUB' as VenueCategory, tier: '20K_30K' as BudgetTier },
+    { label: '1만원 미만 카공 카페', q: '조용하고 커피 맛있는 1만원 미만 작업/카공 카페 추천해줘', cat: 'CAFE' as VenueCategory, tier: 'UNDER_10K' as BudgetTier },
+    { label: '심야 하이볼·이자카야', q: '밤늦게까지 영업하고 분위기 있는 하이볼 맛집 추천해줘', cat: 'PUB' as VenueCategory, tier: '20K_30K' as BudgetTier },
+    { label: '달콤한 베이커리 데이트', q: '비주얼 예쁘고 달콤한 디저트와 커피가 있는 카페 추천해줘', cat: 'CAFE' as VenueCategory, tier: '10K_20K' as BudgetTier },
   ];
 
   const handleAsk = async (userPrompt: string, cat?: VenueCategory, tier?: BudgetTier) => {
-    if (!userPrompt.trim()) return;
+    if (!userPrompt.trim() || loading) return;
+    setBriefing(null);
     setLoading(true);
     setError(null);
     try {
-      const data = await postAiConcierge({
+      const data = await withMinimumRecommendationDelay(postAiConcierge({
         query: userPrompt,
         gu,
         weather,
         category: cat || 'ALL',
         budget_tier: tier,
-      });
+      }));
       if (data.success && data.briefing) {
         setBriefing(data.briefing);
       }
@@ -44,8 +46,8 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
   };
 
   return (
-    <div style={{
-      background: 'linear-gradient(135deg, #0f172a, #1e1b4b)',
+    <div className="fitplace-concierge" style={{
+      background: 'linear-gradient(135deg, #242424, #1e1b4b)',
       color: '#f8fafc',
       borderRadius: '16px',
       padding: '22px',
@@ -55,23 +57,13 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '24px' }}>✨</span>
+
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontWeight: 800, fontSize: '17px' }}>Gemini 3.8 Flash AI 매장 & 미식 컨시어지</span>
-              <span style={{
-                backgroundColor: '#3b82f6',
-                color: '#ffffff',
-                padding: '2px 8px',
-                borderRadius: '6px',
-                fontSize: '11px',
-                fontWeight: 700,
-              }}>
-                gemini-3.8-flash
-              </span>
+              <span style={{ fontWeight: 800, fontSize: '17px' }}>어떤 분위기를 찾고 있나요?</span>
             </div>
             <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '2px' }}>
-              오늘 {gu}의 날씨({weather})와 예산, 기분에 딱 맞는 최적의 매장과 베스트 메뉴 조합을 브리핑해 드립니다.
+              AI 매장·메뉴 추천 · 질문을 고르거나 직접 입력해 보세요.
             </div>
           </div>
         </div>
@@ -83,13 +75,14 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
           <button
             key={idx}
             type="button"
+            disabled={loading}
             onClick={() => {
               setQuery(chip.q);
               handleAsk(chip.q, chip.cat, chip.tier);
             }}
             style={{
               backgroundColor: '#1e293b',
-              border: '1px solid #6366f1',
+              border: '1px solid #ff7775',
               color: '#ffffff',
               padding: '7px 14px',
               borderRadius: '9999px',
@@ -98,8 +91,8 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
               cursor: 'pointer',
               transition: 'all 0.2s',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#312e81')}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#1e293b')}
+
+
           >
             {chip.label}
           </button>
@@ -107,7 +100,7 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
       </div>
 
       {/* 자유 입력 검색바 */}
-      <div style={{ display: 'flex', gap: '10px' }}>
+      <div className="fitplace-concierge-input" style={{ display: 'flex', gap: '10px' }}>
         <input
           type="text"
           value={query}
@@ -133,7 +126,7 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
           onClick={() => handleAsk(query)}
           style={{
             padding: '12px 20px',
-            backgroundColor: loading ? '#475569' : '#6366f1',
+            backgroundColor: loading ? '#475569' : '#ff7775',
             color: '#ffffff',
             border: 'none',
             borderRadius: '10px',
@@ -147,6 +140,14 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
         </button>
       </div>
 
+      {loading && <RecommendationLoading />}
+      {!briefing && !loading && !error && (
+        <div className="fp-ai-empty" role="status">
+          <strong>추천 결과</strong>
+          <p>질문을 선택하거나 직접 입력하면 추천 결과가 여기에 표시됩니다.</p>
+        </div>
+      )}
+
       {error && (
         <div style={{ color: '#f87171', fontSize: '13px', marginTop: '10px' }}>
           ⚠️ {error}
@@ -155,23 +156,20 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
 
       {/* AI 브리핑 카드 */}
       {briefing && (
-        <div style={{
-          backgroundColor: 'rgba(30, 27, 75, 0.8)',
-          border: '1px solid #6366f1',
+        <div className="fp-ai-result" style={{
+          backgroundColor: '#faf8f5',
+          border: '1px solid #ff7775',
           borderRadius: '12px',
           padding: '18px',
           marginTop: '16px',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontWeight: 800, fontSize: '16px', color: '#a5b4fc' }}>
-              💡 {briefing.concierge_title}
-            </span>
-            <span style={{ fontSize: '11px', color: '#818cf8', backgroundColor: '#312e81', padding: '2px 8px', borderRadius: '4px' }}>
-              엔진: {briefing.model_used}
+            <span style={{ fontWeight: 800, fontSize: '16px', color: '#242424' }}>
+              {briefing.concierge_title}
             </span>
           </div>
 
-          <p style={{ fontSize: '14px', lineHeight: 1.6, color: '#e2e8f0', margin: '0 0 12px 0' }}>
+          <p style={{ fontSize: '14px', lineHeight: 1.6, color: '#242424', margin: '0 0 12px 0' }}>
             {briefing.summary_briefing}
           </p>
 
@@ -180,14 +178,14 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              backgroundColor: '#0f172a',
+              backgroundColor: '#fff',
               padding: '12px 16px',
               borderRadius: '8px',
-              border: '1px solid #334155',
+              border: '1px solid #e8e4e0',
             }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: '15px', color: '#38bdf8' }}>
-                  🎯 엄선 추천 매장: {briefing.recommended_venue_name}
+                <div style={{ fontWeight: 700, fontSize: '15px', color: '#242424' }}>
+                  엄선 추천 매장: {briefing.recommended_venue_name}
                 </div>
                 <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
                   어울리는 베스트 메뉴 조합: <strong>{briefing.recommended_menu_combination.join(' + ')}</strong>
@@ -198,8 +196,8 @@ export const GeminiConciergeSection: React.FC<GeminiConciergeSectionProps> = ({ 
                   type="button"
                   onClick={() => onSelectVenue(briefing.recommended_venue_id!)}
                   style={{
-                    backgroundColor: '#2563eb',
-                    color: '#ffffff',
+                    backgroundColor: '#ff383e',
+                    color: '#fff0ef',
                     border: 'none',
                     padding: '8px 14px',
                     borderRadius: '6px',

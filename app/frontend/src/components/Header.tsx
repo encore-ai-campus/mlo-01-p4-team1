@@ -1,7 +1,6 @@
 import {Icon} from './Icons';
 import {useEffect,useState} from 'react';
 import {api} from '../shared/api';
-import {MusicWeatherHeaderLogo} from './MusicWeatherHeaderLogo';
 import './header-brand.css';
 
 type Page='home'|'playlist';
@@ -17,15 +16,13 @@ export function Header({login=false,showGuide,isDemo=false,musicSource,weatherIs
     event.preventDefault();onNavigate(page);
   }
   return <header className={'header'+(login?' login-header':'')} id="top">
-    <a className="brand muther-brand" href="/" onClick={event=>selectPage(event,'home')} aria-label="muther · 오늘의 날씨를 들어보세요">
-      <span className="muther-wordmark" aria-hidden="true"><span className="muther-wordmark-mu">mu</span><span className="muther-wordmark-ther">ther</span><span className="muther-wordmark-dot">.</span></span>
+    <a className="brand muther-brand" href="/muther" onClick={event=>selectPage(event,'home')} aria-label="muther · 오늘의 날씨를 들어보세요">
+      <span className="muther-wordmark-image" aria-hidden="true"><img src="/muther-wordmark.png" alt="" /></span>
       <span className="muther-description">오늘의 날씨를 들어보세요</span>
     </a>
-    {!login&&<a className="muther-header-logo-link" href="/" aria-label="MUSIC X WEATHER 홈으로 이동"
-      onClick={event=>selectPage(event,'home')}><MusicWeatherHeaderLogo/></a>}
-    {login?<nav aria-label="로그인 메뉴"><a className="home-link" href="/"><Icon name="home"/>선곡 페이지로 <Icon name="arrow"/></a></nav>:
+    {login?<nav aria-label="로그인 메뉴"><a className="home-link" href="/muther"><Icon name="home"/>선곡 페이지로 <Icon name="arrow"/></a></nav>:
       <nav className="muther-header-nav" aria-label="주 메뉴">
-        <a href="/" aria-current={currentPage==='home'?'page':undefined}
+        <a href="/muther" aria-current={currentPage==='home'?'page':undefined}
           onClick={event=>selectPage(event,'home')}>홈</a>
         {account?.platform_enabled&&<a href="/platform">메인 플랫폼</a>}
         <a href="/playlist" aria-current={currentPage==='playlist'?'page':undefined}

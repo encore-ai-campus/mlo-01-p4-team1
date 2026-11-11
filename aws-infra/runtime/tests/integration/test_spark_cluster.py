@@ -15,6 +15,7 @@ from mlo_runtime.execution import DockerSparkExecution
 from mlo_runtime.lab import Lab, certificates
 from mlo_runtime.lease import PostgresLease
 from mlo_runtime.operations import ActiveGroup, UnsafeTransition
+from mlo_runtime.resources import SPARK_WORKER_CPUS, SPARK_WORKER_CORES, spark_resource_conf
 from test_zookeeper import quorum_services
 
 
@@ -35,7 +36,7 @@ class SparkClusterIntegration(unittest.TestCase):
             certs,
             [f"m{i}" for i in (1, 2, 3)]
             + [f"w{i}" for i in (1, 2, 3)]
-            + ["driver1", "driver2"],
+            + [f"driver{i}" for i in (1, 2, 3, 4)],
         )
         (lab.folder / "hold.py").write_text(
             "from pyspark.sql import SparkSession\nimport time\n"
@@ -43,6 +44,7 @@ class SparkClusterIntegration(unittest.TestCase):
             "spark.sparkContext.parallelize([1],1).map(lambda x: time.sleep(600)).collect()\n"
         )
         common = {
+            **spark_resource_conf(),
             "spark.authenticate": "true",
             "spark.authenticate.secret": "local-fixture",
             "spark.ssl.rpc.enabled": "true",
@@ -59,8 +61,7 @@ class SparkClusterIntegration(unittest.TestCase):
             "spark.ssl.standalone.port": "8443",
             "spark.port.maxRetries": "0",
             "spark.ui.enabled": "false",
-            "spark.executor.cores": "1",
-            "spark.cores.max": "1",
+            # Small isolated fixture heaps; CPU ceilings use the real profile.
             "spark.executor.memory": "512m",
         }
         (lab.folder / "spark-defaults.conf").write_text(
@@ -110,7 +111,7 @@ class SparkClusterIntegration(unittest.TestCase):
                 if kind == "w":
                     command += [
                         "--cores",
-                        "1",
+                        str(SPARK_WORKER_CORES),
                         "--memory",
                         "768m",
                         "spark://m1:7077,m2:7077,m3:7077",
@@ -121,6 +122,7 @@ class SparkClusterIntegration(unittest.TestCase):
                     "user": "0:0",
                     "hostname": name,
                     "mem_limit": "384m" if kind == "m" else "1g",
+                    "cpus": SPARK_WORKER_CPUS,
                     "environment": {
                         "SPARK_DAEMON_MEMORY": "192m",
                         "SPARK_MASTER_OPTS": master_options,
@@ -142,7 +144,7 @@ class SparkClusterIntegration(unittest.TestCase):
             "epoch": 1,
             "expires_at": time.time() + 900,
         }
-        for i in (1, 2):
+        for i in (1, 2, 3, 4):
             services[f"driver{i}"] = {
                 "image": lab.image("spark"),
                 "platform": platform,
@@ -252,6 +254,34 @@ class SparkClusterIntegration(unittest.TestCase):
             lambda: sum(len(execution._json(url)["executors"]) for url in workers) >= 2
             and sum(execution._json(url)["coresused"] for url in workers) >= 2,
             "two real executors did not start",
+        )
+
+        def active_apps():
+            snapshots = [execution._json(url) for url in masters]
+            return next(m["activeapps"] for m in snapshots if m["status"] == "ALIVE")
+
+        # Two long-lived streams keep one core each. A third application uses
+        # the shared batch slot; a fourth must wait without stealing stream cores.
+        lab.compose("up", "-d", "driver3", timeout=120)
+        wait_for(
+            lambda: len(active_apps()) == 3 and all(a["cores"] == 1 for a in active_apps()),
+            "first batch did not receive the remaining core",
+        )
+        lab.compose("up", "-d", "driver4", timeout=120)
+        wait_for(lambda: len(active_apps()) == 4, "second batch did not register")
+        apps = {a["name"]: a for a in active_apps()}
+        self.assertEqual(apps["B-fence-driver-4"]["cores"], 0)
+        self.assertEqual([apps[f"B-fence-driver-{i}"]["cores"] for i in (1, 2)], [1, 1])
+        self.assertTrue(all(execution._json(url)["coresused"] <= 1 for url in workers))
+        # Releasing the occupied batch slot must allow the queued app to progress.
+        lab.compose("stop", "driver3")
+        wait_for(
+            lambda: any(a["name"] == "B-fence-driver-4" and a["cores"] == 1 for a in active_apps()),
+            "queued batch did not receive the released core",
+        )
+        execution.containers = tuple(
+            lab.compose("ps", "--all", "-q", f"driver{i}").stdout.decode().strip()
+            for i in (1, 2, 3, 4)
         )
         initial = [execution._json(url) for url in masters]
         leader = next(

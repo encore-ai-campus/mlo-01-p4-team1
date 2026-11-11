@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { fetchMySummary } from '../api/venues.api';
 
 interface NotificationItem {
@@ -17,6 +17,13 @@ interface NotificationPopoverProps {
 
 export const NotificationPopover: React.FC<NotificationPopoverProps> = ({ userId = 'guest_anonymous', onSelectLink }) => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    const closeOutside = (event: MouseEvent) => { if (!popoverRef.current?.contains(event.target as Node)) setIsOpen(false); };
+    document.addEventListener('mousedown', closeOutside);
+    return () => document.removeEventListener('mousedown', closeOutside);
+  }, [isOpen]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
@@ -32,10 +39,13 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({ userId
   }, [userId, isOpen]);
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div ref={popoverRef} style={{ position: 'relative' }}>
       {/* 알림 벨 버튼 */}
       <button
         type="button"
+        className="fp-header-icon fp-notification-button"
+        aria-label={unreadCount > 0 ? `알림, 읽지 않은 알림 ${unreadCount}개` : "알림"}
+        aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
         style={{
           position: 'relative',
@@ -51,19 +61,9 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({ userId
           boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
         }}
       >
-        <span>🔔</span>
-        {unreadCount > 0 && (
-          <span style={{
-            backgroundColor: '#ef4444',
-            color: '#ffffff',
-            borderRadius: '9999px',
-            fontSize: '11px',
-            fontWeight: 800,
-            padding: '1px 6px',
-          }}>
-            {unreadCount}
-          </span>
-        )}
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8.5a6 6 0 0 0-12 0v5.3L4 16.5h16l-2-2.7V8.5Z"/><path d="M10 20h4M12 2v1"/></svg>
+        {unreadCount > 0 && <span className="fp-notification-dot" aria-hidden="true" />}
+
       </button>
 
       {/* 팝오버 패널 */}

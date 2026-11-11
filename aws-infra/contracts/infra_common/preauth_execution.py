@@ -394,11 +394,16 @@ def deploy_runtime(
             )
             node = names[target]
             role = next(n["role"] for n in inventory["nodes"] if n["name"] == node)
+            native = (
+                role in {"kafka", "spark", "elasticsearch"}
+                and "hosts/" + node + "/native.json" in manifest["files"]
+                and "aws-infra/runtime/native-releases.lock.json" in manifest["files"]
+            )
             require(
                 operation in manifest["operations"]
                 and manifest["node_roles"][node] == role
                 and manifest["required_secrets"][node]
-                and manifest["image_digests"],
+                and (manifest["image_digests"] or native),
                 "operational artifact contract incomplete",
             )
     result = {

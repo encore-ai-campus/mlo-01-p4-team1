@@ -1,0 +1,347 @@
+.fitplace { --fp-primary:#ff383e; --fp-secondary:#ff7775; --fp-bg:#ffffff; --fp-text:#242424; --fp-muted:#77736f; --fp-border:#e8e4e0; --fp-tint:#fff0ef; max-width:1440px !important; min-height:100vh; padding:32px 40px !important; color:var(--fp-text) !important; background:var(--fp-bg); font:400 15px/24px Pretendard,-apple-system,BlinkMacSystemFont,sans-serif !important; }
+body:has(.fitplace) { background:#ffffff; }
+.fitplace * { box-sizing:border-box; }
+.fitplace button,.fitplace input,.fitplace select { font-family:inherit; }
+.fitplace :is(button,a,input,select):focus-visible { outline:2px solid #ff383e; outline-offset:3px; box-shadow:0 0 0 5px #fff0ef; }
+.fitplace-header { gap:12px !important; margin-bottom:24px !important; }
+/* Desktop navigation stays above page content while drawers and modals remain on top. */
+@media (min-width:768px) {
+ .fitplace-header { position:sticky; top:0; z-index:800; min-height:89px; width:100vw; margin:-32px 0 24px calc(50% - 50vw) !important; padding:21px 40px 22px; background:var(--fp-bg); border-bottom:0.08px solid #000; }
+}
+@media (min-width:1200px) { .fitplace-map-card { top:109px !important; } }
+
+.fitplace-logo { color:#ff383e; font-size:25px; line-height:32px; font-weight:700; letter-spacing:0; white-space:nowrap; }
+.fitplace-header > div:first-of-type { flex:0 1 auto !important; min-width:0 !important; display:flex; align-items:center; gap:12px; }
+.fitplace-header > div:first-of-type > div { margin:0 !important; padding:0 !important; background:transparent !important; border:0 !important; gap:4px; }
+.fitplace-header > div:first-of-type button { min-height:46px; padding:12px 16px !important; border-radius:10px !important; font-size:16px !important; line-height:20px; white-space:nowrap; }
+.fitplace-header > div:first-of-type button:first-child { background:#ff383e !important; color:#fff0ef !important; }
+.fitplace-header > div:first-of-type button:last-child { background:#fff !important; border:1px solid #e8e4e0 !important; color:#242424 !important; }
+.fitplace-header-title { font-size:18px; line-height:28px; font-weight:600; white-space:nowrap; }
+.fitplace-header > div:last-child { margin-left:auto; flex-wrap:wrap; }
+.fitplace-header > div:last-child > button { min-height:46px; background:#fff !important; color:#242424 !important; border:1px solid #e8e4e0 !important; border-radius:10px !important; }
+.fitplace-banner { display:flex; align-items:flex-start; justify-content:space-between; min-height:116px; margin-bottom:24px; padding:24px; gap:12px; background:#fff0ef; color:#242424; border-radius:16px; }
+.fp-banner-copy { display:flex; flex:1 1 auto; min-width:0; flex-direction:column; gap:12px; }
+.fp-banner-title { font:700 22px/32px Pretendard,sans-serif; letter-spacing:0; }
+.fp-banner-description { color:#77736f; font:400 15px/24px Pretendard,sans-serif; letter-spacing:0; }
+.fp-banner-link { display:inline-flex; align-items:center; min-height:46px; padding:10px 16px; border:1px solid #e8e4e0; border-radius:10px; background:#fff; color:#242424; font-size:16px; line-height:20px; font-weight:600; white-space:nowrap; }
+.fitplace-concierge { background:#fff !important; color:#242424 !important; border:1px solid #e8e4e0 !important; box-shadow:none !important; padding:24px !important; }
+.fitplace-concierge > div:first-child span:first-child { color:#242424; font-size:22px !important; line-height:32px; }
+.fitplace-concierge > div:first-child span:nth-child(2) { background:#fff0ef !important; color:#242424 !important; border:1px solid #ff383e; border-radius:999px !important; }
+.fitplace-concierge > div:first-child div[style*="font-size: 13px"] { color:#77736f !important; font-size:15px !important; line-height:24px; }
+.fitplace-concierge > div:nth-child(2) button { min-height:44px; background:#fff !important; color:#242424 !important; border:1px solid #e8e4e0 !important; padding:10px 16px !important; font-size:14px !important; line-height:20px; transition:background-color .12s ease-out,border-color .12s ease-out; }
+.fitplace-concierge > div:nth-child(2) button:hover { background:#faf8f5 !important; border-color:#ff7775 !important; }
+.fitplace-concierge-input input { min-width:0; min-height:48px; background:#fff !important; color:#242424 !important; border:1px solid #e8e4e0 !important; font-size:15px !important; }
+.fitplace-concierge-input button { min-height:44px; background:#ff383e !important; color:#fff0ef !important; white-space:nowrap; }
+.fitplace-concierge .fp-ai-result { background:#faf8f5; border:0; border-radius:16px; padding:16px; margin-top:16px; color:#242424; }
+.fitplace-concierge .fp-ai-result p { color:#242424; }
+.fitplace-filters { background:#fff; border:1px solid #e8e4e0; border-radius:16px; padding:24px; margin-bottom:24px; }
+.fp-filter-top,.fp-region,.fp-weather,.fp-filter-row,.fp-chip-row { display:flex; align-items:center; gap:8px; }
+.fp-filter-top { justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:16px; }
+.fp-region span,.fp-filter-label { color:#77736f; font-size:14px; }
+.fp-region select { min-width:168px; height:46px; padding:0 14px; border:1px solid #e8e4e0; border-radius:6px; background:#fff; color:#242424; font-size:14px; }
+.fp-search { width:100%; height:48px; border:1px solid #e8e4e0; border-radius:10px; padding:0 16px; color:#242424; font-size:15px; }
+.fp-filter-row { margin-top:16px; flex-wrap:wrap; }
+.fp-filter-label { width:48px; flex:none; font-weight:600; }
+.fp-chip-row,.fp-quick { flex-wrap:wrap; }
+.fp-chip { min-width:44px; min-height:44px; border:1px solid #e8e4e0; border-radius:999px; padding:12px 16px; background:#fff; color:#242424; font-size:16px; line-height:20px; font-weight:600; white-space:nowrap; transition:background-color .12s ease-out,border-color .12s ease-out; }
+.fp-chip:hover:not(:disabled):not([aria-pressed="true"]) { background:#faf8f5; border-color:#ff7775; }
+.fitplace .fp-chip[aria-pressed="true"], .fitplace .fp-chip[aria-pressed="true"]:hover { background:#fff0ef; border-color:transparent; color:#242424; }
+.fp-chip:disabled { opacity:1; color:#77736f; background:#faf8f5; cursor:not-allowed; }
+.fitplace-results-heading { margin:28px 0 18px; }
+.fitplace-results-heading h2 { margin:0 0 8px; color:#242424; font-size:22px; line-height:32px; font-weight:700; }
+.fitplace-results-heading p,.fitplace-count,.fp-map-hint { color:#77736f; font-size:12px; line-height:18px; margin:0; }
+.fitplace-results { display:grid; grid-template-columns:minmax(0,1fr) !important; gap:24px !important; }
+@media (min-width:1200px) { .fitplace-results { grid-template-columns:minmax(280px,400px) minmax(0,1fr) !important; } }
+.fitplace-map-card { border:1px solid #e8e4e0 !important; border-radius:16px !important; box-shadow:none !important; padding:16px !important; position:static !important; min-width:0; }
+.fitplace-map-card > div:first-child { gap:8px; flex-wrap:wrap; }
+.fp-map-count { margin-left:8px; border:1px solid #e8e4e0; border-radius:10px; padding:8px; font-size:12px; }
+.fp-map-hint { margin:0 0 12px; }
+.fitplace-count { color:#242424; font-weight:700; margin:0 0 16px; }
+.fitplace-count span { color:#77736f; font-weight:400; }
+.fitplace-map { height:620px !important; border-color:#e8e4e0 !important; }
+.fitplace-map .leaflet-bottom.leaflet-right { bottom:52px; right:8px; }
+.fitplace-map .leaflet-control-zoom a { width:44px; height:44px; line-height:44px; color:#242424; }
+.fitplace-map .leaflet-control-scale { position:absolute; right:0; bottom:-48px; white-space:nowrap; }
+.fitplace-map-legend { display:none !important; }
+.fitplace-map-weather { position:absolute; z-index:500; bottom:38px; left:10px; background:#fff; color:#242424; padding:8px; border-radius:10px; font-weight:700; font-size:12px; box-shadow:0 2px 8px #0002; }
+.fitplace-map-weather small { display:block; color:#77736f; font-weight:400; font-size:10px; }
+.fitplace-location { position:absolute; z-index:500; right:18px; bottom:62px; width:44px; height:44px; padding:0 !important; border:0; background:#fff; border-radius:5px; font-size:24px; }
+.fitplace-location-error { position:absolute; z-index:600; right:10px; top:10px; background:#fff; border-radius:8px; padding:8px; }
+.fitplace-venue-card { background:#fff; border:1px solid #e8e4e0; border-radius:16px; padding:24px; margin-bottom:16px; color:#242424; cursor:pointer; transition:box-shadow .12s ease-out,border-color .12s ease-out,background .08s ease-out; }
+@media (hover:hover) { .fitplace-venue-card:hover { border-color:#ff383e; box-shadow:0 8px 24px rgba(36,36,36,.10); } }
+.fitplace-venue-card:has(:focus-visible) { outline:2px solid #ff383e; outline-offset:2px; box-shadow:0 0 0 5px #fff0ef; }
+.fp-card-title { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.fp-card-title h3 { font-size:18px; line-height:28px; font-weight:600; margin:0; color:#242424; overflow-wrap:anywhere; }
+.fp-card-title button { width:46px; height:46px; flex:none; border:1px solid #e8e4e0; border-radius:10px; background:#fff; color:#242424; font-size:22px; }
+.fp-card-meta,.fp-card-tags { margin:8px 0; color:#77736f; font-size:12px; line-height:18px; }
+.fp-card-facts { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:12px 0; font-size:14px; line-height:20px; }
+.fp-status { padding:5px 8px; border-radius:6px; background:#faf8f5; font-size:12px; }
+.fp-card-notice { padding:8px; border-radius:10px; background:#fff0ef; }
+.fp-card-music { padding:8px 12px; border-radius:10px; background:#fff0ef; font-size:12px; line-height:18px; margin:12px 0; }
+.fp-menu-preview > strong { display:block; margin:12px 0; font-size:14px; line-height:20px; }
+.fp-menu-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.fp-menu-grid button { min-width:0; min-height:60px; text-align:left; padding:12px; border:0; border-radius:10px; background:#faf8f5; color:#242424; display:flex; flex-direction:column; align-items:flex-start; gap:8px; font-size:12px; line-height:18px; }
+.fp-menu-grid button span { overflow-wrap:anywhere; white-space:normal; }
+.fitplace-more { display:block; font-size:12px; color:#77736f; margin-top:12px; }
+.fitplace-empty { background:#fff; border:1px solid #e8e4e0; border-radius:16px; padding:28px; color:#77736f; }
+@media (max-width:1199px) { .fitplace-map-card { position:static !important; } }
+@media (max-width:767px) {
+ .fitplace { padding:24px 16px !important; }
+ .fitplace-logo { flex-basis:100%; }
+ .fitplace-header > div:first-of-type { width:100%; flex:1 1 100% !important; }
+ .fitplace-header > div:first-of-type > div { width:100%; min-width:0; }
+ .fitplace-header > div:first-of-type button { min-width:0; padding:10px 8px !important; }
+ .fitplace-header-title { display:none; }
+ .fitplace-header > div:last-child { margin-left:0; }
+ .fitplace-banner { align-items:flex-start !important; flex-wrap:wrap; }
+ .fitplace-concierge,.fitplace-filters { padding:16px !important; }
+ .fitplace-concierge > div:nth-child(2) { flex-wrap:nowrap !important; overflow-x:auto; max-width:100%; }
+ .fitplace-concierge > div:nth-child(2) > button { flex:0 0 auto !important; white-space:nowrap; }
+ .fitplace-concierge-input { flex-direction:column; } .fitplace-concierge-input button { width:100%; }
+ .fp-filter-top { align-items:flex-start; flex-direction:column; }
+ .fp-filter-row { display:block; } .fp-filter-label { display:block; width:auto; margin-bottom:8px; }
+ .fp-chip-row,.fp-quick { display:flex; flex-wrap:nowrap; overflow-x:auto; max-width:100%; }
+ .fp-chip-row .fp-chip,.fp-quick .fp-chip { flex:0 0 auto; }
+ .fitplace-map { height:355px !important; }
+ .fitplace-venue-card { padding:16px; } .fitplace-venue-card:active { background:#fff0ef; }
+ .fp-menu-grid { grid-template-columns:minmax(0,1fr); }
+ .fp-menu-grid button { flex-direction:row; justify-content:space-between; align-items:center; }
+}
+
+.fp-card-title h3 .fp-card-open { width:auto; height:auto; min-height:44px; padding:0; border:0; border-radius:0; background:transparent; text-align:left; color:#242424; font:600 18px/28px Pretendard,sans-serif; overflow-wrap:anywhere; }
+
+.fp-marker { position:relative; box-shadow:0 2px 8px rgba(36,36,36,.16) !important; }
+.fp-marker::after { content:""; position:absolute; bottom:-5px; left:calc(50% - 4px); width:8px; height:8px; background:inherit; border-right:1px solid #e8e4e0; border-bottom:1px solid #e8e4e0; transform:rotate(45deg); }
+
+/* Region selector: the popup remains inside the filter without changing its layout. */
+.fp-region-select { position:relative; width:168px; flex:none; }
+.fp-region-trigger { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:46px; padding:0 14px; border:1px solid #e8e4e0; border-radius:6px; background:#fff; color:#242424; font-size:14px; line-height:20px; font-weight:600; cursor:pointer; }
+.fp-region .fp-region-trigger span { color:#242424; }
+.fp-region-trigger[aria-expanded="true"] { border-color:#ff383e; }
+.fp-region-chevron { font-size:20px !important; line-height:1; }
+.fp-region-list { position:absolute; z-index:700; top:calc(100% + 4px); left:0; width:max(100%, 240px); max-width:min(320px, calc(100vw - 64px)); max-height:320px; overflow-y:auto; overscroll-behavior:contain; border:1px solid #e8e4e0; border-radius:6px; background:#fff; box-shadow:0 8px 24px rgba(36,36,36,.10); }
+.fp-region-group-label { padding:10px 14px 6px; background:#faf8f5; color:#77736f; font-size:12px; line-height:18px; }
+.fp-region-option { display:flex; align-items:center; justify-content:space-between; min-height:40px; padding:8px 14px; color:#242424; font-size:14px; line-height:20px; cursor:pointer; }
+.fp-region .fp-region-option span { color:#242424; }
+.fp-region-option.is-active:not(.is-selected) { background:#faf8f5; }
+.fp-region-option.is-selected { background:#fff0ef; font-weight:600; }
+.fp-region-option.is-selected.is-active { box-shadow:inset 0 0 0 1px #ff7775; }
+@media (max-width:767px) { .fp-region-option { min-height:44px; } }
+
+.fp-region-trigger:hover:not(:disabled) { background:#fff; }
+.fp-region-option:hover:not(.is-selected) { background:#faf8f5; }
+
+/* Photo gallery is shared across desktop and touch layouts. */
+.fitplace-desktop-result-count { display:none; }
+@media (min-width:1200px) {
+ .fitplace-results-heading, .fitplace-count { display:none; }
+ .fitplace-desktop-result-count { display:block; margin:28px 0 18px; font-size:14px; font-weight:700; }
+ .fp-card-heading { display:flex; align-items:center; flex-wrap:wrap; gap:0 12px; min-width:0; }
+ .fp-card-heading .fp-card-meta { margin:0; }
+
+}
+.fp-gallery { display:block; position:relative; margin:12px 0; min-width:0; }
+ .fp-photo-track { display:flex; gap:12px; overflow-x:auto; scrollbar-width:thin; scroll-snap-type:x proximity; }
+ .fp-photo { flex:0 0 115px; width:115px; height:115px; position:relative; overflow:hidden; border-radius:12px; background:#a0a0a0; scroll-snap-align:start; }
+ .fp-photo img { width:100%; height:100%; object-fit:cover; display:block; }
+ .fp-photo-loading,.fp-photo-error { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:6px; padding:5px; color:#242424; font-size:10px; line-height:14px; background:#e8e4e0; }
+ .fp-photo-spinner { width:20px; height:20px; border:2px solid #fff; border-top-color:#ff383e; border-radius:50%; animation:fp-spin .8s linear infinite; }
+ .fp-photo-error button { border:1px solid #e8e4e0; background:#fff; color:#242424; border-radius:6px; padding:4px 8px; }
+ .fp-photo-prev,.fp-photo-next { position:absolute; top:50%; transform:translateY(-50%); width:32px; height:32px; border:1px solid #e8e4e0; border-radius:50%; background:#fff; color:#242424; font-size:24px; line-height:1; box-shadow:0 2px 8px #0002; }
+ .fp-photo-prev { left:4px; } .fp-photo-next { right:4px; }
+@media (max-width:1199px) {
+ .fp-photo-track { -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y; }
+ .fp-photo-prev,.fp-photo-next { display:none; }
+}
+@keyframes fp-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { .fp-photo-spinner { animation:none; } }
+
+/* Desktop layout measured from Figma frame 01: 1360 × 760, map 530 × 760, gap 24. */
+@media (min-width:1200px) {
+ .fitplace-results { grid-template-columns:minmax(0,39.67fr) minmax(0,60.33fr) !important; height:760px; align-items:stretch !important; }
+ .fitplace-map-card { display:flex; flex-direction:column; height:100%; min-height:0; box-sizing:border-box; }
+ .fitplace-map-card > div:first-child, .fitplace-map-card > .fp-map-hint { display:none !important; }
+ .fitplace-map-card .fitplace-map { height:auto !important; min-height:0; flex:1 1 0; }
+ .fitplace-list { min-width:0; height:100%; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; }
+ .fitplace-desktop-result-count { display:flex; align-items:center; justify-content:space-between; }
+ .fitplace-desktop-result-count a { font-size:12px; color:#77736f; font-weight:400; text-decoration:none; }
+ .fitplace-header .fp-header-actions > button,
+ .fitplace-header .fp-header-actions > div > button { display:inline-flex !important; align-items:center; justify-content:center; height:46px; min-height:46px; padding:0 16px !important; font-size:16px !important; line-height:20px; font-weight:600 !important; color:#242424 !important; background:#fff !important; border:1px solid #e8e4e0 !important; border-radius:10px !important; box-shadow:none !important; white-space:nowrap; }
+ .fitplace-concierge { position:relative; }
+ .fitplace-concierge > div:first-child span:nth-child(2) { position:absolute; right:24px; top:24px; }
+ .fitplace-concierge > div:nth-child(2) button { min-height:44px; padding:10px 16px !important; font-size:14px !important; }
+}
+
+.fp-ai-empty { display:none; }
+@media (min-width:1200px) {
+ .fitplace-concierge .fp-ai-empty { display:block; min-height:128px; margin-top:16px; padding:16px; border-radius:16px; background:#faf8f5; color:#242424; font-size:14px; line-height:20px; }
+ .fitplace-concierge .fp-ai-empty strong { display:block; font-weight:700; }
+ .fitplace-concierge .fp-ai-empty p { margin:12px 0 0; color:#77736f; }
+ .fitplace-map .leaflet-bottom.leaflet-right { bottom:16px; }
+ .fitplace-map .leaflet-control-zoom { margin-bottom:70px; }
+ .fitplace-map .leaflet-control-scale { right:52px; bottom:0; }
+ .fitplace-location { bottom:16px; }
+}
+
+.fp-menu-grid button:hover { background:#fff0ef !important; }
+
+@media (max-width:1199px) { .fp-map-research:disabled { display:none; } }
+
+/* Match the Figma desktop filter and store card typography and spacing. */
+@media (min-width:1200px) {
+ .fp-filter-row:not(.fp-quick) { align-items:flex-start; gap:16px; }
+ .fp-filter-label { width:40px; font-size:16px; line-height:20px; }
+ .fp-region-trigger { font-size:16px; }
+ .fitplace-concierge > div:nth-child(2) button { font-size:16px !important; padding:12px 16px !important; }
+ .fitplace-venue-card { display:flex; flex-direction:column; gap:12px; padding:20px 24px; }
+ .fitplace-venue-card > .fp-card-facts,
+ .fitplace-venue-card > .fp-card-tags,
+ .fitplace-venue-card > .fp-card-music,
+ .fitplace-venue-card > .fp-gallery,
+ .fitplace-venue-card > .fitplace-more { margin:0; }
+ .fp-card-facts { font-size:16px; line-height:20px; }
+ .fp-status { padding:4px 8px; line-height:18px; }
+ .fp-card-music { border-radius:8px; }
+ .fp-menu-preview { width:100%; }
+ .fp-menu-preview > strong { margin:0 0 12px; font-size:16px; line-height:20px; }
+ .fp-menu-grid button { padding:10px 12px; border-radius:8px; gap:12px; }
+ .fp-menu-grid button strong { font-size:16px; line-height:20px; font-weight:600; }
+}
+
+/* Recommendation progress, bookmark and review rating share the venue palette. */
+.fitplace .fp-card-title .fp-card-bookmark { color:var(--fp-secondary) !important; }
+.fitplace .fp-card-title .fp-card-bookmark[aria-pressed="true"] { color:var(--fp-primary) !important; }
+.fp-ai-loading { display:flex; align-items:center; gap:10px; margin-top:16px; padding:16px; border-radius:16px; background:#faf8f5; color:#242424; }
+.fp-ai-spinner { width:20px; height:20px; flex:none; border:2px solid #e8e4e0; border-top-color:#ff383e; border-radius:50%; animation:fp-spin .8s linear infinite; }
+.fp-rating-star { display:inline-block; vertical-align:middle; }
+@media (prefers-reduced-motion:reduce) { .fp-ai-spinner { animation:none; border-color:#ff383e #e8e4e0 #e8e4e0; } }
+
+/* Search-first exploration layout */
+.fitplace { max-width:none !important; padding:24px !important; }
+.fitplace-header { width:auto; margin:0 0 24px !important; padding:0 0 20px; min-height:64px; border-bottom:1px solid #ededed; }
+.fitplace-explore-layout { display:grid; grid-template-columns:minmax(380px, 1fr) minmax(0, 1fr); gap:24px; align-items:start; }
+.fitplace-ad-placeholder { grid-column:1; grid-row:1; display:flex; align-items:center; justify-content:center; width:100%; height:110px; border-radius:16px; background:#f0f1f2; color:#777; font-size:16px; }
+.fitplace-explore-content { grid-column:1; grid-row:2; min-width:0; }
+.fitplace-explore-layout > .fitplace-map-card { grid-column:2; grid-row:1 / span 2; }
+.fitplace-intro { padding:8px 0 22px; }
+.fitplace-intro p { margin:0 0 6px; color:#df454b; font-size:13px; font-weight:700; }
+.fitplace-intro h1 { margin:0 0 6px; color:#202124; font-size:26px; line-height:1.35; letter-spacing:-.04em; }
+.fitplace-intro span { color:#7a7d82; font-size:14px; }
+.fitplace-filters { background:#f7f8fa; border:0; padding:20px; margin-bottom:14px; }
+.fitplace .fp-search { background:#fff; border:1px solid #e8eaed; border-radius:12px; }
+.fitplace .fp-chip { background:#fff; min-height:38px; padding:8px 13px; font-size:14px; }
+.fitplace-recommendations { border:1px solid #eceef0; border-radius:16px; margin:0 0 22px; background:#fff; }
+.fitplace-recommendations summary { cursor:pointer; padding:17px 20px; font-weight:700; list-style:none; }
+.fitplace-recommendations summary::after { content:'+'; float:right; font-size:20px; color:#777; }
+.fitplace-recommendations[open] summary::after { content:'−'; }
+.fitplace-recommendations summary span { margin-left:8px; font-size:12px; font-weight:400; color:#888; }
+.fitplace-recommendations-body { padding:0 16px 16px; }
+.fitplace-recommendations-body .fitplace-banner { margin-bottom:12px; }
+.fitplace-map-card { position:sticky !important; top:110px !important; height:calc(100vh - 134px); min-height:440px; padding:0 !important; overflow:hidden; }
+.fitplace-map-card .fitplace-map { height:100% !important; min-height:0; }
+.fitplace-map-card > div:first-child, .fitplace-map-card > .fp-map-hint { display:none !important; }
+.fitplace-list { height:auto !important; overflow:visible !important; }
+.fitplace-desktop-result-count { display:flex; margin:22px 0 14px; align-items:center; justify-content:space-between; }
+.fitplace-desktop-result-count a { color:#888; font-size:12px; text-decoration:none; }
+.fitplace-results-heading,.fitplace-count { display:none; }
+.fitplace-venue-card { padding:20px; border-color:#edefef; }
+@media (max-width: 900px) {
+ .fitplace { padding:16px !important; }
+ .fitplace-header { position:relative; top:auto; width:auto; margin:0 0 16px !important; padding:0 0 14px; }
+ .fitplace-explore-layout { grid-template-columns:minmax(0,1fr); gap:18px; }
+ .fitplace-ad-placeholder { grid-column:1; grid-row:1; }
+ .fitplace-explore-layout > .fitplace-map-card { grid-column:1; grid-row:2; }
+ .fitplace-explore-content { grid-column:1; grid-row:3; }
+ .fitplace-map-card { position:relative !important; top:auto !important; height:360px; min-height:0; }
+ .fitplace-intro { padding-top:0; }
+ .fitplace-desktop-result-count { display:flex; }
+}
+@media (max-width: 600px) {
+ .fitplace { padding:14px !important; }
+ .fitplace-header { gap:8px !important; }
+ .fitplace-header > div:first-of-type { flex-basis:auto !important; width:auto; }
+ .fitplace-logo { flex-basis:auto; }
+ .fitplace-header > div:last-child { width:100%; }
+ .fitplace-map-card { height:300px; }
+ .fitplace-intro h1 { font-size:23px; }
+ .fitplace-recommendations summary span { display:block; margin:2px 0 0; }
+}
+.fitplace-map-card.has-bounds > div:first-child { display:flex !important; position:absolute; z-index:600; top:12px; left:12px; margin:0 !important; padding:8px; border-radius:10px; background:#fff; box-shadow:0 2px 10px #0002; }
+.fitplace-map-card.has-bounds > div:first-child > a, .fitplace-map-card.has-bounds .fp-map-count, .fitplace-map-card.has-bounds > div:first-child > div > span { display:none; }
+
+/* 상단 전체 메뉴 */
+.fitplace .fp-header-menu-wrap { position:relative; flex:none; }
+.fitplace .fp-header-menu-trigger { display:inline-flex; justify-content:center; align-items:center; width:46px; height:46px; padding:0; border:1px solid #e8e4e0; border-radius:10px; background:#fff; color:#242424; cursor:pointer; font-size:22px; line-height:1; }
+.fitplace .fp-header-menu-trigger:hover { background:#f7f7f7; }
+.fitplace .fp-header-menu-backdrop { position:fixed; inset:0; z-index:850; padding:0; border:0; background:transparent; cursor:default; }
+.fitplace .fp-header-menu { position:absolute; z-index:851; top:calc(100% + 8px); right:0; width:260px; padding:12px; border:1px solid #ededed; border-radius:14px; background:#fff; box-shadow:0 4px 20px #0002; }
+.fitplace .fp-header-menu-title { display:flex; align-items:center; justify-content:space-between; padding:4px 8px 10px; font-size:15px; }
+.fitplace .fp-header-menu-title button { width:36px; height:36px; border:0; border-radius:8px; background:transparent; color:#333; font-size:24px; cursor:pointer; }
+.fitplace .fp-header-menu > a, .fitplace .fp-header-menu > button { display:flex; align-items:center; justify-content:space-between; width:100%; min-height:48px; padding:0 10px; border:0; border-radius:8px; background:transparent; color:#242424; text-decoration:none; font:inherit; font-size:14px; text-align:left; cursor:pointer; }
+.fitplace .fp-header-menu > a:hover, .fitplace .fp-header-menu > button:hover { background:#f6f6f6; }
+.fitplace .fp-header-menu > a span, .fitplace .fp-header-menu > button span { color:#999; font-size:22px; }
+@media (max-width:600px) { .fitplace .fp-header-menu-backdrop { background:#0006; } .fitplace .fp-header-menu { position:fixed; top:0; bottom:0; right:0; width:min(320px,85vw); border-radius:0; padding:18px; overflow-y:auto; } }
+
+/* 로고가 있는 상단 바와 메뉴 레이어 */
+.fitplace .fitplace-header { position:sticky; top:0; z-index:1100; background:#fff; }
+.fitplace .fitplace-header-title { display:inline; font-size:16px; line-height:28px; font-weight:400; }
+.fitplace .fp-header-actions .fp-header-icon { display:inline-flex !important; justify-content:center; align-items:center; width:46px; height:46px; min-height:46px; padding:0 !important; border:0 !important; background:#fff !important; box-shadow:none !important; color:#161616 !important; }
+.fitplace .fp-header-icon svg { display:block; width:26px; height:26px; }
+.fitplace .fp-notification-dot { position:absolute; top:8px; right:8px; width:10px; height:10px; border:2px solid #fff; border-radius:50%; background:#ef1d2b; }
+.fitplace .fp-header-menu-backdrop { position:fixed; inset:64px 0 0; z-index:850; background:transparent; }
+@media(max-width:600px) { .fitplace .fitplace-header { position:sticky; top:0; z-index:1100; display:flex !important; flex-wrap:nowrap !important; gap:8px !important; margin:-24px -16px 16px !important; padding:9px 16px !important; background:#fff; } .fitplace .fitplace-logo { flex:0 0 auto; } .fitplace .fitplace-header > div:first-of-type { width:auto; flex:1 1 auto !important; min-width:0 !important; } .fitplace .fitplace-header-title { display:inline; font-size:14px; white-space:nowrap; } .fitplace .fitplace-header > .fp-header-actions { width:auto; margin-left:auto; flex-wrap:nowrap; gap:2px !important; } .fitplace .fp-header-menu-backdrop { background:#0006; } .fitplace .fp-header-menu { top:64px; } }
+
+/* 필터 라벨과 항목을 한 줄로 유지하고 넘친 항목은 가로로 탐색 */
+.fitplace .fp-filter-row:not(.fp-quick) { display:flex; flex-wrap:nowrap; align-items:center; gap:16px; min-width:0; }
+.fitplace .fp-filter-row:not(.fp-quick) .fp-filter-label { display:block; flex:0 0 40px; width:40px; margin:0; font-weight:400; line-height:20px; }
+.fitplace .fp-filter-row:not(.fp-quick) .fp-chip-row { display:flex; flex:1 1 0; min-width:0; max-width:100%; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; scrollbar-width:none; align-items:center; }
+.fitplace .fp-filter-row:not(.fp-quick) .fp-chip-row::-webkit-scrollbar { display:none; }
+.fitplace .fp-filter-row:not(.fp-quick) .fp-chip-row .fp-chip { flex:0 0 auto; }
+
+/* 대표 메뉴 가로 슬라이드 */
+.fitplace .fp-menu-preview { min-width:0; }
+.fitplace .fp-menu-preview-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:12px 0; }
+.fitplace .fp-menu-preview-heading > strong { font-size:16px; line-height:20px; }
+.fitplace .fp-menu-slide-controls { display:flex; gap:4px; }
+.fitplace .fp-menu-slide-controls button { width:30px; height:30px; padding:0; border:1px solid #e8e4e0; border-radius:50%; background:#fff; color:#242424; font-size:20px; line-height:1; cursor:pointer; }
+.fitplace .fp-menu-slide-controls button:disabled { opacity:.35; cursor:default; }
+.fitplace .fp-menu-grid { display:flex; min-width:0; max-width:100%; gap:12px; overflow-x:auto; overflow-y:hidden; scroll-snap-type:x proximity; scrollbar-width:none; }
+.fitplace .fp-menu-grid::-webkit-scrollbar { display:none; }
+.fitplace .fp-menu-grid > button { flex:0 0 calc((100% - 12px) / 3); min-width:0; scroll-snap-align:start; flex-direction:column; align-items:flex-start; justify-content:flex-start; }
+@media(max-width:767px) { .fitplace .fp-menu-grid > button { flex-basis:66.6667%; } }
+
+/* 날씨 표시와 지도 컨트롤 */
+.fitplace .fp-live-weather { color:#242424; font-size:14px; white-space:normal; }
+.fitplace .fp-map-refresh-icon { font-size:20px; line-height:1; font-weight:600; }
+.fitplace .fitplace-map .leaflet-bottom.leaflet-right { bottom:72px; right:8px; }
+.fitplace .fitplace-map .leaflet-control-zoom { margin:0; }
+.fitplace .fitplace-location { right:18px; bottom:18px; }
+.fitplace .fitplace-map .leaflet-control-attribution { position:fixed; right:2px; bottom:0; font-size:10px; }
+
+/* 처음부터 상단과 지도 위치를 고정 */
+.fitplace:has(.fitplace-header) { padding-top:110px !important; }
+.fitplace .fitplace-header { position:fixed; top:0; left:0; right:0; width:100%; min-height:64px; margin:0 !important; padding:9px 24px; z-index:1100; background:#fff; }
+.fitplace .fp-header-menu-trigger:focus-visible { outline:2px solid #555; outline-offset:2px; box-shadow:none; }
+@media (min-width:1200px) { .fitplace .fitplace-map-card { top:110px !important; } }
+@media (max-width:767px) { .fitplace:has(.fitplace-header) { padding-top:80px !important; } .fitplace .fitplace-header { position:fixed; top:0; left:0; right:0; width:100%; margin:0 !important; padding:9px 16px !important; } }
+
+/* 지도 버튼을 같은 크기와 오른쪽 기준선으로 정렬 */
+.fitplace .fp-map-research { align-items:center; }
+.fitplace .fp-map-refresh-icon { display:block; flex:none; width:20px; height:20px; }
+.fitplace .fitplace-map .leaflet-bottom.leaflet-right { right:18px; bottom:72px; }
+.fitplace .fitplace-map .leaflet-control-zoom { border:0; margin:0; box-shadow:0 1px 5px #0004; }
+.fitplace .fitplace-map .leaflet-control-zoom a { box-sizing:border-box; display:flex; align-items:center; justify-content:center; width:44px !important; height:44px !important; line-height:1; font-size:22px; }
+.fitplace .fitplace-location { width:44px; height:44px; right:18px; bottom:18px; }
+
+/* 사장님 페이지 하위 메뉴 */
+.fitplace .fp-owner-menu summary { display:flex; align-items:center; justify-content:space-between; min-height:48px; padding:0 10px; border-radius:8px; color:#242424; font-size:14px; cursor:pointer; list-style:none; }
+.fitplace .fp-owner-menu summary::-webkit-details-marker { display:none; }
+.fitplace .fp-owner-menu summary:hover, .fitplace .fp-owner-submenu a:hover, .fitplace .fp-owner-submenu button:hover { background:#f6f6f6; }
+.fitplace .fp-owner-menu summary span { color:#999; font-size:19px; transition:transform .15s; }
+.fitplace .fp-owner-menu[open] summary span { transform:rotate(180deg); }
+.fitplace .fp-owner-submenu { margin:0 0 4px 12px; padding-left:8px; border-left:1px solid #e8e4e0; }
+.fitplace .fp-owner-submenu a, .fitplace .fp-owner-submenu button { display:flex; align-items:center; justify-content:space-between; width:100%; min-height:44px; padding:0 10px; border:0; border-radius:8px; background:transparent; color:#555; text-decoration:none; font:inherit; font-size:14px; text-align:left; cursor:pointer; }
+.fitplace .fp-owner-submenu span { color:#999; font-size:20px; }
+
+/* 추천받기 제목 옆 AI 배지 */
+.fitplace .fitplace-recommendations summary span { display:inline-flex; align-items:center; margin:0 0 0 8px; padding:3px 9px; border:1px solid #ff383e; border-radius:999px; background:#fff0ef; color:#242424; font-size:12px; line-height:18px; font-weight:600; vertical-align:middle; }

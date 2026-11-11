@@ -11,6 +11,12 @@ export function hasSeenIntro(storage: StoragePort | null): boolean {
 export function rememberIntro(storage: StoragePort | null): boolean {
   try { if (!storage) return false; storage.setItem(INTRO_SEEN_KEY, '1'); return true; } catch { return false; }
 }
+
+/** The public root is the shared platform; service and account links stay direct. */
+export function rootPlatformDestination(pathname: string, search: string, hash: string): string | null {
+  return pathname === '/' ? '/platform' + search + hash : null;
+}
+
 export function shouldShowIntro(pathname: string, search: string, seen: boolean): boolean {
   const landing = pathname === '/platform' || pathname === '/platform/';
   const explicitIntro = pathname === '/platform/intro' || pathname === '/platform/intro/';

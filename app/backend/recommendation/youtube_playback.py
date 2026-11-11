@@ -296,6 +296,18 @@ def _keyless_candidates(track, excluded_video_ids):
     if candidates:
         return {'track_id': track['track_id'], 'status': 'READY', 'candidates': candidates[:5],
                 'mapping_revision': registered['revision']}
+    # Native listening confirmation is separate from iframe readiness. Known
+    # embedding failures can prepare audio without changing the registry status.
+    native = [{'video_id': row['video_id'], 'title': track['track_name'],
+               'channel_title': track['artists_name'],
+               'duration_seconds': row.get('native_duration_seconds') or track['duration_ms'] / 1000,
+               'source': 'MAPPING_REGISTRY', 'match_status': 'VERIFIED', 'playback_hint': 'AUDIO'}
+              for row in registered['mappings'] if row.get('native_verified')
+              and row.get('native_source') == 'OPERATOR_NATIVE_REPORTED_PLAYING'
+              and row['video_id'] not in excluded]
+    if native:
+        return {'track_id': track['track_id'], 'status': 'READY', 'candidates': native[:5],
+                'mapping_revision': registered['revision']}
     reason = ('UNMAPPED' if not registered['mappings'] else
               'PENDING' if any(row['status'] == 'CANDIDATE' for row in registered['mappings']) else 'BLOCKED')
     return {'track_id': track['track_id'], 'status': 'MAPPING_REQUIRED', 'candidates': [],

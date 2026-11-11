@@ -1,6 +1,5 @@
 import {useEffect,useState,type FormEvent} from 'react';
 import {call,etag,labels,ownerWrite,type Account} from './api';
-import {BusinessJourney,claimGuidance} from './BusinessJourney';
 export const LINKED_VENUE_FIXTURE = 'demo-linked-venue-000001';
 const LINKED_VENUE_NAME = '그레인바운더리';
 
@@ -9,6 +8,7 @@ type Workspace={id:string;revision:number;display_name:string;my_role:string;sta
 type Invite={id:string;revision:number;workspace_display_name:string;role:string;state:string};
 type Member={id:string;revision:number;nickname:string;role:string};
 type Music={revision:number;preferences:{mood?:string;volume?:number};exclusions:string[];applied_playlist:string;playlists:{id:string;name:string}[]};
+type CatalogVenue={venue_id:string;venue_name:string;road_address:string};
 export function Badge({value}:{value:string}){return <span className={'p-badge '+value.toLowerCase()}>{labels[value]||value}</span>;}
 
 export function WorkspacePanel({account}:{account:Account}){
@@ -16,74 +16,72 @@ export function WorkspacePanel({account}:{account:Account}){
   const [selected,setSelected]=useState<Workspace|null>(null),[music,setMusic]=useState<Music|null>(null),[members,setMembers]=useState<Member[]>([]);
   const [error,setError]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
   const [receiver,setReceiver]=useState(''),[recipientCode,setRecipientCode]=useState(''),[role,setRole]=useState('STAFF'),[password,setPassword]=useState('');
-  const [storeName,setStoreName]=useState('합성 시연 카페'),[address,setAddress]=useState('합성 시연 주소'),[fixture,setFixture]=useState('demo-active-001'),[claimId,setClaimId]=useState('');
+  const [fixture,setFixture]=useState('catalog-search');
+  const [searchRegion,setSearchRegion]=useState(''),[searchName,setSearchName]=useState(''),[searchResults,setSearchResults]=useState<CatalogVenue[]|null>(null),[catalogVenue,setCatalogVenue]=useState<CatalogVenue|null>(null);
   const linksCatalogVenue = fixture === LINKED_VENUE_FIXTURE;
+  const catalogSearch = fixture === 'catalog-search' || fixture.startsWith('catalog:');
   const business=account.memberships.some(m=>m.type==='BUSINESS'&&m.status==='ACTIVE');
   async function refresh(){
     const incoming=await call<{items:Invite[]}>('/me/workspace-invitations');setInvites(incoming.items);
-    if(business){const [c,w]=await Promise.all([call<{items:Claim[]}>('/me/workspace-claims'),call<{items:Workspace[]}>('/me/workspaces')]);setClaims(c.items);setStores(w.items);}
+    if(business){const [c,w]=await Promise.all([call<{items:Claim[]}>('/me/workspace-claims'),call<{items:Workspace[]}>('/me/workspaces')]);setClaims(c.items);setStores(w.items);return w.items;}
+    return [];
   }
-  async function run(work:()=>Promise<void>){setBusy(true);setError('');setMessage('');try{await work();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
+  async function run(work:()=>Promise<unknown>){setBusy(true);setError('');setMessage('');try{await work();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
   useEffect(()=>{void run(refresh);},[]);
-  const pendingCheck=claims.some(claim=>['SUBMITTED','DRAFT','NEEDS_MORE'].includes(claim.state)&&(claim.state==='SUBMITTED'||claim.match_result==='UNCHECKED'));
-  useEffect(()=>{if(!pendingCheck)return;const timer=window.setInterval(()=>{void refresh().catch(e=>setError((e as Error).message));},3000);return()=>window.clearInterval(timer);},[pendingCheck]);
   async function choose(store:Workspace){
-    const state=await call<Music>(`/workspaces/${store.id}/music`);setMusic(state);setSelected(store);
-    if(store.my_role!=='STAFF'){const roster=await call<{items:Member[]}>(`/workspaces/${store.id}/memberships`);setMembers(roster.items);}else setMembers([]);
+    const [state,roster]=await Promise.all([
+      call<Music>(`/workspaces/${store.id}/music`),
+      store.my_role!=='STAFF'?call<{items:Member[]}>(`/workspaces/${store.id}/memberships`):Promise.resolve({items:[]}),
+    ]);
+    setMusic(state);setMembers(roster.items);setSelected(store);
   }
   async function saveClaim(event:FormEvent){event.preventDefault();await run(async()=>{
     const body = {
-      display_name: linksCatalogVenue ? LINKED_VENUE_NAME : storeName,
-      address: linksCatalogVenue ? '카탈로그 등록 주소' : address,
+      display_name: catalogSearch ? catalogVenue?.venue_name : LINKED_VENUE_NAME,
+      address: catalogSearch ? catalogVenue?.road_address : '카탈로그 등록 주소',
       applicant_relation: 'DELEGATE',
       fixture_id: fixture,
     };
-    const old=claims.find(c=>c.id===claimId);
-    const row=old?await call<Claim>(`/workspace-claims/${old.id}`,'PATCH',body,etag(old.revision)):await call<Claim>('/workspace-claims','POST',body);
-    await call(`/workspace-claims/${row.id}/business-checks`,'POST',{},etag(row.revision));
-    setClaimId('');await refresh();setMessage('신청 정보를 저장하고 사업자 정보 확인을 시작했습니다. 완료되면 관리권한 심사를 요청해 주세요.');
+    const row=await call<Claim>('/workspace-connections','POST',body);
+    const updated=await refresh();
+    const connected=updated.find(store=>store.id===row.approved_workspace_id);
+    if(connected)await choose(connected);
+    setMessage('매장을 연결했습니다.');
   });}
   async function musicWrite(body:unknown){
     if(!selected||!music)return;
     setMusic(await call<Music>(`/workspaces/${selected.id}/music`,'PATCH',body,etag(music.revision)));
   }
   return <>{error&&<div className="p-alert error" role="alert">{error}</div>}{message&&<div className="p-alert" role="status">{message}</div>}
-  {business?<><BusinessJourney/><section className="p-summary"><div><small>연결 매장</small><strong>{stores.length}</strong></div><div><small>매장 신청</small><strong>{claims.length}</strong></div><div><small>수락 대기 초대</small><strong>{invites.filter(i=>i.state==='PENDING').length}</strong></div></section>
-  <div className="p-columns"><section className="p-card"><div className="p-card-heading"><h2>내 매장</h2><button disabled={busy} onClick={()=>void run(refresh)}>새로고침</button></div>{stores.length===0?<p className="p-muted">아직 연결된 매장이 없습니다. 새 매장을 신청하거나 기존 매장의 직원 초대를 수락하세요.</p>:stores.map(store=><button key={store.id} className={'p-store '+(selected?.id===store.id?'selected':'')} onClick={()=>void run(()=>choose(store))}><span><strong>{store.display_name}</strong><small>{store.status==='ACTIVE'?'운영 가능':'이용 상태 확인 필요'}</small></span><Badge value={store.my_role}/></button>)}</section>
+  {business?<><section className="p-summary"><div><small>연결 매장</small><strong>{stores.length}</strong></div><div><small>연결 내역</small><strong>{claims.length}</strong></div><div><small>수락 대기 초대</small><strong>{invites.filter(i=>i.state==='PENDING').length}</strong></div></section>
+  <section className="p-card"><h2>뮤더 선곡</h2><p>날씨에 맞는 선곡표를 만들고 승인한 뒤 매장에 적용할 수 있습니다.</p><a className="p-link-button" href="/muther">뮤더에서 선곡 만들기</a></section>
+  <div className="p-columns"><section className="p-card"><div className="p-card-heading"><h2>내 매장</h2><button disabled={busy} onClick={()=>void run(refresh)}>새로고침</button></div>{stores.length===0?<p className="p-muted">아직 연결된 매장이 없습니다. 매장을 찾거나 기존 매장의 직원 초대를 수락하세요.</p>:stores.map(store=><button key={store.id} disabled={busy} className={'p-store '+(selected?.id===store.id?'selected':'')} onClick={()=>void run(()=>choose(store))}><span><strong>{store.display_name}</strong><small>{store.status==='ACTIVE'?'운영 가능':'이용 상태 확인 필요'}</small></span><Badge value={store.my_role}/></button>)}</section>
   <section className="p-card">
-    <h2>{claimId ? '매장 신청 보완' : '매장 관리권한 신청'}</h2>
+    <h2>내 매장 연결</h2>
     <form id="business-claim-form" onSubmit={e=>void saveClaim(e)}>
       <label>
-        합성 사업자 시나리오
-        <select aria-label="합성 사업자 시나리오" value={fixture} onChange={e=>setFixture(e.target.value)}>
-          <option value="demo-active-001">계속사업 · 첫 매장</option>
-          <option value={LINKED_VENUE_FIXTURE}>기존 매장 연결 · {LINKED_VENUE_NAME}</option>
-          <option value="demo-branch-002">같은 사업자의 별도 지점</option>
-          <option value="demo-mismatch">정보 불일치</option>
-          <option value="demo-unavailable">조회 불가</option>
-          <option value="demo-closed">폐업 상태</option>
+        연결할 매장
+        <select aria-label="연결할 매장" disabled={busy} value={catalogSearch?'catalog-search':fixture} onChange={e=>{setFixture(e.target.value);setCatalogVenue(null);setSearchResults(null);}}>
+          <option value="catalog-search">기존 매장 검색</option>
+          <option value={LINKED_VENUE_FIXTURE}>시연 매장 · {LINKED_VENUE_NAME}</option>
         </select>
       </label>
-      {linksCatalogVenue ? (
-        <p className="p-muted">손님 카탈로그에 등록된 {LINKED_VENUE_NAME}의 이름과 주소로 심사합니다.</p>
-      ) : (
-        <>
-          <label>매장 표시명<input required value={storeName} onChange={e=>setStoreName(e.target.value)} maxLength={100}/></label>
-          <label>대상 주소<input required value={address} onChange={e=>setAddress(e.target.value)} maxLength={300}/></label>
-        </>
-      )}
-      <p className="p-muted">실사업자번호·대표자명·증빙 서류를 입력하지 않습니다.</p>
-      <button className="p-primary" disabled={busy}>사업자 정보 확인하기</button>
+      {catalogSearch ? <>
+        <p className="p-muted">지역과 매장명으로 연결할 매장을 찾으세요.</p>
+        <label>시·군·구<input disabled={busy} value={searchRegion} onChange={e=>{setSearchRegion(e.target.value);setSearchResults(null);setCatalogVenue(null);setFixture('catalog-search');}} placeholder="예: 마포구" /></label>
+        <label>매장명<input disabled={busy} value={searchName} onChange={e=>{setSearchName(e.target.value);setSearchResults(null);setCatalogVenue(null);setFixture('catalog-search');}} placeholder="두 글자 이상" /></label>
+        <button type="button" disabled={busy||!searchRegion.trim()||searchName.trim().length<2} onClick={()=>void run(async()=>{setCatalogVenue(null);setFixture('catalog-search');setSearchResults(null);const query=new URLSearchParams({region:searchRegion.trim(),q:searchName.trim()});const result=await call<{items:CatalogVenue[]}>(`/claim-venues?${query}`);setSearchResults(result.items);})}>매장 검색</button>
+        {searchResults!==null&&(searchResults.length===0?<p>일치하는 매장이 없습니다.</p>:<div aria-label="매장 검색 결과">{searchResults.map(venue=><button type="button" key={venue.venue_id} onClick={()=>{setCatalogVenue(venue);setFixture('catalog:'+venue.venue_id);}}>{venue.venue_name} · {venue.road_address}</button>)}</div>)}
+        {catalogVenue&&<p>선택한 매장: {catalogVenue.venue_name} · {catalogVenue.road_address}</p>}
+      </> : linksCatalogVenue && <p className="p-muted">{LINKED_VENUE_NAME}을 시연용 매장으로 연결합니다.</p>}
+      <button className="p-primary" disabled={busy||(catalogSearch&&!catalogVenue)}>매장 연결하기</button>
     </form>
   </section></div>
-  <section className="p-card"><h2>매장 신청 현황 · 다음 단계</h2>{claims.length===0?<p className="p-muted">오른쪽 신청서에 매장 정보를 입력하면 사업자 정보 확인부터 시작합니다.</p>:claims.map(claim=><article className="p-claim-progress" key={claim.id}>
-    <div className="p-card-heading"><strong>{claim.display_name}</strong><Badge value={claim.state}/></div><p>{claimGuidance(claim)}</p>
-    <div className="p-actions">{['DRAFT','NEEDS_MORE'].includes(claim.state)&&<>
-      <button className="p-primary" disabled={busy||claim.match_result!=='MATCHED'||claim.business_status!=='ACTIVE'} onClick={()=>void run(async()=>{await call(`/workspace-claims/${claim.id}/submissions`,'POST',{},etag(claim.revision));await refresh();setMessage('매장 관리권한 심사를 요청했습니다. 결과를 기다려 주세요.');})}>매장 관리권한 심사 요청</button>
-      <button onClick={()=>{setClaimId(claim.id);setStoreName(claim.display_name);setAddress(claim.address);setFixture(claim.review_context.fixture_id);document.getElementById('business-claim-form')?.scrollIntoView({behavior:'smooth',block:'center'});}}>정보 수정·다시 확인</button>
-    </>}{claim.state==='APPROVED'&&stores.find(store=>store.id===claim.approved_workspace_id)&&<button className="p-primary" disabled={busy} onClick={()=>void run(()=>choose(stores.find(store=>store.id===claim.approved_workspace_id)!))}>승인 매장 열기</button>}</div>
+  <section className="p-card"><h2>매장 연결 내역</h2>{claims.length===0?<p className="p-muted">연결된 매장이 없습니다.</p>:claims.map(claim=><article className="p-claim-progress" key={claim.id}>
+    <div className="p-card-heading"><strong>{claim.display_name}</strong><Badge value={claim.state}/></div>
+    <div className="p-actions">{claim.state==='APPROVED'&&stores.find(store=>store.id===claim.approved_workspace_id)&&<button className="p-primary" disabled={busy} onClick={()=>void run(()=>choose(stores.find(store=>store.id===claim.approved_workspace_id)!))}>연결 매장 열기</button>}</div>
   </article>)}</section>
-  {selected&&music&&<section className="p-card"><div className="p-card-heading"><h2>{selected.display_name} · 음악 운영</h2><Badge value={selected.my_role}/></div><p>직원도 선곡표 최종 적용·공통 제외곡·음악 설정을 변경할 수 있습니다.</p><div className="p-playlists">{music.playlists.map(playlist=><article key={playlist.id}><div className="p-album">♫</div><h3>{playlist.name}</h3><p>{music.applied_playlist===playlist.id?'현재 매장에 적용됨':'권한 확인용 합성 선곡표'}</p><button disabled={busy} onClick={()=>void run(async()=>{await musicWrite({action:'APPLY',playlist_id:playlist.id});setMessage('선곡표를 매장에 적용했습니다.');})}>최종 승인 · 매장 적용</button></article>)}</div><div className="p-actions"><button disabled={busy} onClick={()=>void run(()=>musicWrite({action:'EXCLUSIONS',exclusions:music.exclusions.length?[]:['demo-track-1']}))}>합성 곡 1 제외 {music.exclusions.length?'해제':'적용'}</button><button disabled={busy} onClick={()=>void run(()=>musicWrite({action:'PREFERENCES',preferences:{mood:music.preferences.mood==='BRIGHT'?'CALM':'BRIGHT',volume:30}}))}>음악 분위기 변경</button><span className="p-muted">revision {music.revision} · {music.preferences.mood||'기본 분위기'} · 제외 {music.exclusions.length}곡</span></div><p className="p-muted">실추천·음원 재생 연결 전, 공유 상태와 접근 권한을 확인하는 화면입니다.</p>
+  {selected&&music&&<section className="p-card"><div className="p-card-heading"><h2>{selected.display_name} · 음악 운영</h2><Badge value={selected.my_role}/></div><p>직원도 선곡표 최종 적용·공통 제외곡·음악 설정을 변경할 수 있습니다.</p><div className="p-playlists">{music.playlists.map(playlist=><article key={playlist.id}><div className="p-album">♫</div><h3>{playlist.name}</h3><p>{music.applied_playlist===playlist.id?'현재 매장에 적용됨':playlist.id.startsWith('demo-')?'권한 확인용 합성 선곡표':'점주가 승인한 선곡표'}</p><button disabled={busy} onClick={()=>void run(async()=>{await musicWrite({action:'APPLY',playlist_id:playlist.id});setMessage('선곡표를 매장에 적용했습니다.');})}>최종 승인 · 매장 적용</button></article>)}</div><div className="p-actions"><button disabled={busy} onClick={()=>void run(()=>musicWrite({action:'EXCLUSIONS',exclusions:music.exclusions.length?[]:['demo-track-1']}))}>합성 곡 1 제외 {music.exclusions.length?'해제':'적용'}</button><button disabled={busy} onClick={()=>void run(()=>musicWrite({action:'PREFERENCES',preferences:{mood:music.preferences.mood==='BRIGHT'?'CALM':'BRIGHT',volume:30}}))}>음악 분위기 변경</button><span className="p-muted">revision {music.revision} · {music.preferences.mood||'기본 분위기'} · 제외 {music.exclusions.length}곡</span></div><p className="p-muted">시연 매장에서 승인된 선곡표를 적용할 수 있습니다. 음원 재생 연결은 준비 중입니다.</p>
   {selected.my_role==='OWNER'&&<><hr/><h3>직원 · 매니저 초대</h3><p className="p-muted">직원이 발급한 15분 수신 코드를 입력합니다. 초대는 24시간 유효하며 직원이 직접 수락합니다.</p><form className="p-invite-form" onSubmit={e=>{e.preventDefault();void run(async()=>{try{await ownerWrite(`/workspaces/${selected.id}/invitations`,'POST',{recipient_code:recipientCode,role},selected.revision,password);setRecipientCode('');setMessage('초대를 보냈습니다. 대상 계정의 초대함에서 수락해 주세요.');}finally{setPassword('');}});}}><label>초대 수신 코드<input required autoComplete="off" value={recipientCode} onChange={e=>setRecipientCode(e.target.value)}/></label><label>역할<select value={role} onChange={e=>setRole(e.target.value)}><option value="STAFF">직원</option><option value="MANAGER">매니저</option></select></label><label>소유자 비밀번호 재확인<input required type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/></label><button disabled={busy}>초대 생성</button></form></>}
   {members.length>0&&<><hr/><h3>매장 구성원</h3>{members.map(member=><div className="p-row" key={member.id}><strong>{member.nickname}</strong><Badge value={member.role}/>{selected.my_role==='OWNER'&&member.role!=='OWNER'&&<><button disabled={busy||!password} onClick={()=>void run(async()=>{try{await ownerWrite(`/workspaces/${selected.id}/memberships/${member.id}`,'PATCH',{role:member.role==='STAFF'?'MANAGER':'STAFF'},member.revision,password);await choose(selected);}finally{setPassword('');}})}>역할 변경</button><button disabled={busy||!password} onClick={()=>void run(async()=>{try{await ownerWrite(`/workspaces/${selected.id}/memberships/${member.id}/revocations`,'POST',{reason_code:'STAFF_DEPARTURE'},member.revision,password);await choose(selected);}finally{setPassword('');}})}>권한 회수</button></>}</div>)}{selected.my_role==='OWNER'&&<p className="p-muted">구성원 변경은 위 소유자 비밀번호 재확인란 입력 후 사용할 수 있습니다.</p>}</>}
   </section>}

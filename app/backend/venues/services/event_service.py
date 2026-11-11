@@ -2,6 +2,7 @@ import datetime
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 from django.db import transaction
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from backend.venues.models.event import (
@@ -272,48 +273,111 @@ def verify_onsite_qr_and_deduct_stock(
     }
 
 
-def get_visible_events_for_venue(venue_id: str, as_of: Optional[datetime.datetime] = None) -> List[Dict[str, Any]]:
+def _serialize_visible_event(ev: Any, now: datetime.datetime) -> Optional[Dict[str, Any]]:
+    """이벤트 1건을 노출용 dict 로 변환 (종료 후 5분 초과 시 None)"""
+    is_ended = (now > ev.end_at)
+    grace_period = (ev.end_at < now <= (ev.end_at + datetime.timedelta(minutes=5)))
+
+    if grace_period:
+        display_badge = '이벤트가 종료되었어요'
+    elif is_ended:
+        return None
+    else:
+        display_badge = ev.badge_text
+
+    intended_count = getattr(ev, '_intended_count', None)
+    if intended_count is None:
+        intended_count = ev.intended_visitors_count
+
+    return {
+        'event_id': ev.event_id,
+        'venue_id': ev.venue_id,
+        'title': ev.title,
+        'description': ev.description,
+        'badge_text': display_badge,
+        'discount_info': ev.discount_info,
+        'total_quantity': ev.total_quantity,
+        'remaining_quantity': ev.remaining_quantity,
+        'intended_count': intended_count,
+        'start_at': ev.start_at.isoformat(),
+        'end_at': ev.end_at.isoformat(),
+        'is_ended': is_ended,
+        'is_ended_grace_period': grace_period,
+        'status_label': f"🔥 남은 수량: {ev.remaining_quantity}개 (현재 방문 예정: {intended_count}명)" if not is_ended else "종료된 이벤트",
+    }
+
+
+def get_visible_events_for_venues(
+    venue_ids: List[str],
+    as_of: Optional[datetime.datetime] = None,
+) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    여러 매장의 현재 유효 이벤트를 일괄 조회 (목록 랭킹의 매장당 쿼리 N+1 제거용).
+    결과는 이벤트가 있는 매장만 키로 포함하며, 규칙은 get_visible_events_for_venue 와 동일.
+    """
+    now = as_of or timezone.now()
+    five_min_ago = now - datetime.timedelta(minutes=5)
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    unique_ids = list(dict.fromkeys(venue_ids))
+    # SQLite 바인딩 변수 한도를 넘지 않도록 분할 조회 + 참여자 수 COUNT 일괄 집계
+    for start in range(0, len(unique_ids), 500):
+        chunk = unique_ids[start:start + 500]
+        events = (
+            VenueEvent.objects.filter(
+                venue_id__in=chunk,
+                end_at__gte=five_min_ago,
+            )
+            .annotate(
+                _intended_count=Count(
+                    'participations',
+                    filter=Q(participations__status='INTENDED'),
+                )
+            )
+            .order_by('-created_at')
+        )
+        for ev in events:
+            item = _serialize_visible_event(ev, now)
+            if item is not None:
+                grouped.setdefault(ev.venue_id, []).append(item)
+    return grouped
+
+
+def get_visible_events_for_venue(
+    venue_id: str,
+    as_of: Optional[datetime.datetime] = None,
+    prefetched: Optional[Dict[str, List[Dict[str, Any]]]] = None,
+) -> List[Dict[str, Any]]:
     """
     특정 매장의 현재 유효 이벤트 조회:
     - 종료 후 5분 이내인 이벤트는 '이벤트가 종료되었어요' 배지 유지
     - 5분 경과 시 자동 숨김
+    - prefetched(get_visible_events_for_venues 결과)가 주어지면 추가 쿼리 없이 사용
     """
+    if prefetched is not None:
+        return list(prefetched.get(venue_id, []))
+
     now = as_of or timezone.now()
     five_min_ago = now - datetime.timedelta(minutes=5)
 
-    events = VenueEvent.objects.filter(
-        venue_id=venue_id,
-        end_at__gte=five_min_ago,
-    ).order_by('-created_at')
+    events = (
+        VenueEvent.objects.filter(
+            venue_id=venue_id,
+            end_at__gte=five_min_ago,
+        )
+        .annotate(
+            _intended_count=Count(
+                'participations',
+                filter=Q(participations__status='INTENDED'),
+            )
+        )
+        .order_by('-created_at')
+    )
 
     results = []
     for ev in events:
-        is_ended = (now > ev.end_at)
-        grace_period = (ev.end_at < now <= (ev.end_at + datetime.timedelta(minutes=5)))
-
-        if grace_period:
-            display_badge = '이벤트가 종료되었어요'
-        elif is_ended:
-            continue
-        else:
-            display_badge = ev.badge_text
-
-        results.append({
-            'event_id': ev.event_id,
-            'venue_id': ev.venue_id,
-            'title': ev.title,
-            'description': ev.description,
-            'badge_text': display_badge,
-            'discount_info': ev.discount_info,
-            'total_quantity': ev.total_quantity,
-            'remaining_quantity': ev.remaining_quantity,
-            'intended_count': ev.intended_visitors_count,
-            'start_at': ev.start_at.isoformat(),
-            'end_at': ev.end_at.isoformat(),
-            'is_ended': is_ended,
-            'is_ended_grace_period': grace_period,
-            'status_label': f"🔥 남은 수량: {ev.remaining_quantity}개 (현재 방문 예정: {ev.intended_visitors_count}명)" if not is_ended else "종료된 이벤트",
-        })
+        item = _serialize_visible_event(ev, now)
+        if item is not None:
+            results.append(item)
 
     return results
 

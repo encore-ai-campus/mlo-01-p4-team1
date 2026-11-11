@@ -34,7 +34,7 @@ export const MyPageDrawer: React.FC<MyPageDrawerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div style={{
+    <div onClick={event => { if (event.target === event.currentTarget) onClose(); }} style={{
       position: 'fixed',
       inset: 0,
       backgroundColor: 'rgba(0,0,0,0.4)',
@@ -178,8 +178,8 @@ export const MyPageDrawer: React.FC<MyPageDrawerProps> = ({
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                       <span style={{ fontWeight: 700, fontSize: '13px' }}>{r.venue_name}</span>
-                      <span style={{ color: '#eab308', fontSize: '12px', fontWeight: 700 }}>
-                        {'⭐'.repeat(r.rating || 5)}
+                      <span aria-label={`별점 ${r.rating || 5}점`} style={{ color: '#eab308', fontSize: '12px', fontWeight: 700 }}>
+                        {Array.from({length: r.rating || 5}, (_, index) => <img key={index} className="fp-rating-star" src="/venue-rating-star.svg" alt="" />)}
                       </span>
                     </div>
                     <div style={{ fontSize: '13px', color: '#334155', lineHeight: 1.4 }}>

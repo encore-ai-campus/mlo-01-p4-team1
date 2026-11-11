@@ -3,10 +3,17 @@ import {describe,expect,it} from 'vitest';
 import {readFileSync,existsSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
-import {INTRO_ENTER,INTRO_READY,INTRO_SEEN_KEY,escapeAttribute,hasSeenIntro,isIntroMessage,platformDestination,rememberIntro,shouldShowIntro} from '../src/features/cinematic/entry';
+import {INTRO_ENTER,INTRO_READY,INTRO_SEEN_KEY,escapeAttribute,hasSeenIntro,isIntroMessage,platformDestination,rememberIntro,rootPlatformDestination,shouldShowIntro} from '../src/features/cinematic/entry';
 import {SCENE_ASSET,STYLE_ASSET} from '../src/features/cinematic/generated';
 
 describe('cinematic entry without modifying account routes',()=>{
+  it('routes only the public root to the shared platform',()=>{
+    expect(rootPlatformDestination('/','','')).toBe('/platform');
+    expect(rootPlatformDestination('/','?campaign=demo','#services')).toBe('/platform?campaign=demo#services');
+    for(const path of ['/muther','/playlist','/platform','/platform/login','/platform/signup','/venues']){
+      expect(rootPlatformDestination(path,'','')).toBeNull();
+    }
+  });
   it('shows the initial platform landing only once per tab',()=>{
     expect(shouldShowIntro('/platform','',false)).toBe(true);
     expect(shouldShowIntro('/platform/','',false)).toBe(true);

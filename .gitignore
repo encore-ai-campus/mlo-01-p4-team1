@@ -1,6 +1,8 @@
 .DS_Store
 .venv/
+.venv
 **/.venv/
+**/.venv
 **/__pycache__/
 *.py[cod]
 .pytest_cache/
@@ -21,6 +23,7 @@
 **/.artifacts/
 **/test-results/
 **/.cache/
+**/.cache
 *.pem
 *.key
 *.p12
@@ -50,6 +53,8 @@
 /app/docs/music-playback-routing/
 /app/docs/recommendation-dispatch-routing/
 /app/analysis/
+# 조사 원본과 이를 변환한 로컬 시연 스냅샷은 공유 저장소에 포함하지 않음.
+/app/prototype/venue-recommendation-mcp/fixtures/research_preview.json
 
 # .terraform.lock.hcl, requirements locks and selected public technical contracts are tracked.
 

@@ -8,6 +8,10 @@ from urllib.parse import urlsplit
 
 from .operations import UnsafeTransition
 from .queries import TRACK2_QUERIES, TRACK2_EXECUTOR_PORTS
+from .resources import (
+    SPARK_DRIVER_MEMORY, SPARK_EXECUTOR_MEMORY,
+    SPARK_EXECUTOR_CORES, SPARK_APPLICATION_CORES,
+)
 
 
 def require(value, message):
@@ -138,10 +142,10 @@ def proposal(environment, generation):
                 "block": ports[1],
                 "executor": TRACK2_EXECUTOR_PORTS[q],
                 "checkpoint": checkpoint(environment, generation, q),
-                "driver_memory": "1g",
-                "executor_memory": "1g",
-                "executor_cores": 1,
-                "total_executor_cores": 2,
+                "driver_memory": SPARK_DRIVER_MEMORY,
+                "executor_memory": SPARK_EXECUTOR_MEMORY,
+                "executor_cores": SPARK_EXECUTOR_CORES,
+                "total_executor_cores": SPARK_APPLICATION_CORES,
                 "mode": "enqueue-active-group",
                 "schedule_proposal": "*:0/15",
                 "stop_scope": "whole active group; all old Drivers/executors confirmed stopped",
@@ -167,14 +171,11 @@ def proposal(environment, generation):
 
 
 def validate_edge(binding):
-    """Fail readiness closed until the complete origin TLS contract is supplied."""
-    require(binding.get("accepted") is True, "origin TLS inputs are unresolved")
+    """Validate the explicitly selected transport profile; never infer full TLS."""
+    require(binding.get("accepted") is True, "edge inputs are unresolved")
+    profile = binding.get("transport_profile", "full-tls")
+    require(profile in {"full-tls", "viewer-https-demo"}, "unknown edge transport profile")
     origin = binding.get("origin_hostname", "")
-    require(
-        re.fullmatch(r"[a-z0-9][a-z0-9.-]+[a-z0-9]", origin)
-        and not origin.endswith((".amazonaws.com", ".elb.amazonaws.com")),
-        "controlled origin hostname required for verified certificate",
-    )
     viewer = urlsplit(binding.get("viewer_origin", ""))
     require(
         viewer.scheme == "https"
@@ -190,12 +191,40 @@ def validate_edge(binding):
         binding.get("rp_id") == viewer.hostname,
         "RP ID must match fixed viewer hostname",
     )
-    require(
-        binding.get("origin_tls_name") == origin
-        and binding.get("origin_certificate_verified") is True
-        and binding.get("control_tls_verified") is True,
-        "full origin TLS verification required",
-    )
+    if profile == "viewer-https-demo":
+        require(
+            binding.get("environment") == "dev"
+            and binding.get("demo_only") is True
+            and binding.get("synthetic_data_only") is True,
+            "HTTP origin is limited to the explicitly accepted synthetic demo",
+        )
+        require(
+            re.fullmatch(r"[a-z0-9-]+\.ap-northeast-2\.elb\.amazonaws\.com", origin)
+            and re.fullmatch(r"[a-z0-9]+\.cloudfront\.net", viewer.hostname),
+            "demo requires actual Seoul ALB and fixed CloudFront hostnames",
+        )
+        require(
+            binding.get("origin_protocol") == "http"
+            and binding.get("origin_port") == 80
+            and binding.get("control_protocol") == "http"
+            and binding.get("control_port") == 8000
+            and binding.get("origin_certificate_verified") is False
+            and binding.get("control_tls_verified") is False
+            and binding.get("origin_tls_name", "") == "",
+            "demo transport must accurately report its unencrypted origin and target",
+        )
+    else:
+        require(
+            re.fullmatch(r"[a-z0-9][a-z0-9.-]+[a-z0-9]", origin)
+            and not origin.endswith((".amazonaws.com", ".elb.amazonaws.com")),
+            "controlled origin hostname required for verified certificate",
+        )
+        require(
+            binding.get("origin_tls_name") == origin
+            and binding.get("origin_certificate_verified") is True
+            and binding.get("control_tls_verified") is True,
+            "full origin TLS verification required",
+        )
     require(
         binding.get("secure_cookies") is True
         and binding.get("csrf_origin") == viewer.geturl().rstrip("/"),
@@ -225,4 +254,6 @@ def validate_edge(binding):
     require(
         binding.get("ingress_restricted") is True, "edge-only ingress evidence required"
     )
-    return {"ready": True, "passkey_ceremony": "not_run", "ready_for_aws": False}
+    return {"ready": True, "transport_profile": profile,
+            "full_tls": profile == "full-tls",
+            "passkey_ceremony": "not_run", "ready_for_aws": False}

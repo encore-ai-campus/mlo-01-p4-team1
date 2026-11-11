@@ -9,10 +9,14 @@ interface MenuCategoryTabsProps {
 export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, onSelectMenu }) => {
   const [activeTabIdx, setActiveTabIdx] = useState<number>(0);
 
-  if (!menuTabs || menuTabs.length === 0) {
+  const uniqueMenuCount = new Set(
+    (menuTabs || []).flatMap((tab) => tab.items.map((item) => item.menu_id || item.menu_name))
+  ).size;
+
+  if (!menuTabs || menuTabs.length === 0 || uniqueMenuCount === 0) {
     return (
       <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>
-        등록된 메뉴 정보가 없습니다.
+        확인된 실제 메뉴 정보가 아직 등록되지 않았습니다.
       </div>
     );
   }
@@ -21,8 +25,8 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
 
   return (
     <div>
-      <h4 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 12px 0', color: '#0f172a' }}>
-        📋 전체 메뉴판 (16종)
+      <h4 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 12px 0', color: '#242424' }}>
+        📋 확인된 메뉴판 ({uniqueMenuCount}종)
       </h4>
 
       {/* 5개 탭 헤더 (스크롤바 없이 한눈에 보이는 알약형 탭) */}
@@ -32,7 +36,7 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
         gap: '6px',
         marginBottom: '16px',
         paddingBottom: '10px',
-        borderBottom: '1px solid #e2e8f0',
+        borderBottom: '1px solid #e8e4e0',
       }}>
         {menuTabs.map((tab, idx) => {
           const isActive = idx === activeTabIdx;
@@ -43,10 +47,10 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
               onClick={() => setActiveTabIdx(idx)}
               style={{
                 padding: '7px 12px',
-                border: isActive ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
-                backgroundColor: isActive ? '#eff6ff' : '#ffffff',
+                border: isActive ? '1px solid transparent' : '1px solid #e8e4e0',
+                backgroundColor: isActive ? '#fff0ef' : '#ffffff',
                 borderRadius: '9999px',
-                color: isActive ? '#1d4ed8' : '#334155',
+                color: isActive ? '#ff383e' : '#334155',
                 fontWeight: isActive ? 800 : 600,
                 fontSize: '12.5px',
                 cursor: 'pointer',
@@ -54,7 +58,7 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
                 transition: 'all 0.15s',
               }}
             >
-              {tab.tab_name} <span style={{ color: isActive ? '#2563eb' : '#64748b' }}>({tab.items.length})</span>
+              {tab.tab_name} <span style={{ color: isActive ? '#ff383e' : '#77736f' }}>({tab.items.length})</span>
             </button>
           );
         })}
@@ -68,7 +72,7 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
             onClick={() => onSelectMenu && onSelectMenu(menu)}
             style={{
               backgroundColor: '#f8fafc',
-              border: '1px solid #e2e8f0',
+              border: '1px solid #e8e4e0',
               borderRadius: '10px',
               padding: '12px 14px',
               cursor: 'pointer',
@@ -77,7 +81,7 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
               flexDirection: 'column',
               justifyContent: 'space-between',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#faf8f5')}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
           >
             <div>
@@ -103,19 +107,21 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px' }}>
-              <span style={{ fontSize: '14px', fontWeight: 900, color: '#1d4ed8' }}>
-                {menu.price.toLocaleString()}원
+              <span style={{ fontSize: '14px', fontWeight: 900, color: menu.price > 0 ? '#ff383e' : '#64748b' }}>
+                {menu.price > 0 ? `${menu.price.toLocaleString()}원` : '가격 미확인'}
               </span>
-              <span style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                color: '#475569',
-                backgroundColor: '#e2e8f0',
-                padding: '2px 6px',
-                borderRadius: '4px',
-              }}>
-                {menu.price_tier === 1 ? '1만원 미만' : menu.price_tier === 2 ? '1~2만원대' : menu.price_tier === 3 ? '2~3만원대' : menu.price_tier === 4 ? '3~5만원대' : '5만원+'}
-              </span>
+              {menu.price > 0 && (
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: '#475569',
+                  backgroundColor: '#e8e4e0',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                }}>
+                  {menu.price_tier === 1 ? '1만원 미만' : menu.price_tier === 2 ? '1~2만원대' : menu.price_tier === 3 ? '2~3만원대' : menu.price_tier === 4 ? '3~5만원대' : '5만원+'}
+                </span>
+              )}
             </div>
           </div>
         ))}

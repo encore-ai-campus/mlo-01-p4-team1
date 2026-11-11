@@ -108,24 +108,33 @@ class LifecycleIntegration(unittest.TestCase):
             bundle, plan, key, args = prepare(tmp)
             # Pause the actual CLI just after its durable 'started' append, then send SIGKILL.
             source = """
-import sys,time
+import sys,time,os
+from pathlib import Path
 from mlo_lifecycle.journal import Journal
 original=Journal.append
 def append(self,step,phase,observation=None):
     original(self,step,phase,observation)
-    if phase=='started': time.sleep(30)
+    if phase=='started':
+        # Synchronize only after journal.append() completes its durable write.
+        Path(os.environ['MLO_TEST_STARTED_ACK']).write_text('durable')
+        time.sleep(30)
 Journal.append=append
 from mlo_lifecycle.__main__ import main
 sys.argv=['lifecycle','execute',*sys.argv[1:]]
 raise SystemExit(main())
 """
-            env = {**os.environ, "PYTHONPATH": str(BASE / "src"), "PYTHONDONTWRITEBYTECODE": "1"}
+            started_ack = Path(tmp) / "started-durable.ack"
+            env = {**os.environ, "PYTHONPATH": str(BASE / "src"),
+                   "PYTHONDONTWRITEBYTECODE": "1", "MLO_TEST_STARTED_ACK": str(started_ack)}
             process = subprocess.Popen([sys.executable, "-c", source, *map(str, args)], env=env,
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             try:
-                deadline = time.monotonic() + 8
-                while not (Path(tmp) / "lab/journal.jsonl").exists() and time.monotonic() < deadline:
+                deadline = time.monotonic() + 15
+                # File creation alone is not durable journal/checkpoint proof:
+                # kill only after the monkeypatched append() acknowledges return.
+                while not started_ack.exists() and time.monotonic() < deadline:
                     time.sleep(0.02)
+                self.assertTrue(started_ack.exists(), "durable started marker not reached")
                 self.assertTrue((Path(tmp) / "lab/journal.jsonl").exists())
                 process.kill()
                 process.communicate(timeout=5)

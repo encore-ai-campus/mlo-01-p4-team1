@@ -1,10 +1,26 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from backend.venues.models.bridge import VenueOwnerBridge
+
+# bridge 인자를 생략했음(=직접 조회)과 "브릿지 없음(None)"을 구분하기 위한 표식
+_LOOKUP = object()
+
+
+def get_owner_bridges(venue_ids: List[str]) -> Dict[str, Any]:
+    """여러 매장의 점주 브릿지를 일괄 조회 (매장별 .first() 와 동일하게 가장 먼저 등록된 1건)"""
+    bridges: Dict[str, Any] = {}
+    unique_ids = list(dict.fromkeys(venue_ids))
+    # SQLite 바인딩 변수 한도를 넘지 않도록 분할 조회
+    for start in range(0, len(unique_ids), 500):
+        chunk = unique_ids[start:start + 500]
+        for bridge in VenueOwnerBridge.objects.filter(venue_id__in=chunk).order_by('pk'):
+            bridges.setdefault(bridge.venue_id, bridge)
+    return bridges
 
 
 def get_venue_music_banner(
     venue: Dict[str, Any],
     current_weather: str = 'CLEAR',
+    bridge: Any = _LOOKUP,
 ) -> Optional[Dict[str, Any]]:
     """
     방문객 대상 매장 분위기 및 오늘 날씨 맞춤 추천 음악(BGM 플레이리스트 큐레이션) 배너 데이터를 바인딩.
@@ -18,20 +34,23 @@ def get_venue_music_banner(
     rec_style = venue.get('recommendation_style') or venue.get('추천음악_스타일') or ''
 
     # 1순위: 점주 등록 브릿지 테이블 조회
-    bridge = VenueOwnerBridge.objects.filter(venue_id=venue_id).first()
+    if bridge is _LOOKUP:
+        bridge = VenueOwnerBridge.objects.filter(venue_id=venue_id).first()
     if bridge and bridge.track1_partner_music_id:
         return {
             'has_music_banner': True,
             'banner_type': 'APPROVED_PLAYLIST',
             'playlist_id': bridge.track1_partner_music_id,
             'playlist_title': f"{venue_name} 공식 추천 플레이리스트",
-            'curator_note': f"매장 점주가 오늘 날씨({current_weather})에 맞춰 직접 승인한 공식 선곡표입니다.",
+            'curator_note': "매장 점주가 승인한 공식 선곡표입니다.",
             'music_mood': music_mood,
             'badge_text': '🎵 매장 공식 선곡표',
         }
 
     # 2순위: 매장 분위기·업종 기반 추천음악 스타일 & 동네 날씨 맞춤 선곡 큐레이션 배너
     weather_upper = current_weather.upper()
+    if weather_upper in ('', 'UNKNOWN', 'MISSING', 'NONE'):
+        return None
     if 'RAIN' in weather_upper or '비' in weather_upper:
         theme_title = rec_style or f"{gu_name} 비 오는 날의 감성 재즈 & 로파이"
         note = "창밖의 빗소리와 매장 분위기에 가장 잘 어울리는 추천 BGM 플레이리스트입니다."

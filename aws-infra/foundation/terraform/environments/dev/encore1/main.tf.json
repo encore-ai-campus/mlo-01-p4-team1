@@ -64,7 +64,8 @@
       "inputs": "${module.account.edge_inputs}",
       "origin_header": "${var.binding.origin_header}",
       "track2": "${try(var.binding.track2,{\"enabled\": false, \"dataset_version\": \"\", \"driver_queries\": {}, \"ingest_nodes\": [], \"endpoint_ids\": {}, \"media\": {\"enabled\": false, \"bucket\": \"\", \"ttl_approved\": false, \"browser_ttl\": 0, \"edge_ttl\": 0}, \"archive\": {\"enabled\": false, \"bucket\": \"\"}, \"tls\": {\"enabled\": false, \"origin_name\": \"\", \"certificate_arn\": \"\", \"control_port\": 8443, \"control_tls_ready\": false}})}",
-      "account_id": "${var.binding.account_ids.encore1}"
+      "account_id": "${var.binding.account_ids.encore1}",
+      "viewer_https_demo": "${try(var.binding.edge_profile==\"viewer-https-demo\",false)}"
     }
   },
   "output": {
@@ -77,5 +78,12 @@
     "runtime_artifact_boundary": {
       "value": "${module.account.runtime_artifact_boundary}"
     }
-  }
+  },
+  "import": [
+    {
+      "for_each": "${try(length(var.binding.existing_edge_viewer_rule_import_id)>0,false) ? {viewer=var.binding.existing_edge_viewer_rule_import_id} : {}}",
+      "to": "module.edge.aws_security_group_rule.viewer_in",
+      "id": "${each.value}"
+    }
+  ]
 }
