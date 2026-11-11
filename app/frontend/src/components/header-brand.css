@@ -32,7 +32,7 @@
 /* Recreate the approved layout: muther. at left, large logo centered, menu at right. */
 .muther-app .header:not(.login-header){
   display:grid;
-  grid-template-columns:minmax(0,1fr) 380px minmax(0,1fr);
+  grid-template-columns:minmax(0,1fr) auto;
   column-gap:14px;
   align-items:center;
 }
@@ -76,7 +76,7 @@
 .muther-app .header .muther-header-logo-x{color:#f4b443}
 .muther-app .header .muther-header-logo-weather{color:#101936}
 .muther-app .header .muther-header-nav{
-  grid-column:3;
+  grid-column:2;
   justify-self:end;
   display:flex;
   justify-content:flex-end;
@@ -87,7 +87,7 @@
 
 @media (max-width:1270px) and (min-width:951px){
   .muther-app .header:not(.login-header){
-    grid-template-columns:minmax(0,1fr) minmax(275px,32vw) minmax(0,1fr);
+    grid-template-columns:minmax(0,1fr) auto;
     column-gap:9px;
   }
   .muther-app .header .muther-header-logo-link{width:100%}
@@ -142,3 +142,13 @@
   .header .muther-brand .muther-wordmark{font-size:26px}
   .header .muther-brand .muther-description{font-size:9px}
 }
+
+/* The supplied artwork has transparent margins; crop them without altering the file. */
+.header .muther-brand .muther-wordmark-image{display:block;position:relative;overflow:hidden;width:150px;aspect-ratio:1630 / 401;flex:none}
+.header .muther-brand .muther-wordmark-image img{position:absolute;display:block;max-width:none;width:184.05%;height:auto;left:-17.92%;top:-195.01%}
+@media(max-width:700px){.header .muther-brand .muther-wordmark-image{width:125px}}
+
+/* Match the wordmark and tagline proportions. */
+.header .brand.muther-brand,.muther-app .header .brand.muther-brand{gap:4px}
+.header .muther-brand .muther-description,.muther-app .muther-brand .muther-description{color:#77736F;font-size:13px;letter-spacing:-.25px;line-height:1.25}
+@media(max-width:700px){.header .muther-brand .muther-description,.muther-app .muther-brand .muther-description{font-size:10.8px}}
