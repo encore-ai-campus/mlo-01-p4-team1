@@ -15,7 +15,8 @@ DEBUG = LOCAL_DEMO
 ALLOWED_HOSTS = [value.strip() for value in os.environ.get('DJANGO_ALLOWED_HOSTS','127.0.0.1,localhost,testserver').split(',') if value.strip()]
 CSRF_TRUSTED_ORIGINS = [value.strip() for value in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS','').split(',') if value.strip()]
 INSTALLED_APPS = ['django.contrib.auth', 'django.contrib.contenttypes', 'django.contrib.sessions', 'rest_framework',
-                  'backend.recommendation', 'backend.music', 'backend.common', 'backend.accounts', 'backend.workspaces', 'backend.venues']
+                  'backend.recommendation', 'backend.music', 'backend.common', 'backend.accounts', 'backend.workspaces', 'backend.venues',
+                  'backend.phase4_ops.apps.Phase4OperationsConfig']
 MIDDLEWARE = ['django.middleware.security.SecurityMiddleware',
               'django.contrib.sessions.middleware.SessionMiddleware',
               'backend.common.identity.GuestCookieMiddleware',
@@ -88,6 +89,19 @@ ADMIN_PASSKEY_REQUIRED = not LOCAL_DEMO or os.environ.get('ADMIN_PASSKEY_REQUIRE
 ADMIN_PASSKEY_RP_ID = os.environ.get('ADMIN_PASSKEY_RP_ID', 'localhost' if LOCAL_DEMO else '')
 ADMIN_PASSKEY_ORIGIN = os.environ.get('ADMIN_PASSKEY_ORIGIN', 'http://localhost:5173' if LOCAL_DEMO else '')
 PLATFORM_ENABLED = os.environ.get('PLATFORM_LOCAL_MVP') == '1'
+PHASE4_SONG_POLICY = {
+    'version': 'owner-song-requests-v1', 'allow_general_users': False, 'require_approved_venue': True,
+    'quota_scope': 'account', 'window_days': None, 'period_limit': None, 'count_all_submitted': True,
+}
+PHASE4_WORKER_TOKEN = os.environ.get('PHASE4_WORKER_TOKEN', '')
+PHASE4_ALLOW_INSECURE_WORKER_LOCAL = LOCAL_DEMO
+PHASE4_LEASE_SECONDS = int(os.environ.get('PHASE4_LEASE_SECONDS', '900'))
+PHASE4_TAG_CODES = {
+    'genre': frozenset({'POP', 'K-POP', 'J-POP', 'ROCK_PUNK_METAL', 'ELECTRONIC_DANCE', 'HIPHOP',
+                        'RNB_SOUL_FUNK', 'JAZZ', 'FOLK_COUNTRY_BLUES', 'OPERA', 'CLASSICAL', 'NEWAGE',
+                        'REGGAE_SKA', 'LATIN'}),
+    'mood': frozenset({'CALM', 'EMOTIONAL', 'PEACEFUL', 'DREAMY', 'ENERGETIC', 'BRIGHT', 'PARTY', 'GROOVY', 'INTENSE'}),
+}
 GUEST_COOKIE_NAME = 'cafe_guest'
 GUEST_TTL_SECONDS = int(os.environ.get('GUEST_TTL_SECONDS', '0'))
 ADMIN_SESSION_SECONDS = int(os.environ.get('ADMIN_SESSION_SECONDS', '0'))

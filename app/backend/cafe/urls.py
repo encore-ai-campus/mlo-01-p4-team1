@@ -10,6 +10,7 @@ from backend.recommendation.youtube_queue_api import YoutubeQueue
 from backend.recommendation.youtube_audio_api import YoutubeAudio
 
 urlpatterns = [
+    path('api/phase4/', include('backend.phase4_ops.urls')),
     path('', include('backend.workspaces.urls')),
     path('', include('backend.accounts.urls')),
     path('', include('backend.venues.urls')),
