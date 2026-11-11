@@ -59,6 +59,8 @@ class FeatureEncoder18D:
         """
         vec = np.zeros(2, dtype=np.float32)
         w = str(weather).upper()
+        if w in ('', 'UNKNOWN', 'MISSING', 'NONE'):
+            return vec
         if any(keyword in w for keyword in ['RAIN', 'SNOW', '비', '눈', '흐림', 'CLOUDY']):
             vec[0] = 1.0
             vec[1] = 0.1

@@ -67,7 +67,7 @@ def venue_detail_api(request, venue_id: str, *, consumer):
     menu_tabs = [{'tab_name': k, 'items': v} for k, v in tabs_dict.items()]
 
     # 4. 파트너 음악 배너
-    current_weather = request.GET.get('weather', 'CLEAR')
+    current_weather = request.GET.get('weather') or 'UNKNOWN'
     music_banner = get_venue_music_banner(venue, current_weather=current_weather)
 
     # 5. 실시간 진행 중(또는 5분 이내 종료) 이벤트 목록

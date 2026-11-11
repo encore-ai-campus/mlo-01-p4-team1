@@ -8,7 +8,7 @@ from backend.common.identity import raw_request
 from backend.recommendation.errors import require
 from . import authorization as auth
 from .fixtures import FIXTURES
-from .music import DEMO_PLAYLISTS
+from .music import DEMO_PLAYLISTS, approved_owner_playlists, playlist_name
 from .models import (Workspace, WorkspaceClaim, BusinessCheckJob, ClaimDecision, BusinessEntity,
     WorkspaceMembership, InvitationReceiver, WorkspaceInvitation, ReauthenticationGrant,
     IdempotencyRecord, AuthorizationAudit, InternalOutbox, WorkspaceMusicState)
@@ -84,10 +84,11 @@ def invitation_data(row):
 
 
 def music_data(row):
+    actual = [{'id': p.pk, 'name': playlist_name(p)} for p in approved_owner_playlists(row.workspace)]
     return {'workspace_id':str(row.workspace_id),'revision':row.version,'preferences':row.preferences,
             'exclusions':row.exclusions,'applied_playlist':row.applied_playlist,
-            'playlists':[{'id': identifier, 'name': name} for identifier, name in DEMO_PLAYLISTS.items()],
-            'notice':'권한·공유 상태 확인용 합성 선곡표입니다. 기존 개인 추천 기록은 유지됩니다.'}
+            'playlists':[{'id': identifier, 'name': name} for identifier, name in DEMO_PLAYLISTS.items()] + actual,
+            'notice':'시연 선곡표와 점주의 승인된 선곡표를 표시합니다.'}
 
 
 def revision(request, row):
@@ -385,7 +386,15 @@ def mutate(operation,request,body,values,context):
         return {'status':'CLOSED','resource_id':str(workspace.pk)},200
     if operation=='changeWorkspaceMusic':
         row=WorkspaceMusicState.objects.select_for_update().get(workspace=workspace);revision(request,row)
-        if body['action']=='APPLY': row.applied_playlist=body['playlist_id']
+        if body['action']=='APPLY':
+            playlist_id = body['playlist_id']
+            if playlist_id not in DEMO_PLAYLISTS:
+                from backend.recommendation.models import Family
+                playlist = approved_owner_playlists(workspace).filter(pk=playlist_id).first()
+                require(playlist is not None, 'PLAYLIST_NOT_AVAILABLE', '점주의 승인된 선곡표를 확인해 주세요.', 404)
+                family = Family.objects.select_for_update().get(pk=playlist.family_id)
+                require(family.approved_playlist_id == playlist_id, 'PLAYLIST_NOT_AVAILABLE', '점주의 승인된 선곡표를 확인해 주세요.', 404)
+            row.applied_playlist=playlist_id
         elif body['action']=='PREFERENCES': row.preferences=body['preferences']
         else: row.exclusions=body['exclusions']
         row.version+=1;row.save();audit(request,user,'music.'+body['action'].lower(),row,workspace)

@@ -21,9 +21,10 @@ import { api } from '../../../shared/api';
 import { weatherLabel, type Weather } from '../../region-weather/WeatherPanel';
 import type { RegionOption } from '../../region-weather/RegionPicker';
 
-export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommendations?: boolean }> = ({
+export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommendations?: boolean; enableAi?: boolean }> = ({
   readOnly = false,
   showVisitRecommendations = false,
+  enableAi = false,
 }) => {
   const currentUserId = 'demo_user_final';
   const [liveWeather, setLiveWeather] = useState<{label:string; area:string; temperature:number | null} | null>(null);
@@ -39,7 +40,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
   const [hasSelectedDistrict, setHasSelectedDistrict] = useState(false);
 
   useEffect(() => {
-    if (readOnly || concierge.status !== 'checking') return;
+    if ((readOnly && !enableAi) || concierge.status !== 'checking') return;
     const controller = new AbortController();
     fetchVisitOptions(controller.signal)
       .then(options => {
@@ -49,7 +50,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
         if (!controller.signal.aborted) setConcierge({ status: 'error' });
       });
     return () => controller.abort();
-  }, [readOnly, concierge.status]);
+  }, [readOnly, enableAi, concierge.status]);
 
   const {
     gu,
@@ -209,15 +210,15 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
         totalCount={totalCount}
       />
 
-      {!readOnly && <details className="fitplace-recommendations"><summary>나에게 맞는 장소 추천받기 <span>AI 추천</span></summary><div className="fitplace-recommendations-body">          {/* 2. 상단 파트너 매장 & 선착순 이벤트 홍보 배너 */}
-          <PartnerPromoBanner
+      {(!readOnly || enableAi) && <details className="fitplace-recommendations"><summary>나에게 맞는 장소 추천받기 <span>AI 추천</span></summary><div className="fitplace-recommendations-body">          {/* 2. 상단 파트너 매장 & 선착순 이벤트 홍보 배너 */}
+          {!readOnly && <PartnerPromoBanner
             gu={gu}
             onSelectEvent={(ev) => handleOpenEvent(ev)}
-          />
+          />}
 
           {/* 3. 방문 조건과 자연어 매장 추천 */}
           {showVisitRecommendations && visitOptions && <VisitRecommendationSection options={visitOptions} onOpenVenue={handleOpenDetail} />}
-          {concierge.status === 'ready' && !concierge.options.mcp ? <GeminiConciergeSection gu={gu} weather={weather} onSelectVenue={handleOpenDetail} /> : <VenueConciergeSection
+          {!readOnly && concierge.status === 'ready' && !concierge.options.mcp ? <GeminiConciergeSection gu={gu} weather={weather} onSelectVenue={handleOpenDetail} /> : <VenueConciergeSection
             defaultRegion={conciergeRegion}
             connection={concierge}
             onReconnect={() => setConcierge({ status: 'checking' })}

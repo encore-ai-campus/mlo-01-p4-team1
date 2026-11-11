@@ -16,7 +16,7 @@ def filter_and_rank_venues(
     user_id: Optional[str] = None,
     category: str = 'ALL',
     budget_tier: Optional[Union[int, str]] = None,
-    weather: str = 'CLEAR',
+    weather: str = 'UNKNOWN',
     time_slot: str = 'AFTERNOON',
     only_with_events: bool = False,
     only_open_now: bool = False,
@@ -136,7 +136,7 @@ def filter_and_rank_venues(
         rule_score = 0.5
         # 날씨 친화도 가산점
         w_aff = v.get('primary_weather_affinity', 'ALL')
-        if w_aff == weather.upper() or w_aff == 'ALL':
+        if weather.upper() not in ('', 'UNKNOWN', 'MISSING') and (w_aff == weather.upper() or w_aff == 'ALL'):
             rule_score += 0.2
         # 평점 가산점 (4.0 ~ 5.0 -> 0.0 ~ 0.2)
         rating = float(v.get('rating', 4.5))

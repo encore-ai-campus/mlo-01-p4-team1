@@ -459,9 +459,8 @@ class CsvLazyRepository:
         """
         PK(venue_id)로 연결된 메뉴판을 점검하여:
         1) 실시간 수집 메뉴(Live Naver Menu)가 있으면 최우선 연결
-        2) 모든 로컬 매장이 동일한 기본 16종 메뉴(`얼큰 해물 짬뽕 나베` 등)만 가지고 있는 경우,
-           매장명·세부카테고리 맞춤 메뉴 풀과 결합하여 매장마다 고유한 메뉴 구성을 갖도록 보강
-        3) 최종 연결된 메뉴 구성을 바탕으로 `avg_price`(1인 평균예산)와 `price_tier`(5단계 가격 티어)를 동적 산출
+        2) 수집 메뉴가 없으면 원본 메뉴 유지
+        3) 메뉴 구성을 바탕으로 예산 구간 산출
         """
         vid = venue['venue_id']
         gu = venue.get('gu_name', '')
@@ -476,64 +475,10 @@ class CsvLazyRepository:
         current_menus = self._venue_menus_cache.get(vid, [])
 
         if live_menus:
-            # 실시간 메뉴를 최상단에 배치하고 부족하면 기존 메뉴로 16종 채움
-            seen_names = {m['menu_name'] for m in live_menus}
-            merged = [dict(m, venue_id=vid) for m in live_menus]
-            for cm in current_menus:
-                if cm['menu_name'] not in seen_names and len(merged) < 16:
-                    merged.append(cm)
-                    seen_names.add(cm['menu_name'])
-            current_menus = merged
+            # 확인된 수집 메뉴만 사용하고, 기존 템플릿으로 빈 항목을 채우지 않는다.
+            current_menus = [dict(m, venue_id=vid) for m in live_menus]
             self._venue_menus_cache[vid] = current_menus
-        elif current_menus:
-            # 2. 기본 단일 템플릿('얼큰 해물 짬뽕 나베' 또는 '아메리카노 (고소한 블렌드)')인지 확인
-            first_name = current_menus[0].get('menu_name', '')
-            if first_name in ('얼큰 해물 짬뽕 나베', '아메리카노 (고소한 블렌드)'):
-                theme_pool = _select_theme_pool_for_venue(venue)
-                if theme_pool:
-                    h = int(hashlib.md5(vid.encode('utf-8')).hexdigest()[:8], 16)
-                    # 매장마다 대표 메뉴 순서도 해시 오프셋으로 다양화하여 인접 매장 간 카드 프리뷰 중복 방지
-                    sig_items = [t for t in theme_pool if t[3] == 'Y']
-                    other_items = [t for t in theme_pool if t[3] != 'Y']
-                    if len(sig_items) > 1:
-                        rot = h % len(sig_items)
-                        sig_items = sig_items[rot:] + sig_items[:rot]
-                    ordered_pool = sig_items + other_items
-
-                    # 매장별 소폭 가격 현실화 변주 (-500, 0, +500, +1000)
-                    price_delta = ((h % 4) - 1) * 500 if venue.get('category') == 'PUB' else ((h % 3) - 1) * 200
-
-                    themed_menus: List[Dict[str, Any]] = []
-                    seen_names = set()
-                    for idx, t in enumerate(ordered_pool, start=1):
-                        raw_p = max(1500, int(t[2]) + price_delta)
-                        m_dict = {
-                            'menu_id': f"{vid}_TM_{idx:02d}",
-                            'venue_id': vid,
-                            'menu_name': t[1],
-                            'price': raw_p,
-                            'price_tier': _compute_pa_price_tier(raw_p),
-                            'is_signature': (t[3] == 'Y'),
-                            'weather_match': t[6],
-                            'description': t[5],
-                            'portion': t[4],
-                            'category': t[0],
-                            'image_url': current_menus[idx % len(current_menus)].get('image_url', ''),
-                        }
-                        themed_menus.append(m_dict)
-                        seen_names.add(t[1])
-
-                    # 16종을 채우기 위해 기존 메뉴 중 겹치지 않는 주류/음료/사이드 추가
-                    for cm in current_menus:
-                        if cm['menu_name'] not in seen_names and len(themed_menus) < 16:
-                            cm_copy = dict(cm)
-                            if len(themed_menus) >= 5:
-                                cm_copy['is_signature'] = False
-                            themed_menus.append(cm_copy)
-                            seen_names.add(cm['menu_name'])
-
-                    current_menus = themed_menus
-                    self._venue_menus_cache[vid] = current_menus
+        # 수집 메뉴가 없으면 원본 메뉴를 그대로 보존한다. 상호·해시로 메뉴나 가격을 만들지 않는다.
 
         # 별칭(venue_seoul_xxxx) 캐시도 동일하게 동기화
         if vid.startswith('VN_SL_'):

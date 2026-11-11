@@ -10702,10 +10702,9 @@
             ]
           },
           "playlist_id": {
-            "enum": [
-              "demo-calm",
-              "demo-bright"
-            ]
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
           },
           "preferences": {
             "type": "object",

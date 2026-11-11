@@ -24,7 +24,7 @@ def venue_list_api(request, *, consumer):
     partner_exact = request.GET.get('partner_exact', '0') in ('1', 'true', 'True')
     open_now = request.GET.get('open_now', '0') in ('1', 'true', 'True')
     q = request.GET.get('q', '').strip()
-    weather = request.GET.get('weather', 'CLEAR').strip().upper()
+    weather = (request.GET.get('weather') or 'UNKNOWN').strip().upper()
     time_slot = request.GET.get('time_slot', 'AFTERNOON').strip().upper()
 
     if consumer is None:

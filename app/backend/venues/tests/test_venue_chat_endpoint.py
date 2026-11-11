@@ -57,9 +57,10 @@ class VenueChatEndpointTests(SimpleTestCase):
         with patch.object(concierge_view, "run_venue_llm_concierge") as execute:
             for override in ({"PLATFORM_ENABLED": True}, {"MEMBER_LOCAL_PREVIEW": False}):
                 with self.subTest(override=override), override_settings(**override):
-                    self.assertEqual((await client.get(OPTIONS)).status_code, 404)
+                    status = 401 if override.get('PLATFORM_ENABLED') else 404
+                    self.assertEqual((await client.get(OPTIONS)).status_code, status)
                     response = await client.post(CHAT, {"message": MESSAGE}, content_type="application/json", headers=headers)
-                    self.assertEqual(response.status_code, 404)
+                    self.assertEqual(response.status_code, status)
             execute.assert_not_called()
 
     async def test_same_origin_preserves_unverified_and_zero_result_without_legacy_fallback(self):
