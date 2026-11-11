@@ -10,7 +10,7 @@ function access(path:string,overrides:Partial<{allowed:boolean;configured:boolea
   return {allowed:true,configured:true,path,...overrides};
 }
 function admin(overrides:Partial<PlatformAdmin>={}):PlatformAdmin{
-  return {role:'ADMIN',passkey_required:false,csrf_token:'test-only',
+  return {role:'ADMIN',passkey_required:false,csrf_token:'test-only',platform_enabled:true,
     allowed_menus:[
       {path:'/admin/ads',label:'광고 관리'},
       {path:'/admin/music',label:'음악 관리'},
@@ -52,6 +52,12 @@ describe('single platform administrator dashboard hub',()=>{
     const html=render(admin({passkey_required:true}));
     expect(html).toContain('추가 인증 대기');
     for(const path of [operations,behavior,'/admin/ads'])expect(html).not.toContain('href="'+path+'"');
+  });
+
+  it('shows the private review menu only when capability and menu are both present',()=>{
+    expect(render(admin({platform_enabled:false,private_demo_review_allowed:true}))).toContain('href="/platform/review"');
+    expect(render(admin({platform_enabled:false,private_demo_review_allowed:false}))).not.toContain('href="/platform/review"');
+    expect(render(admin({platform_enabled:false,private_demo_review_allowed:true,allowed_menus:[]}))).not.toContain('href="/platform/review"');
   });
 
   it('does not expose a dashboard to an administrator lacking its capability',()=>{

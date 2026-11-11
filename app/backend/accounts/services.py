@@ -42,9 +42,10 @@ def queue_mail(user, address, kind, subject, text, token=None):
         expires_at=token.expires_at if token else timezone.now()+timedelta(seconds=settings.MEMBER_SECURITY_MAIL_SECONDS))
 
 
-def receipt(user, kind, version, accepted=True):
-    document = settings.MEMBER_POLICY_DOCUMENTS.get(kind,
-        '만 14세 이상 확인' if kind == 'age14' else '')
+def receipt(user, kind, version, accepted=True, *, documents=None):
+    if documents is None:
+        documents = settings.MEMBER_POLICY_DOCUMENTS
+    document = policy.receipt_text(documents, kind)
     return PolicyReceipt.objects.create(user=user, kind=kind, version=version, accepted=accepted,
         document_sha256=hashlib.sha256(document.encode()).hexdigest())
 
@@ -71,6 +72,10 @@ def profile_data(profile):
 
 def signup(body):
     policy.consent(body)
+    return create_account_after_consent(body, documents=settings.MEMBER_POLICY_DOCUMENTS)
+
+
+def create_account_after_consent(body, *, documents):
     name = policy.username(body.get('username'))
     user = get_user_model()(username=name)
     policy.password(body.get('password'), body.get('password_confirmation'), user)
@@ -94,9 +99,9 @@ def signup(body):
                 profile = MemberProfile.objects.create(user=user, nickname=nick, nickname_key=nick_key,
                     email_consent_at=timezone.now() if address else None)
                 for kind in ('terms', 'privacy_notice', 'age14'):
-                    receipt(user, kind, body['policy_version'])
+                    receipt(user, kind, body['policy_version'], documents=documents)
                 if address:
-                    receipt(user, 'email', body['policy_version'])
+                    receipt(user, 'email', body['policy_version'], documents=documents)
                     start_email(user, address, allow_deferred=True)
                 return profile
         except IntegrityError:

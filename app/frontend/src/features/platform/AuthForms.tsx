@@ -121,8 +121,13 @@ export function LoginForm({administrator=false,songPortal=false}:{administrator?
   async function submit(event:FormEvent){event.preventDefault();setBusy(true);setError('');
     try{
       if(administrator){
-        const result=await raw<{passkey_required:boolean;role:string;allowed_menus:{path:string}[]}>('/api/auth/login','POST',{username,password,remember:false});
-        if(!result.passkey_required&&result.role!=='ADMIN')throw new Error('플랫폼 관리자 계정을 확인해 주세요.');
+        const result=await raw<{passkey_required:boolean;role:string;landing_path:string}>('/api/auth/login','POST',{username,password,remember:false});
+        if(result.passkey_required){
+          if(result.landing_path!=='/admin/passkey')throw new Error('관리자 추가 인증 경로를 확인해 주세요.');
+          location.assign(result.landing_path);
+          return;
+        }
+        if(result.role!=='ADMIN')throw new Error('플랫폼 관리자 계정을 확인해 주세요.');
         location.assign('/platform/admin');
       }else{
         const result=await call<{next_action:{path:string}}>('/sessions','POST',{username,password,remember});
