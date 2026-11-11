@@ -18,7 +18,7 @@ export function useAccountBoot(){
   return {policy,error};
 }
 function Shell({title,children}:{title:string;children:React.ReactNode}){
-  return <><Header login/><main className="account-layout"><section className="card account-card"><p className="account-brand">MUSIC X WEATHER</p><h1>{title}</h1>{children}</section></main></>;
+  return <><Header login/><main className="account-layout"><section className={`card account-card${['회원가입','계정 찾기','아이디 확인','비밀번호 재설정'].includes(title)?' account-signup':''}${['회원가입','계정 찾기'].includes(title)?' account-figma-text':''}`}><p className="account-brand">MUSIC X WEATHER</p><h1>{title}</h1>{children}</section></main></>;
 }
 function Secret({label,value,onChange,autoComplete='current-password',id}:{label:string;value:string;onChange:(v:string)=>void;autoComplete?:string;id:string}){
   const [show,setShow]=useState(false);

@@ -34,6 +34,7 @@ export function Platform(){
   }
   const titles:Record<string,string>={'/platform/signup':'하나의 계정으로 시작하세요','/platform/login':'로그인','/platform/admin/login':'메인 플랫폼 관리자 로그인','/platform/admin':'플랫폼 관리자','/platform/account/recovery':'계정 찾기','/platform/terms':'이용약관','/platform/privacy':'개인정보 처리방침','/platform/privacy-contact':'개인정보 관련 문의','/platform/business':'매장과 팀 관리','/platform/review':'매장 관리권한 심사','/platform/account':'내 계정과 이용 유형','/platform/consumer':'사용자 서비스'};
   const signup=path==='/platform/signup',administratorLogin=path==='/platform/admin/login',login=path==='/platform/login'||administratorLogin;
+  if (path==='/platform/consumer' && account && types.includes('CONSUMER')) return <VenueExplorePage readOnly showServiceHeader/>;
   return <div className="platform-page"><header className="p-header">
     <a className="p-logo" href="/platform"><b>◈</b> 메인 플랫폼 <small>이름 미정</small></a>
     <nav className="p-public-nav" aria-label="플랫폼 소개"><CinematicNavLink/><a href="/platform#services">서비스 소개</a></nav>
