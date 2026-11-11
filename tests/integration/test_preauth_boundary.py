@@ -690,6 +690,32 @@ class SSMDeployment(PrivateInputs):
             execution.deploy_runtime(gate, factory, self.folder / "receipt.json")
         factory.assert_not_called()
 
+    def test_main_web_release_rejects_unordered_control_targets_before_aws(self):
+        nodes = {node["name"]: node["instance_id"] for node in self.inventory["nodes"]}
+        self.payload.update(operation="deploy", targets=[nodes["control-a"], nodes["control-b"]])
+        gate = self.gate(self.review(payload=self.payload))
+        factory = Mock()
+        with self.assertRaisesRegex(ValueError, "exact ordered Control targets"):
+            execution.deploy_runtime(
+                gate, factory, self.folder / "receipt.json",
+                web_release=("main-" + "a" * 40, "unused"),
+            )
+        factory.assert_not_called()
+
+    def test_main_web_release_rejects_another_signed_image_before_send(self):
+        nodes = {node["name"]: node["instance_id"] for node in self.inventory["nodes"]}
+        self.payload.update(operation="deploy", targets=[nodes["control-b"], nodes["control-a"]])
+        gate = self.gate(self.review(payload=self.payload))
+        release = "main-" + "a" * 40
+        self.preflight()
+        with patch("artifact_verifier.inspect_artifact", return_value={
+            "fixture": False, "artifact_version": release, "image_digests": {"web": "signed-other-image"},
+        }), self.assertRaisesRegex(ValueError, "differs from published main web release"):
+            self.invoke(gate, web_release=(release, "published-image"))
+        self.assertFalse((self.folder / "receipt.json").exists())
+        for stub in self.stubs:
+            stub.assert_no_pending_responses()
+
     def test_archive_hash_mismatch_never_reaches_send(self):
         gate = self.gate(self.review(payload=self.payload))
         self.preflight(artifact=b"corrupt")

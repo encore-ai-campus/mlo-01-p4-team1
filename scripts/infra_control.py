@@ -183,7 +183,7 @@ def runtime_clients(review, private_dir):
     return clients
 
 
-def execute(gate, receipt_path):
+def execute(gate, receipt_path, *, web_release=None):
     from infra_common.factory import load_guard
 
     review = gate.check()
@@ -198,7 +198,7 @@ def execute(gate, receipt_path):
             return values
 
         try:
-            return deploy_runtime(gate, clients, receipt_path)
+            return deploy_runtime(gate, clients, receipt_path, web_release=web_release)
         finally:
             for client in owned:
                 client.close()

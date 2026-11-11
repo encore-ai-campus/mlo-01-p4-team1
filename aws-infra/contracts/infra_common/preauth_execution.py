@@ -230,7 +230,7 @@ def receipt(path, value):
 
 
 def deploy_runtime(
-    gate, clients, receipt_path, *, clock=time.monotonic, pause=time.sleep
+    gate, clients, receipt_path, *, clock=time.monotonic, pause=time.sleep, web_release=None
 ):
     """Fixed SSM Document and exact instances; no retry of an uncertain SendCommand.
 
@@ -313,6 +313,13 @@ def deploy_runtime(
     require(
         set(targets) <= set(names), "runtime instance not in accepted account inventory"
     )
+    if web_release is not None:
+        require(
+            account == "encore1"
+            and operation == "deploy"
+            and [names[target] for target in targets] == ["control-b", "control-a"],
+            "main web rollout requires exact ordered Control targets",
+        )
     # Factory is invoked only after every local acceptance/shape gate passed.
     sts, ssm, s3 = clients(account)
     identity = sts.get_caller_identity()
@@ -392,6 +399,13 @@ def deploy_runtime(
                 manifest.get("fixture", False) is False,
                 "lab artifact cannot be deployed",
             )
+            if web_release is not None:
+                expected_release, expected_image = web_release
+                require(
+                    manifest["artifact_version"] == expected_release
+                    and manifest["image_digests"].get("web") == expected_image,
+                    "signed runtime artifact differs from published main web release",
+                )
             node = names[target]
             role = next(n["role"] for n in inventory["nodes"] if n["name"] == node)
             native = (
