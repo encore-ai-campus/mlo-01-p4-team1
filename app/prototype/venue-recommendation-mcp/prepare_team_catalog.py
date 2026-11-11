@@ -358,11 +358,7 @@ def _reviewed_menu_names(text):
 
 
 def apply_research(snapshot, local_path, source_path, home_path):
-    """Overlay explicitly checked venue records onto a local-only snapshot.
-
-    All CSV values not backed by research are cleared for mood, menus and
-    budget: team demo exports may contain templated, unverified values.
-    """
+    """Add checked research without deleting the team catalog's values."""
     if snapshot.get('preview_only') is not True:
         raise ValueError('조사 자료는 로컬 시연용 스냅샷에서만 사용할 수 있습니다.')
     local_rows, _ = read_export(local_path, {'venue_id','매장명','도로명주소','매장분위기','매장소개_후기','대표메뉴_후기','조사상태','확인일','제한사항'})
@@ -383,26 +379,56 @@ def apply_research(snapshot, local_path, source_path, home_path):
             raise ValueError(f'조사 자료에 빈 ID 또는 중복 ID가 있습니다: {vid}')
         records[vid] = (row, True)
 
+    return _apply_research_records(snapshot, records, source_by_id)
+
+
+def apply_research_update(snapshot, update_path):
+    """Use the consolidated, previously reviewed Drive CSV in a preview."""
+    if snapshot.get('preview_only') is not True:
+        raise ValueError('조사 자료는 로컬 시연용 스냅샷에서만 사용할 수 있습니다.')
+    rows, _ = read_export(update_path, {'venue_id','매장명','도로명주소','매장분위기_조사',
+                                        '매장특징_조사','대표메뉴_조사','출처_URL','조사확인일','제한사항'})
+    records = {}
+    for row in rows:
+        vid = row['venue_id']
+        if not vid or vid in records:
+            raise ValueError(f'조사 자료에 빈 ID 또는 중복 ID가 있습니다: {vid}')
+        records[vid] = (row, 'update')
+    return _apply_research_records(snapshot, records, {})
+
+
+def _apply_research_records(snapshot, records, source_by_id):
+
     _, labels, ancestors = read_tags(TAG_FILE)
     mood_labels = {**labels['MOOD'], **{word: 'mood_calm' for word in CALM_WORDS}}
     classify_menu = menu_classifier(labels, ancestors)
     audit = Counter()
-    retained_menus = []
+    retained_menus = list(snapshot['menus'])
+    existing_menu_ids = {m['menu_id'] for m in retained_menus}
+    existing_menu_names = defaultdict(set)
+    for menu in retained_menus:
+        original = menu.get('source_menu_name') or menu.get('name', '').removesuffix(MENU_MARKER)
+        if original:
+            existing_menu_names[menu['venue_id']].add(normalize(original))
     for venue in snapshot['venues']:
-        # The team CSV fields were for a demonstration; never leave them in
-        # place when the researched-only overlay has been requested.
-        venue['mood_tag_ids'] = []
-        venue['avg_budget_krw'] = None
         pair = records.get(venue['venue_id'])
         if pair is None:
             audit['no_research'] += 1
             continue
         row, home = pair
-        name, address = row['매장명'], row['주소' if home else '도로명주소']
+        update = home == 'update'
+        name, address = row['매장명'], row['주소' if home is True else '도로명주소']
         if _research_key(name) != _research_key(venue['name']) or _research_key(address) != _research_key(venue['address']):
             audit['identity_conflict'] += 1
             continue
-        if home:
+        if update:
+            urls = []
+            for raw_url in row['출처_URL'].split('|'):
+                url = raw_url.strip()
+                parsed = urlsplit(url)
+                if parsed.scheme in {'https', 'http'} and parsed.netloc and url not in urls:
+                    urls.append(url)
+        elif home:
             try:
                 home_sources = json.loads(row['출처목록'])
                 holds = json.loads(row['보류목록'])
@@ -417,16 +443,19 @@ def apply_research(snapshot, local_path, source_path, home_path):
             if row['조사상태'] not in {'후기_단일출처', '후기_복수출처'}:
                 audit['held_or_invalid'] += 1
                 continue
-            urls = _research_urls(source_by_id[venue['venue_id']])
+            urls = _research_urls(source_by_id.get(venue['venue_id'], []))
         if not urls:
             audit['missing_visitor_source'] += 1
             continue
-        mood = row['분위기' if home else '매장분위기']
-        venue['mood_tag_ids'] = _reviewed_moods(mood, mood_labels)
-        description = row['매장 특징' if home else '매장소개_후기']
+        mood = row['매장분위기_조사' if update else ('분위기' if home else '매장분위기')]
+        verified_moods = _reviewed_moods(mood, mood_labels)
+        if verified_moods:
+            venue['mood_tag_ids'] = verified_moods
+            audit['moods_replaced'] += 1
+        description = row['매장특징_조사' if update else ('매장 특징' if home else '매장소개_후기')]
         venue['research'] = {'description': description, 'sources': urls,
-                             'limitations': row['제한사항'], 'checked_on': row['확인일']}
-        menu_text = row['확인된 메뉴' if home else '대표메뉴_후기']
+                             'limitations': row['제한사항'], 'checked_on': row['조사확인일' if update else '확인일']}
+        menu_text = row['대표메뉴_조사' if update else ('확인된 메뉴' if home else '대표메뉴_후기')]
         seen_names = set()
         for part in _reviewed_menu_names(menu_text):
             name = part.strip()
@@ -435,19 +464,25 @@ def apply_research(snapshot, local_path, source_path, home_path):
                     or re.search(r'\d[\d,]*\s*원|미확인|확인\s*필요|불명|없음', name)):
                 continue
             seen_names.add(name)
+            name_key = normalize(name)
+            if name_key in existing_menu_names[venue['venue_id']]:
+                audit['research_menu_duplicate'] += 1
+                continue
             digest = hashlib.sha256((venue['venue_id'] + '\0' + name).encode('utf-8')).hexdigest()[:20]
-            retained_menus.append({'menu_id': 'research-' + digest, 'venue_id': venue['venue_id'],
+            menu_id = 'research-' + digest
+            if menu_id in existing_menu_ids:
+                raise ValueError(f'조사 메뉴 ID가 기존 메뉴와 충돌합니다: {menu_id}')
+            existing_menu_ids.add(menu_id)
+            existing_menu_names[venue['venue_id']].add(name_key)
+            retained_menus.append({'menu_id': menu_id, 'venue_id': venue['venue_id'],
                                    'name': name, 'price_krw': None, 'menu_type_tag_ids': classify_menu(name),
                                    'cuisine_tag_ids': [], 'is_public': True})
+            audit['historical_menu_names'] += 1
         audit['applied'] += 1
     snapshot['menus'] = retained_menus
     snapshot['research_audit'] = dict(audit)
-    snapshot['source_basis'] = '공개 방문 후기 기반 조사 자료. 세부 근거 및 확인 시점은 매장별 research 필드 참조.'
-    snapshot['tag_basis'] = '확인된 분위기와 메뉴명만 기존 태그에 매핑. 일치하지 않는 태그는 비움.'
-    snapshot['budget_basis'] = '조사에서 확인된 메뉴 가격과 1인 예산은 연결하지 않아 미확인.'
-    # Historical reviews are not independent confirmation of the current menu.
-    snapshot['independently_verified_menus'] = 0
-    snapshot['research_audit']['historical_menu_names'] = len(retained_menus)
+    snapshot['source_basis'] = '팀 원본 매장·메뉴와 공개 방문 후기 조사 자료. 조사 근거는 매장별 research 참조.'
+    snapshot['tag_basis'] = '팀 원본 태그 유지; 조사 분위기를 기존 태그에 매핑할 수 있는 경우에만 교체.'
     return snapshot
 
 
@@ -480,14 +515,19 @@ def main():
     parser.add_argument('--research-local', type=Path, help='노트북 조사 매장 보완 CSV')
     parser.add_argument('--research-sources', type=Path, help='노트북 조사 출처 CSV')
     parser.add_argument('--research-home', type=Path, help='집 조사 중 대조 통과한 연결 후보 CSV')
+    parser.add_argument('--research-update', type=Path, help='대조 통과한 통합 매장조사 CSV')
     args = parser.parse_args()
     try:
-        data = prepare(args.source_dir, args.areas)
         research_paths = (args.research_local, args.research_sources, args.research_home)
+        if args.research_update and any(research_paths):
+            raise ValueError('--research-update와 세 조사 CSV 옵션은 함께 사용할 수 없습니다.')
+        if any(research_paths) and not all(research_paths):
+            raise ValueError('조사 자료를 적용하려면 세 조사 CSV 경로를 모두 지정해 주세요.')
+        data = prepare(args.source_dir, args.areas)
         if any(research_paths):
-            if not all(research_paths):
-                raise ValueError('조사 자료를 적용하려면 세 조사 CSV 경로를 모두 지정해 주세요.')
             data = apply_research(data, *research_paths)
+        elif args.research_update:
+            data = apply_research_update(data, args.research_update)
         write_snapshot(data, args.output, replace=args.replace)
     except (ValueError, OSError, csv.Error) as exc:
         parser.error(str(exc))
