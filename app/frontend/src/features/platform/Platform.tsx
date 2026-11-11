@@ -9,18 +9,22 @@ import {AccountSecurity,PersonalRecords} from './AccountSecurity';
 import './platform.css';
 import {CinematicNavLink} from '../cinematic/CinematicNavLink';
 import {VenueExplorePage} from '../venues/pages/VenueExplorePage';
+import {OwnerSongRequestsPortal} from '../song-requests/SongRequests';
 
-type Boot={account?:Account;session?:{csrf_token:string};csrf_token?:string};
+type Boot={account?:Account;session?:{csrf_token:string};csrf_token?:string;song_requests_only?:boolean;can_request_songs?:boolean};
 type Admin=PlatformAdmin;
 export function Platform(){
   const path=location.pathname;
   const [account,setAccount]=useState<Account|null>(null),[policy,setPolicy]=useState<Policy|null>(null),[admin,setAdmin]=useState<Admin|null>(null);
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
   const [nickname,setNickname]=useState(''),[terms,setTerms]=useState(false);
+  const [songPortal,setSongPortal]=useState<{canRequest:boolean}|null>(null);
   const types=account?.memberships.filter(m=>m.status==='ACTIVE').map(m=>m.type)||[];
+  const adminSignedIn=admin?.role==='ADMIN'||admin?.passkey_required;
   const canReview=admin?.role==='ADMIN'&&admin.allowed_menus.some(menu=>menu.path==='/platform/review');
   useEffect(()=>{let active=true;void(async()=>{try{
     const boot=await call<Boot>('/sessions/current');if(!active)return;setCsrf(boot.session?.csrf_token||boot.csrf_token||'');
+    if(boot.song_requests_only)setSongPortal({canRequest:boot.can_request_songs===true});
     const [p,a]=await Promise.all([call<{version:string;documents:{kind:string;text:string}[]}>('/policies'),raw<Admin>('/api/auth/me')]);
     if(!active)return;setPolicy({version:p.version,documents:Object.fromEntries(p.documents.map(document=>[document.kind,document.text]))});setAdmin(a);
     if(boot.account){setAccount(boot.account);setNickname(boot.account.nickname);}
@@ -34,6 +38,25 @@ export function Platform(){
   }
   const titles:Record<string,string>={'/platform/signup':'하나의 계정으로 시작하세요','/platform/login':'로그인','/platform/admin/login':'메인 플랫폼 관리자 로그인','/platform/admin':'플랫폼 관리자','/platform/account/recovery':'계정 찾기','/platform/terms':'이용약관','/platform/privacy':'개인정보 처리방침','/platform/privacy-contact':'개인정보 관련 문의','/platform/business':'뮤더 · 매장과 팀 관리','/platform/review':'매장 관리권한 심사','/platform/account':'내 계정과 이용 유형','/platform/consumer':'핏플레이스 · 장소 탐색'};
   const signup=path==='/platform/signup',administratorLogin=path==='/platform/admin/login',login=path==='/platform/login'||administratorLogin;
+  if(songPortal)return <div className="platform-page">
+    <header className="p-header"><a className="p-logo" href="/platform/business">muther.</a>
+      {account
+        ? <button disabled={busy} onClick={()=>void run(async()=>{await call('/sessions/current','DELETE');location.assign('/platform/login');})}>로그아웃</button>
+        : adminSignedIn&&<button disabled={busy} onClick={()=>void run(async()=>{
+          const result=await raw<{logout_url:string|null}>('/api/auth/logout','POST',{});
+          location.assign(result.logout_url||'/platform/admin/login');
+        })}>로그아웃</button>}
+    </header>
+    <main className="p-main">
+      {error&&<p className="p-alert error" role="alert">{error}</p>}
+      {loading?<p role="status">계정을 확인하고 있습니다.</p>:path==='/platform/admin'?<PlatformAdminHome admin={admin}/>:
+      ['/platform/terms','/platform/privacy','/platform/privacy-contact'].includes(path)?<PlatformLegal path={path} policy={policy}/>:
+      !['/platform','/platform/business','/platform/login','/platform/admin/login'].includes(path)?
+        <section className="p-card"><h1>매장 곡 신청</h1><a href="/platform/business">곡 신청으로 이동</a></section>:
+      !account?<section className="p-card p-auth"><h1>{administratorLogin?'운영자 로그인':'곡 신청 로그인'}</h1><LoginForm administrator={administratorLogin} songPortal/></section>:
+      songPortal.canRequest?<OwnerSongRequestsPortal/>:<section className="p-card"><h1>곡 신청 권한이 없습니다</h1><p>승인된 매장의 점주 계정으로 이용해 주세요.</p></section>}
+    </main>
+  </div>;
   if (path==='/platform/consumer' && account && types.includes('CONSUMER')) return <VenueExplorePage readOnly showServiceHeader enableAi showVisitRecommendations/>;
   return <div className="platform-page"><header className="p-header">
     <a className="p-logo" href="/platform"><b>◈</b> 메인 플랫폼 <small>이름 미정</small></a>
@@ -41,8 +64,8 @@ export function Platform(){
     <span className="p-demo">LOCAL MVP · 합성 정보만 사용</span>
     <div className="p-header-account">{loading?<span className="p-muted">연결 중…</span>:account?<>
       <a href="/platform/account">{account.nickname}님 · 마이페이지</a><button onClick={()=>void run(async()=>{await call('/sessions/current','DELETE');location.assign('/platform');})}>로그아웃</button>
-    </>:admin?.role==='ADMIN'||admin?.passkey_required?<>
-      <a href="/platform/admin">{admin?.passkey_required?'관리자 · 추가 인증 대기':'플랫폼 관리자'}</a>
+    </>:adminSignedIn?<>
+      <a href="/platform/admin">{admin.passkey_required?'관리자 · 추가 인증 대기':'플랫폼 관리자'}</a>
       <button onClick={()=>void run(async()=>{await raw('/api/auth/logout','POST',{});location.assign('/platform');})}>로그아웃</button>
     </>:<><a href="/platform/login">로그인</a><a className="p-header-signup" href="/platform/signup">회원가입</a></>}</div>
   </header>

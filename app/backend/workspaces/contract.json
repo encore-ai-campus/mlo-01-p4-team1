@@ -9214,6 +9214,12 @@
               },
               "csrf_token": {
                 "type": "string"
+              },
+              "song_requests_only": {
+                "const": true
+              },
+              "can_request_songs": {
+                "const": false
               }
             },
             "required": [
@@ -9233,6 +9239,12 @@
               },
               "session": {
                 "$ref": "#/components/schemas/Session"
+              },
+              "song_requests_only": {
+                "const": true
+              },
+              "can_request_songs": {
+                "type": "boolean"
               }
             },
             "required": [

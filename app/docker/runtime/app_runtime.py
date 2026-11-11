@@ -22,6 +22,7 @@ SECRET_KEYS = {
     'DEFAULT_FROM_EMAIL', 'ADMIN_PASSKEY_RP_ID', 'ADMIN_PASSKEY_ORIGIN',
     'ADMIN_SSO_ENABLED', 'ADMIN_LOCAL_LOGIN_ENABLED', 'ADMIN_SSO_GROUPS_CLAIM',
     'ADMIN_SESSION_SECONDS', 'GUEST_TTL_SECONDS',
+    'PHASE4_WORKER_TOKEN', 'PHASE4_TRUSTED_PROXY_CIDRS', 'PHASE4_OWNER_PORTAL_ENABLED',
 }
 
 
@@ -62,6 +63,7 @@ def server_command(config, host, port):
     if config['kind'] == 'web':
         return ['-m', 'uvicorn', 'backend.cafe.asgi:application', '--host', host,
                 '--port', port, '--workers', '1', '--timeout-graceful-shutdown', '210',
+                *(['--no-proxy-headers'] if os.environ.get('PHASE4_TRUSTED_PROXY_CIDRS') else []),
                 '--no-access-log']
     return ['-m', 'gunicorn', 'config.wsgi:application', '--bind', host+':'+port,
             '--workers', '2', '--timeout', '60', '--graceful-timeout', '210']

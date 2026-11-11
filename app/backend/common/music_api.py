@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Prefetch
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.response import Response
@@ -104,7 +105,16 @@ class Imports(Endpoint):
 class Reviews(Endpoint):
     def get(self, request):
         admin(request,'manage_music')
-        query=Track.objects.select_related('review').order_by('track_id')
+        links = TrackTag.objects.filter(
+            review_status='approved', tag__tag_type__in=('genre', 'mood'),
+        ).select_related('tag').order_by('tag__tag_code')
+        query = Track.objects.select_related('review').prefetch_related(
+            Prefetch('tracktag_set', queryset=links, to_attr='listed_tags'),
+        ).order_by('track_id')
+        track_id=request.query_params.get('track_id')
+        if track_id is not None:
+            require(bool(track_id) and len(track_id)<=128)
+            query=query.filter(pk=track_id)
         status=request.query_params.get('status')
         if status:
             require(status in ('draft','approved'))
@@ -113,9 +123,13 @@ class Reviews(Endpoint):
         if after:query=query.filter(track_id__gt=after)
         rows=list(query[:21]);items=[]
         for track in rows[:20]:
-            review=Review.objects.filter(track=track).first()
+            review=getattr(track,'review',None)
+            tags={'genre':[],'mood':[]}
+            for link in track.listed_tags:
+                tags[link.tag.tag_type].append(link.tag.tag_code)
             items.append({'track_id':track.pk,'track_name':track.track_name,'artists_name':track.artists_name,
                           'revision':review.revision if review else 0,'review_status':review.status if review else 'draft',
+                          'genre_codes':tags['genre'],'mood_codes':tags['mood'],
                           'instrumental_review_value':track.instrumental_review_value})
         return Response({'items':items,'next_cursor':rows[19].pk if len(rows)>20 else None,'as_of':timezone.now().isoformat().replace('+00:00','Z')})
 
