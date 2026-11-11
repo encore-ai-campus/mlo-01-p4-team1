@@ -9,10 +9,14 @@ interface MenuCategoryTabsProps {
 export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, onSelectMenu }) => {
   const [activeTabIdx, setActiveTabIdx] = useState<number>(0);
 
-  if (!menuTabs || menuTabs.length === 0) {
+  const uniqueMenuCount = new Set(
+    (menuTabs || []).flatMap((tab) => tab.items.map((item) => item.menu_id || item.menu_name))
+  ).size;
+
+  if (!menuTabs || menuTabs.length === 0 || uniqueMenuCount === 0) {
     return (
       <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>
-        등록된 메뉴 정보가 없습니다.
+        확인된 실제 메뉴 정보가 아직 등록되지 않았습니다.
       </div>
     );
   }
@@ -22,7 +26,7 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
   return (
     <div>
       <h4 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 12px 0', color: '#242424' }}>
-        📋 전체 메뉴판 (16종)
+        📋 확인된 메뉴판 ({uniqueMenuCount}종)
       </h4>
 
       {/* 5개 탭 헤더 (스크롤바 없이 한눈에 보이는 알약형 탭) */}
@@ -103,19 +107,21 @@ export const MenuCategoryTabs: React.FC<MenuCategoryTabsProps> = ({ menuTabs, on
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px' }}>
-              <span style={{ fontSize: '14px', fontWeight: 900, color: '#ff383e' }}>
-                {menu.price.toLocaleString()}원
+              <span style={{ fontSize: '14px', fontWeight: 900, color: menu.price > 0 ? '#ff383e' : '#64748b' }}>
+                {menu.price > 0 ? `${menu.price.toLocaleString()}원` : '가격 미확인'}
               </span>
-              <span style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                color: '#475569',
-                backgroundColor: '#e8e4e0',
-                padding: '2px 6px',
-                borderRadius: '4px',
-              }}>
-                {menu.price_tier === 1 ? '1만원 미만' : menu.price_tier === 2 ? '1~2만원대' : menu.price_tier === 3 ? '2~3만원대' : menu.price_tier === 4 ? '3~5만원대' : '5만원+'}
-              </span>
+              {menu.price > 0 && (
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: '#475569',
+                  backgroundColor: '#e8e4e0',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                }}>
+                  {menu.price_tier === 1 ? '1만원 미만' : menu.price_tier === 2 ? '1~2만원대' : menu.price_tier === 3 ? '2~3만원대' : menu.price_tier === 4 ? '3~5만원대' : '5만원+'}
+                </span>
+              )}
             </div>
           </div>
         ))}

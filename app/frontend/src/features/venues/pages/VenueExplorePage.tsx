@@ -130,7 +130,10 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
   };
 
   const handleSelectMenu = (menu: MenuItem) => {
-    alert(`선택 메뉴: ${menu.menu_name} (${menu.price.toLocaleString()}원) - PA ${menu.price_tier}단계`);
+    const priceText = menu.price > 0
+      ? `${menu.price.toLocaleString()}원 - PA ${menu.price_tier}단계`
+      : '가격 미확인 (방문 후기·공개 자료 확인 메뉴)';
+    alert(`선택 메뉴: ${menu.menu_name} (${priceText})`);
   };
 
   return (

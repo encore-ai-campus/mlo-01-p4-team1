@@ -9,6 +9,8 @@ export interface MenuItem {
   venue_id: string;
   menu_name: string;
   price: number;
+  price_confirmed?: boolean;
+  menu_source?: string;
   price_tier: number;
   is_signature: boolean;
   weather_match: string;

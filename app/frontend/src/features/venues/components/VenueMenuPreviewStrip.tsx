@@ -32,6 +32,6 @@ export const VenueMenuPreviewStrip: React.FC<VenueMenuPreviewStripProps> = ({ me
       <button type="button" aria-label="이전 메뉴" disabled={!canGoBack} onClick={event => { event.stopPropagation(); slide(-1); }}>‹</button>
       <button type="button" aria-label="다음 메뉴" disabled={!canGoForward} onClick={event => { event.stopPropagation(); slide(1); }}>›</button>
     </div></div>
-    <div className="fp-menu-grid" ref={stripRef} onScroll={updateControls}>{menus.map(menu => <button key={menu.menu_id} type="button" onClick={event => { event.stopPropagation(); onSelectMenu?.(menu); }}><span>{menu.menu_name}</span><strong>{menu.price.toLocaleString()}원</strong></button>)}</div>
+    <div className="fp-menu-grid" ref={stripRef} onScroll={updateControls}>{menus.map(menu => <button key={menu.menu_id} type="button" onClick={event => { event.stopPropagation(); onSelectMenu?.(menu); }}><span>{menu.menu_name}</span><strong>{menu.price > 0 ? `${menu.price.toLocaleString()}원` : '가격 미확인'}</strong></button>)}</div>
   </div>;
 };

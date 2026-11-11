@@ -23,6 +23,7 @@ export const VenueCard: React.FC<VenueCardProps> = ({venue,selected=false,onSele
     {!!venue.mood_tags?.length&&<p className="fp-card-tags">{venue.mood_tags.map(t=>`#${t}`).join(' ')}</p>}
     <VenuePhotoGallery name={venue.venue_name} thumbnail={venue.thumbnail_url} photos={venue.interior_photos}/>
     <VenueMenuPreviewStrip menus={venue.matched_menus_preview} onSelectMenu={onSelectMenu}/>
+    {!venue.matched_menus_preview?.length && <p className="fp-card-tags">실제 메뉴 확인 중</p>}
     <span className="fitplace-more">메뉴 더보기 →</span>{error&&<p role="status">{error}</p>}
   </article>;
 };

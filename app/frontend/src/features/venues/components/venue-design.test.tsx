@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { VenueCard } from './VenueCard';
 import { VenuePhotoGallery, venuePhotoUrls } from './VenuePhotoGallery';
 import { VenueMenuPreviewStrip } from './VenueMenuPreviewStrip';
+import { MenuCategoryTabs } from './MenuCategoryTabs';
 import { VenueFilterBar } from './VenueFilterBar';
 import { VenueDetailDrawer } from './VenueDetailDrawer';
 import { nextRegionIndex } from './RegionSelect';
@@ -48,5 +49,16 @@ describe('매장 탐색 디자인',()=>{
   const detail={...venue,menu_tabs:[],all_menus_count:0,applied_playlist:null};
   expect(renderToStaticMarkup(<VenueDetailDrawer venue={detail} isOpen onClose={noop} readOnly/>)).not.toContain('방문 후기 기반 매장 정보');
   expect(renderToStaticMarkup(<VenueDetailDrawer venue={{...detail,research:{sources:['javascript:alert(1)']}}} isOpen onClose={noop} readOnly/>)).not.toContain('방문 후기 기반 매장 정보');
+ });
+ it('가격 미확인 메뉴는 가격 미확인으로 표시하고 미수집 카드는 임의 메뉴를 숨긴다',()=>{
+  const unpriced={...venue.matched_menus_preview[0],menu_id:'RM_1',menu_name:'소금 아인슈페너',price:0};
+  const stripHtml=renderToStaticMarkup(<VenueMenuPreviewStrip menus={[unpriced]}/>);
+  expect(stripHtml).toContain('소금 아인슈페너'); expect(stripHtml).toContain('가격 미확인'); expect(stripHtml).not.toContain('0원');
+  const tabsHtml=renderToStaticMarkup(<MenuCategoryTabs menuTabs={[{tab_name:'시그니처/대표',items:[unpriced]}]}/>);
+  expect(tabsHtml).toContain('확인된 메뉴판 (1종)'); expect(tabsHtml).toContain('가격 미확인'); expect(tabsHtml).not.toContain('0원');
+  const emptyTabsHtml=renderToStaticMarkup(<MenuCategoryTabs menuTabs={[{tab_name:'시그니처/대표',items:[]}]}/>);
+  expect(emptyTabsHtml).toContain('확인된 실제 메뉴 정보가 아직 등록되지 않았습니다.');
+  const cardHtml=renderToStaticMarkup(<VenueCard venue={{...venue,matched_menus_preview:[]}}/>);
+  expect(cardHtml).toContain('실제 메뉴 확인 중');
  });
 });
