@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import get_user, get_user_model, login, logout, update_session_auth_hash
 from django.db import transaction, IntegrityError
 from django.utils import timezone
@@ -26,7 +27,6 @@ def current_password(request, user):
 
 
 def admission(request, action):
-    from django.conf import settings
     require(settings.MEMBER_PUBLIC_LIMIT_HOUR > 0, 'ACCOUNT_LIMITS_NOT_READY', '계정 요청 제한 설정이 필요합니다.', 503)
     require(services.limit(action+':'+request.META.get('REMOTE_ADDR', ''), maximum=settings.MEMBER_PUBLIC_LIMIT_HOUR),
             'RATE_LIMITED', '요청이 많습니다. 잠시 후 다시 시도해 주세요.', 429)
@@ -46,6 +46,9 @@ class Availability(Endpoint):
 
 class Signup(Endpoint):
     def post(self, request):
+        require(settings.MEMBER_LOCAL_PREVIEW or not (
+                    settings.PHASE4_OWNER_PORTAL_ENABLED or settings.PHASE4_PRIVATE_DEMO_ENABLED),
+                'SIGNUP_UNAVAILABLE', '회원가입을 이용할 수 없습니다.', 404)
         admission(request, 'signup')
         allowed = {'username', 'password', 'password_confirmation', 'nickname', 'email', 'email_consent',
                    'policy_version', 'terms_accepted', 'privacy_acknowledged', 'age_confirmed'}

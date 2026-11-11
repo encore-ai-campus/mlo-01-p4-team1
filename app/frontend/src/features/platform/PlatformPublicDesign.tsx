@@ -26,7 +26,7 @@ export function PlatformPublicDesign({path,account,admin,policy,loading,error}:{
     </header>
     <main className="pd-main"><div className="pd-content"><h1>{page.title}</h1><p className="pd-subtitle">{page.subtitle}</p>
       {error&&<div className="p-alert error" role="alert">{error}</div>}
-      {loading?<p role="status">플랫폼 연결 중…</p>:path==='/platform/signup'||path==='/platform/login'||path==='/platform/admin/login'?<section className="p-card p-auth">{account?<><h2>이미 로그인되어 있습니다</h2><a className="p-link-button" href="/platform">내 서비스로 이동</a></>:path==='/platform/signup'?<SignupForm policy={policy}/>:<LoginForm administrator={path==='/platform/admin/login'}/>}</section>:path==='/platform/account/recovery'?<PlatformRecovery/>:<PlatformLegal path={path} policy={policy}/>}
+      {loading?<p role="status">플랫폼 연결 중…</p>:path==='/platform/admin/login'&&!admin?null:path==='/platform/signup'||path==='/platform/login'||path==='/platform/admin/login'?<section className="p-card p-auth">{account?<><h2>이미 로그인되어 있습니다</h2><a className="p-link-button" href="/platform">내 서비스로 이동</a></>:path==='/platform/signup'?<SignupForm policy={policy}/>:<LoginForm administrator={path==='/platform/admin/login'}/>}</section>:path==='/platform/account/recovery'?<PlatformRecovery/>:<PlatformLegal path={path} policy={policy}/>}
     </div></main>
     <footer className="pd-footer"><nav aria-label="법적 고지 및 문의"><a href="/platform/terms">이용약관</a><span aria-hidden="true">·</span><a href="/platform/privacy">개인정보 처리방침</a><span aria-hidden="true">·</span><a href="/platform/privacy-contact">개인정보 관련 문의</a></nav><p>통합 플랫폼 · 서비스 정보는 시안용입니다</p></footer>
   </div>;

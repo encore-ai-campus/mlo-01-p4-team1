@@ -11,7 +11,8 @@ from django.test import override_settings
 from django.utils import timezone
 from datetime import timedelta
 from webauthn.helpers import bytes_to_base64url, base64url_to_bytes
-from backend.accounts.models import PasskeyEnrollment, AdminPasskey
+from backend.accounts.crypto import digest
+from backend.accounts.models import AccountLimit, PasskeyEnrollment, AdminPasskey
 from .test_accounts import AccountCase, CONFIG, PASSWORD
 
 
@@ -55,10 +56,13 @@ class PasskeyTests(AccountCase):
         self.assertEqual(self.post('/api/admin/passkeys/options',{'mode':'register','enrollment_ticket':'wrong'}).status_code,403)
 
     def test_real_webauthn_registration_signature_authentication_and_replay(self):
+        attempt_key = digest('rate', 'login:test-admin')
         self.assertEqual(self.register().json()['role'],'ADMIN')
+        self.assertEqual(AccountLimit.objects.get(pk=attempt_key).count, 0)
         self.assertFalse(PasskeyEnrollment.objects.exists())
         self.post('/api/auth/logout',{})
         self.primary()
+        self.assertEqual(AccountLimit.objects.get(pk=attempt_key).count, 1)
         options=self.post('/api/admin/passkeys/options',{'mode':'authenticate'}).json()
         client=json.dumps({'type':'webauthn.get','challenge':options['challenge'],'origin':'http://localhost:5173'}).encode()
         data=hashlib.sha256(b'localhost').digest()+bytes([0x05])+struct.pack('>I',1)
@@ -68,6 +72,7 @@ class PasskeyTests(AccountCase):
         response=self.post('/api/admin/passkeys/verify',{'credential':credential})
         self.assertEqual(response.status_code,200,response.content)
         self.assertEqual(AdminPasskey.objects.get().sign_count,1)
+        self.assertEqual(AccountLimit.objects.get(pk=attempt_key).count, 0)
         self.assertEqual(self.post('/api/admin/passkeys/verify',{'credential':credential}).status_code,422)
 
     def test_wrong_origin_and_missing_user_verification_are_rejected(self):
@@ -77,6 +82,7 @@ class PasskeyTests(AccountCase):
             response=self.post('/api/admin/passkeys/verify',{'credential':self.registration(options['challenge'],origin,flags),'enrollment_ticket':self.ticket})
             self.assertEqual(response.status_code,403,response.content)
             self.assertFalse(AdminPasskey.objects.exists())
+        self.assertEqual(AccountLimit.objects.get(pk=digest('rate', 'login:test-admin')).count, 1)
 
     def test_member_cannot_enroll_admin_passkeys(self):
         self.signup()

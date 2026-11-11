@@ -10,6 +10,7 @@ from backend.accounts import crypto, services as account_services
 from backend.common.identity import raw_request
 from backend.recommendation.errors import require
 from . import authorization as auth
+from . import private_demo
 from .fixtures import resolve_fixture
 from .music import DEMO_PLAYLISTS, approved_owner_playlists, playlist_name
 from .models import (Workspace, WorkspaceClaim, BusinessCheckJob, ClaimDecision, BusinessEntity,
@@ -64,15 +65,21 @@ def claim_payload(body):
 def claim_data(row):
     body=crypto.unseal(row.payload_ciphertext)
     direct_demo=body.get('_direct_demo') is True
+    policy_version=private_demo.POLICY_VERSION if body.get('_phase4_private_demo')==private_demo.POLICY_VERSION else 'platform-local-v0.6'
     check=BusinessCheckJob.objects.filter(claim=row,content_revision=row.content_revision).first()
     return {'id':str(row.pk),'revision':row.version,'content_revision':row.content_revision,'state':row.state,
         'mode':'DEMO','display_name':body['display_name'],'address':body['address'],'applicant_relation':body['applicant_relation'],
         'review_context':{'applicant_label':row.applicant.memberprofile.nickname,'fixture_id':row.fixture_id,
-                          'authority_evidence_kind':'UNVERIFIED' if direct_demo else ('DEMO_SCENARIO' if row.state=='APPROVED' else 'PENDING'),'policy_version':'platform-local-v0.6'},
+                          'authority_evidence_kind':'UNVERIFIED' if direct_demo else ('DEMO_SCENARIO' if row.state=='APPROVED' else 'PENDING'),'policy_version':policy_version},
         'match_result':check.match_result if check else 'UNCHECKED',
         'business_status':check.business_status if check else 'UNKNOWN',
         'approved_workspace_id':str(row.approved_workspace_id) if row.approved_workspace_id else None,
             'notice':'소유 확인 없이 연결된 로컬 시연 매장입니다.' if direct_demo else '합성 사업자정보 시연 · 실제 국세청 확인이 아닙니다.'}
+
+
+def private_claim_data(row):
+    private_demo.require_reviewable(row)
+    return claim_data(row)
 
 
 def check_data(row):
@@ -139,8 +146,11 @@ def page(request, query, serialize):
 
 def contextual(request, operation, values, *, lock=False):
     """Re-run for every request, including idempotent response retrieval."""
-    if operation in ('listWorkspaceClaimsForReview','reviewWorkspaceClaim','decideWorkspaceClaim'):
+    if operation in private_demo.PRIVATE_REVIEW_OPERATIONS:
         user=auth.reviewer(request)
+        if private_demo.review_only_mode():
+            require(private_demo.reviewer_allowed(user), 'FORBIDDEN', '이 신청을 심사할 수 없습니다.', 403)
+            private_demo.require_demo_runtime()
     else:
         user=auth.account(request)
     context={'user':user}
@@ -156,6 +166,8 @@ def contextual(request, operation, values, *, lock=False):
             query=query.filter(applicant=user)
         claim=query.filter(pk=values['claim_id']).first()
         require(claim,'NOT_FOUND','신청을 찾을 수 없습니다.',404)
+        if operation in private_demo.REVIEW_OPERATIONS and (private_demo.review_only_mode() or auth.song_portal_only()):
+            private_demo.require_reviewable(claim)
         context['claim']=claim
     if 'membership_id' in values:
         query=WorkspaceMembership.objects.select_for_update() if lock else WorkspaceMembership.objects
@@ -230,6 +242,15 @@ def read(operation, request, values):
         require(row,'NOT_FOUND','확인 작업을 찾을 수 없습니다.',404)
         return check_data(row)
     if operation=='listWorkspaceClaimsForReview':
+        if private_demo.review_only_mode():
+            query = WorkspaceClaim.objects.filter(
+                fixture_id=private_demo.FIXTURE_ID,
+                applicant__username=private_demo.DEMO_USERNAME,
+                applicant__is_active=True,
+                applicant__is_staff=False,
+                state__in=('SUBMITTED', 'APPROVED'),
+            )
+            return page(request, query, private_claim_data)
         return page(request,WorkspaceClaim.objects.filter(state='SUBMITTED'),claim_data)
     if operation=='listMyWorkspaces':
         auth.business(user)
@@ -398,8 +419,9 @@ def mutate(operation,request,body,values,context):
                 audit(request,user,'workspace.approved',store,store)
             else:
                 row.state='NEEDS_MORE' if decision=='REQUEST_MORE' else 'REJECTED'
+            policy_version=private_demo.POLICY_VERSION if private_demo.review_only_mode() else 'platform-local-v0.6'
             decision_row=ClaimDecision.objects.create(claim=row,claim_revision=row.version,content_revision=row.content_revision,
-                reviewer=user,decision=decision,reason_code=body['reason_code'],policy_version='platform-local-v0.6')
+                reviewer=user,decision=decision,reason_code=body['reason_code'],policy_version=policy_version)
             row.version+=1;row.save()
             audit(request,user,'claim.decided',row,row.approved_workspace)
             return {'id':str(decision_row.pk),'claim':claim_data(row)},200

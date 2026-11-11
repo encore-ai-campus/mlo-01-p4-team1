@@ -42,7 +42,10 @@ class Phase4SecretFileTests(SimpleTestCase):
     def test_protected_runtime_accepts_phase4_configuration_keys(self):
         load = run_path(str(settings.BASE_DIR / 'docker/runtime/app_runtime.py'))['secret_environment']
         values = {'PHASE4_WORKER_TOKEN': 'x' * 32, 'PHASE4_OWNER_PORTAL_ENABLED': '1',
-                  'PHASE4_TRUSTED_PROXY_CIDRS': '10.40.8.0/24'}
+                  'PHASE4_TRUSTED_PROXY_CIDRS': '10.40.8.0/24',
+                  'PHASE4_PRIVATE_DEMO_ENABLED': '1',
+                  'PHASE4_PRIVATE_DEMO_POLICY_VERSION': 'privacy-handoff-v2',
+                  'PHASE4_PRIVATE_DEMO_POLICY_DOCUMENTS': '{}'}
         with TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             path = root / 'app-env.json'
