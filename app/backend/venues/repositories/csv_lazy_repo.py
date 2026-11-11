@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from backend.common.data_paths import discover_analysis_dirs
+from backend.venues.dl_engine.feature_encoder_18d import CHAIN_FLAG_VALUES, LOCAL_BRAND_DEFAULTS
 
 logger = logging.getLogger(__name__)
 
@@ -358,6 +359,7 @@ class CsvLazyRepository:
         # 디스크 원본 재사용 버퍼 (clear_cache 시에도 파일 재파싱 방지)
         self._disk_venues_buffer: Dict[str, List[Dict[str, Any]]] = {}
         self._disk_menus_buffer: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
+        self._enriched_gu_ready: set[str] = set()
         # 네이버 플레이스 실시간 수집 메뉴 오버레이 캐시 (venue_id 및 (자치구, 매장명) 키 지원)
         self._live_menus_by_vid: Dict[str, List[Dict[str, Any]]] = {}
         self._live_menus_by_name: Dict[tuple[str, str], List[Dict[str, Any]]] = {}
@@ -515,7 +517,10 @@ class CsvLazyRepository:
 
         sub_category = (row.get('세부카테고리') or row.get('sub_category') or '').strip()
         franchise_raw = (row.get('프랜차이즈여부') or '').strip()
-        store_type = 'CHAIN' if franchise_raw == '체인점' else 'LOCAL'
+        brand_raw = (row.get('브랜드명') or row.get('brand_name') or '개인매장').strip()
+        brand_name = '개인매장' if brand_raw in LOCAL_BRAND_DEFAULTS else brand_raw
+        is_chain = franchise_raw.upper() in CHAIN_FLAG_VALUES or brand_name not in LOCAL_BRAND_DEFAULTS
+        store_type = 'CHAIN' if is_chain else 'LOCAL'
 
         avg_price_raw = row.get('1인_평균예산(원)') or row.get('avg_price') or '10000'
         try:
@@ -591,7 +596,9 @@ class CsvLazyRepository:
             'category': category,
             'sub_category': sub_category,
             'store_type': store_type,
-            '프랜차이즈여부': franchise_raw or ('체인점' if store_type == 'CHAIN' else '개인/로컬매장'),
+            'brand_name': brand_name,
+            '브랜드명': brand_name,
+            '프랜차이즈여부': '체인점' if store_type == 'CHAIN' else '개인/로컬매장',
             'price_tier': price_tier,
             'avg_price': avg_price,
             'primary_weather_affinity': primary_weather_affinity,
@@ -688,8 +695,9 @@ class CsvLazyRepository:
             # 메뉴 캐시가 비워진 경우(clear_cache 후) 다시 로드 및 연결
             if not self._gu_menus_loaded.get(gu_name):
                 self._load_gu_menus_from_disk(gu_name)
-                for v in venues_list:
-                    self._enrich_venue_menus_and_budget(v)
+                if gu_name not in self._enriched_gu_ready:
+                    for v in venues_list:
+                        self._enrich_venue_menus_and_budget(v)
             for idx, v in enumerate(venues_list, start=1):
                 self._register_alias_ids(idx, v)
             return list(venues_list)
@@ -709,6 +717,19 @@ class CsvLazyRepository:
                         venues_list.append(v)
                         self._register_alias_ids(idx, v)
                 self._disk_venues_buffer[gu_name] = list(venues_list)
+                enriched_menus: Dict[str, List[Dict[str, Any]]] = {}
+                for v in venues_list:
+                    vid = v['venue_id']
+                    if vid in self._venue_menus_cache:
+                        enriched_menus[vid] = list(self._venue_menus_cache[vid])
+                    if vid.startswith('VN_SL_'):
+                        num_part = vid.replace('VN_SL_', '')
+                        if num_part.isdigit():
+                            alias = f"venue_seoul_{int(num_part):04d}"
+                            if alias in self._venue_menus_cache:
+                                enriched_menus[alias] = list(self._venue_menus_cache[alias])
+                self._disk_menus_buffer[gu_name] = enriched_menus
+                self._enriched_gu_ready.add(gu_name)
                 logger.info(f"[LazyRepo] Loaded {len(venues_list)} venues for {gu_name} with PK-linked menus")
                 return venues_list
             except Exception as e:

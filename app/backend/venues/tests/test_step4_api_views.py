@@ -195,3 +195,25 @@ class TestStep4ApiViews(TestCase):
         self.assertEqual(res_inter.status_code, 200)
         self.assertTrue(res_inter.json()['success'])
         print("[Step 4 검증 6] 별칭 및 확장 엔드포인트 6종 정상 응답 확인 (상태코드 200)")
+
+    def test_recommendation_style_and_store_type_filters(self):
+        """7. 추천 음악 큐레이션(partner_only=1) 및 CHAIN/LOCAL 형태 필터 직렬화 검증"""
+        res = self.client.get('/api/venues', {'gu': '강남구', 'partner_only': '1'})
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertGreater(data['total_count'], 0)
+        first = data['venues'][0]
+        self.assertTrue(first.get('recommendation_style'))
+        self.assertIn(first.get('store_type'), ('CHAIN', 'LOCAL'))
+
+        res_chain = self.client.get('/api/venues', {'gu': '강남구', 'store_type': 'CHAIN', 'limit': '20'})
+        self.assertEqual(res_chain.status_code, 200)
+        chain_venues = res_chain.json()['venues']
+        self.assertGreater(len(chain_venues), 0)
+        self.assertTrue(all(v.get('store_type') == 'CHAIN' for v in chain_venues))
+
+        res_local = self.client.get('/api/venues', {'gu': '강남구', 'store_type': 'LOCAL', 'limit': '20'})
+        self.assertEqual(res_local.status_code, 200)
+        local_venues = res_local.json()['venues']
+        self.assertGreater(len(local_venues), 0)
+        self.assertTrue(all(v.get('store_type') == 'LOCAL' for v in local_venues))

@@ -6,7 +6,7 @@ from backend.venues.models.status_overlay import VenueStatusOverlay
 from backend.venues.services.open_hours_service import is_venue_open_now
 from backend.venues.services.music_banner_service import get_venue_music_banner
 from backend.venues.services.event_service import get_visible_events_for_venue
-from backend.venues.dl_engine.feature_encoder_18d import get_feature_encoder
+from backend.venues.dl_engine.feature_encoder_18d import get_feature_encoder, is_chain_venue
 from backend.venues.dl_engine.micro_two_tower import get_micro_two_tower
 from backend.venues.dl_engine.realtime_user_memory import get_user_memory
 
@@ -101,11 +101,9 @@ def filter_and_rank_venues(
             if v.get('price_tier', 1) != target_tier:
                 continue
 
-        # [필터 4] 로컬/체인 형태 필터 (실데이터 프랜차이즈여부 / store_type 기준)
+        # [필터 4] 로컬/체인 형태 필터 (실데이터 프랜차이즈여부 / store_type / 브랜드명 기준)
+        is_chain = is_chain_venue(v)
         if prefer_local is not None:
-            is_chain = (v.get('store_type') == 'CHAIN') or (v.get('프랜차이즈여부') == '체인점') or any(
-                c in v.get('venue_name', '') for c in ['스타벅스', '투썸', '이디야', '메가커피', '컴포즈', '역전할머니']
-            )
             if prefer_local and is_chain:
                 continue
             if not prefer_local and not is_chain:
@@ -162,7 +160,7 @@ def filter_and_rank_venues(
         # 파트너 음악 배너
         music_banner = get_venue_music_banner(v, current_weather=weather)
 
-        candidates.append({
+        candidate = {
             'venue_id': v_id,
             'venue_name': v.get('venue_name'),
             'gu_name': v.get('gu_name'),
@@ -172,6 +170,8 @@ def filter_and_rank_venues(
             'interior_photos': v.get('interior_photos') or [],
             'category': v.get('category'),
             'sub_category': v.get('sub_category'),
+            'store_type': 'CHAIN' if is_chain else 'LOCAL',
+            'brand_name': v.get('brand_name', '개인매장'),
             'price_tier': v.get('price_tier'),
             'avg_price': v.get('avg_price'),
             'rating': v.get('rating'),
@@ -179,6 +179,7 @@ def filter_and_rank_venues(
             'is_partner': v.get('is_partner', False),
             'mood_tags': v.get('mood_tags', []),
             'music_mood': v.get('music_mood'),
+            'recommendation_style': v.get('recommendation_style', ''),
             'latitude': v.get('latitude'),
             'longitude': v.get('longitude'),
             'is_open_now': is_open,
@@ -190,7 +191,10 @@ def filter_and_rank_venues(
             'matched_menus_preview': matched_preview,
             'match_score': round(final_score * 100, 1),
             'dl_similarity': round(cos_sim, 4),
-        })
+        }
+        if v.get('research'):
+            candidate['research'] = v['research']
+        candidates.append(candidate)
 
     # 9. 최종 점수 내림차순 정렬
     candidates.sort(key=lambda x: x['match_score'], reverse=True)

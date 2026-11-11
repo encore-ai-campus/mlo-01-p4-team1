@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 from django.test import TestCase
 from backend.common.data_paths import discover_analysis_dirs
+from backend.venues.dl_engine.feature_encoder_18d import is_chain_venue
 from backend.venues.repositories.csv_lazy_repo import get_venue_repo, CsvLazyRepository
 
 
@@ -68,3 +69,24 @@ class TestCsvLazyRepository(TestCase):
                 candidates = discover_analysis_dirs()
             self.assertGreaterEqual(len(candidates), 1)
             self.assertEqual(candidates[0].resolve(), custom_dir.resolve())
+
+    def test_franchise_and_brand_normalization(self):
+        """지역별 프랜차이즈여부('Y'/'N'/'체인점')와 브랜드명('단독매장'/'개인매장')이 일관되게 정규화되어야 함"""
+        chain_row = self.repo._cast_venue_row({
+            'venue_id': 'VN_GG_TEST_1', '매장명': '메가MGC커피 수원점', '자치구': '수원시',
+            '업종구분': '카페', '프랜차이즈여부': 'Y', '브랜드명': '메가MGC커피',
+        })
+        self.assertEqual(chain_row['store_type'], 'CHAIN')
+        self.assertEqual(chain_row['프랜차이즈여부'], '체인점')
+        self.assertEqual(chain_row['brand_name'], '메가MGC커피')
+        self.assertTrue(is_chain_venue(chain_row))
+
+        local_row = self.repo._cast_venue_row({
+            'venue_id': 'VN_IC_TEST_2', '매장명': '동네로스터리', '자치구': '중구',
+            '업종구분': '카페', '프랜차이즈여부': 'N', '브랜드명': '단독매장',
+        })
+        self.assertEqual(local_row['gu_name'], '인천 중구')
+        self.assertEqual(local_row['store_type'], 'LOCAL')
+        self.assertEqual(local_row['프랜차이즈여부'], '개인/로컬매장')
+        self.assertEqual(local_row['brand_name'], '개인매장')
+        self.assertFalse(is_chain_venue(local_row))
