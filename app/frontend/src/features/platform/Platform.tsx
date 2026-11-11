@@ -20,6 +20,7 @@ export function Platform(){
   const [nickname,setNickname]=useState(''),[terms,setTerms]=useState(false);
   const [songPortal,setSongPortal]=useState<{canRequest:boolean}|null>(null);
   const types=account?.memberships.filter(m=>m.status==='ACTIVE').map(m=>m.type)||[];
+  const adminSignedIn=admin?.role==='ADMIN'||admin?.passkey_required;
   const canReview=admin?.role==='ADMIN'&&admin.allowed_menus.some(menu=>menu.path==='/platform/review');
   useEffect(()=>{let active=true;void(async()=>{try{
     const boot=await call<Boot>('/sessions/current');if(!active)return;setCsrf(boot.session?.csrf_token||boot.csrf_token||'');
@@ -39,7 +40,12 @@ export function Platform(){
   const signup=path==='/platform/signup',administratorLogin=path==='/platform/admin/login',login=path==='/platform/login'||administratorLogin;
   if(songPortal)return <div className="platform-page">
     <header className="p-header"><a className="p-logo" href="/platform/business">muther.</a>
-      {account&&<button disabled={busy} onClick={()=>void run(async()=>{await call('/sessions/current','DELETE');location.assign('/platform/login');})}>로그아웃</button>}
+      {account
+        ? <button disabled={busy} onClick={()=>void run(async()=>{await call('/sessions/current','DELETE');location.assign('/platform/login');})}>로그아웃</button>
+        : adminSignedIn&&<button disabled={busy} onClick={()=>void run(async()=>{
+          const result=await raw<{logout_url:string|null}>('/api/auth/logout','POST',{});
+          location.assign(result.logout_url||'/platform/admin/login');
+        })}>로그아웃</button>}
     </header>
     <main className="p-main">
       {error&&<p className="p-alert error" role="alert">{error}</p>}
@@ -58,8 +64,8 @@ export function Platform(){
     <span className="p-demo">LOCAL MVP · 합성 정보만 사용</span>
     <div className="p-header-account">{loading?<span className="p-muted">연결 중…</span>:account?<>
       <a href="/platform/account">{account.nickname}님 · 마이페이지</a><button onClick={()=>void run(async()=>{await call('/sessions/current','DELETE');location.assign('/platform');})}>로그아웃</button>
-    </>:admin?.role==='ADMIN'||admin?.passkey_required?<>
-      <a href="/platform/admin">{admin?.passkey_required?'관리자 · 추가 인증 대기':'플랫폼 관리자'}</a>
+    </>:adminSignedIn?<>
+      <a href="/platform/admin">{admin.passkey_required?'관리자 · 추가 인증 대기':'플랫폼 관리자'}</a>
       <button onClick={()=>void run(async()=>{await raw('/api/auth/logout','POST',{});location.assign('/platform');})}>로그아웃</button>
     </>:<><a href="/platform/login">로그인</a><a className="p-header-signup" href="/platform/signup">회원가입</a></>}</div>
   </header>

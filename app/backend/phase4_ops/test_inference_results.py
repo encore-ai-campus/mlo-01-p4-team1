@@ -200,3 +200,38 @@ class InferenceResultTests(TestCase):
         self.assertEqual(self.post(payload, 409)['code'], 'TASK_NOT_ACTIVE')
         self.assertEqual(self.available_task_ids(), [])
         self.assertFalse(InferenceReceipt.objects.exists())
+
+    def test_reapproval_of_same_url_queues_fresh_task_and_keeps_old_attempt_cancelled(self):
+        old_result = self.result()
+        old_input = self.task.input_payload
+        self.item.refresh_from_db()
+        review(self.operator, self.item.pk, {
+            'decision': 'HOLD', 'expected_revision': self.item.revision, 'reason': '링크를 다시 확인합니다.',
+        })
+        self.item.refresh_from_db()
+        review(self.operator, self.item.pk, {
+            'decision': 'APPROVE', 'expected_revision': self.item.revision, 'youtube_url': self.item.youtube_url,
+        })
+        new = PipelineTask.objects.get(item=self.item, is_current=True)
+        self.assertNotEqual(new.pk, self.task.pk)
+        self.assertEqual((new.status, new.input_payload, new.attempts), ('READY', old_input, 0))
+        self.task.refresh_from_db()
+        self.assertEqual((self.task.status, self.task.is_current, self.task.input_payload, self.task.attempts),
+                         ('CANCELLED', False, old_input, 1))
+        self.assertEqual(
+            History.objects.get(entity_type='task', entity_id=str(self.task.pk), event_type='ATTEMPT_REPLACED').data,
+            {'new_task_id': str(new.pk)},
+        )
+        self.assertEqual(
+            History.objects.get(entity_type='task', entity_id=str(new.pk), event_type='INPUT_PREPARED').data,
+            {'previous_task_id': str(self.task.pk)},
+        )
+        self.assertEqual(self.available_task_ids(), [str(new.pk)])
+        self.claimed, _ = claim(new.pk)
+        self.assertNotEqual(self.claimed['lease_token'], old_result['lease_token'])
+        self.assertEqual(self.post(old_result, 409)['code'], 'TASK_NOT_ACTIVE')
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.pipeline_status, 'RUNNING')
+        new_result = self.result(result_id='same-link-fresh-result')
+        self.post(new_result, 201)
+        self.assertEqual(InferenceReceipt.objects.get().task_id, new.pk)

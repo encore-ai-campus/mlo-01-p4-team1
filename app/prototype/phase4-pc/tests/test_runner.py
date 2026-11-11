@@ -126,6 +126,29 @@ class RunnerTests(unittest.TestCase):
         self.assertFalse(api.sent)
         self.assertFalse(self.outbox.status())
 
+    def test_new_task_for_same_wav_is_independent_of_old_permanent_failure(self):
+        failed, reapproved = task(VIDEO_A), task(VIDEO_A)
+        api = Api([failed])
+        write_wave(self.root, VIDEO_A)
+
+        def fail(path, *, timeout):
+            raise ValidationError("MODEL_EXECUTION_FAILED")
+
+        first = run_once(self.outbox, api, fail, self.root, clock=lambda: NOW)
+        self.assertEqual(first["issues"][0]["status"], "BLOCKED")
+        self.assertFalse(api.sent)
+        api.ready = [failed, reapproved]
+
+        with Outbox(self.root / "outbox.sqlite3") as reopened:
+            result = run_once(reopened, api, self.predict, self.root, clock=lambda: NOW)
+            self.assertEqual(result["status"], "RECEIVED")
+            self.assertEqual(result["issues"], first["issues"])
+            self.assertEqual(api.claimed, [failed["id"], reapproved["id"]])
+            self.assertEqual(len(api.sent), 1)
+            payload = json.loads(api.sent[0])
+            self.assertEqual((payload["task_id"], payload["source_ref"]), (reapproved["id"], source(VIDEO_A)))
+            self.assertEqual([row["task_id"] for row in reopened.task_failures()], [failed["id"]])
+
     def test_preparer_failure_skips_to_next_candidate(self):
         absent, present = task(VIDEO_A), task(VIDEO_B)
         api = Api([absent, present])

@@ -122,7 +122,14 @@ def review(actor, item_id, data):
         row.review_status = 'APPROVED'
         row.pipeline_status = 'READY'
         task, _ = PipelineTask.objects.get_or_create(item=row, is_current=True)
-        require(task.status in {'INPUT_PENDING', 'CANCELLED'}, 'INVALID_STATE', '기존 처리 작업을 확인해 주세요.', 409)
+        previous_task = None
+        if task.status == 'CANCELLED':
+            previous_task = task
+            previous_task.is_current = False
+            previous_task.revision += 1
+            previous_task.save(update_fields=['is_current', 'revision', 'updated_at'])
+            task = PipelineTask(item=row)
+        require(task.status == 'INPUT_PENDING', 'INVALID_STATE', '기존 처리 작업을 확인해 주세요.', 409)
         task.status = 'READY'
         task.source_ref = confirmed_url
         task.input_payload = queue_input(row, confirmed_url)
@@ -130,7 +137,12 @@ def review(actor, item_id, data):
         task.lease_expires_at = None
         task.revision += 1
         task.save()
-        record('task', task.pk, actor.account_id, 'INPUT_PREPARED', task.revision)
+        prepared = {}
+        if previous_task is not None:
+            record('task', previous_task.pk, actor.account_id, 'ATTEMPT_REPLACED', previous_task.revision,
+                   new_task_id=str(task.pk))
+            prepared['previous_task_id'] = str(previous_task.pk)
+        record('task', task.pk, actor.account_id, 'INPUT_PREPARED', task.revision, **prepared)
     else:
         row.review_status = 'HOLD' if decision == 'HOLD' else 'REJECTED'
         task = PipelineTask.objects.select_for_update().filter(item=row, is_current=True).first()
