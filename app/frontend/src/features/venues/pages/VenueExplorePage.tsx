@@ -5,7 +5,7 @@ import { useVenueDetail } from '../hooks/useVenueDetail';
 import { PartnerPromoBanner } from '../components/PartnerPromoBanner';
 import { GeminiConciergeSection } from '../components/GeminiConciergeSection';
 import { VenueConciergeSection } from '../components/VenueConciergeSection';
-import { fetchVisitOptions } from '../api/visitRecommendation.api';
+import { fetchVisitOptions, type VenueRecommendationConnection } from '../api/visitRecommendation.api';
 import { VisitRecommendationSection } from '../components/VisitRecommendationSection';
 import { VenueFilterBar } from '../components/VenueFilterBar';
 import { VenueCard } from '../components/VenueCard';
@@ -26,7 +26,6 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
   showVisitRecommendations = false,
 }) => {
   const currentUserId = 'demo_user_final';
-  const [venueMcpEnabled, setVenueMcpEnabled] = useState(false);
   const [liveWeather, setLiveWeather] = useState<{label:string; area:string; temperature:number | null} | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
@@ -36,16 +35,21 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [headerMenuOpen]);
+  const [concierge, setConcierge] = useState<VenueRecommendationConnection>({ status: 'checking' });
+  const [hasSelectedDistrict, setHasSelectedDistrict] = useState(false);
 
   useEffect(() => {
+    if (readOnly || concierge.status !== 'checking') return;
     const controller = new AbortController();
     fetchVisitOptions(controller.signal)
-      .then(options => setVenueMcpEnabled(options !== null))
+      .then(options => {
+        if (!controller.signal.aborted) setConcierge({ status: 'ready', options });
+      })
       .catch(() => {
-        if (!controller.signal.aborted) setVenueMcpEnabled(false);
+        if (!controller.signal.aborted) setConcierge({ status: 'error' });
       });
     return () => controller.abort();
-  }, []);
+  }, [readOnly, concierge.status]);
 
   const {
     gu,
@@ -74,6 +78,8 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
     error,
     reload: reloadVenues,
   } = useVenueList('강남구');
+  const conciergeRegion = hasSelectedDistrict ? gu : undefined;
+  const visitOptions = concierge.status === 'ready' ? concierge.options.mcp : null;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -183,7 +189,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
       {/* 4. PA 5단계 가격 & 필터 바 */}
       <VenueFilterBar
         gu={gu}
-        setGu={setGu}
+        setGu={value => { setHasSelectedDistrict(true); setGu(value); }}
         liveWeather={liveWeather}
         weatherLoading={weatherLoading}
         category={category}
@@ -210,10 +216,13 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
           />
 
           {/* 3. 방문 조건과 자연어 매장 추천 */}
-          {venueMcpEnabled ? <>
-            {showVisitRecommendations && <VisitRecommendationSection onOpenVenue={handleOpenDetail} />}
-            <VenueConciergeSection key={gu} gu={gu} onSelectVenue={handleOpenDetail} />
-          </> : <GeminiConciergeSection gu={gu} weather={weather} onSelectVenue={handleOpenDetail} />}
+          {showVisitRecommendations && visitOptions && <VisitRecommendationSection options={visitOptions} onOpenVenue={handleOpenDetail} />}
+          {concierge.status === 'ready' && !concierge.options.mcp ? <GeminiConciergeSection gu={gu} weather={weather} onSelectVenue={handleOpenDetail} /> : <VenueConciergeSection
+            defaultRegion={conciergeRegion}
+            connection={concierge}
+            onReconnect={() => setConcierge({ status: 'checking' })}
+            onSelectVenue={handleOpenDetail}
+          />}
 </div></details>}
       <div className="fitplace-desktop-result-count"><span>검색 결과 <strong>{totalCount.toLocaleString()}건</strong></span>{!readOnly && <a href="/admin/venues/closures">폐업 제보 관리자 검수함 →</a>}</div>
       <div className="fitplace-results-heading"><h2>{gu}, 오늘의 발견</h2><p>매장 정보를 살펴보고 취향에 맞는 장소를 찾아보세요.</p></div>

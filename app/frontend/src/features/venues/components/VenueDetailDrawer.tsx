@@ -119,7 +119,7 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isO
         </section>
         {!venue.curated_listing && <LiveMusicBanner banner={venue.music_banner} />}
         {venue.curated_listing && <section className="fitplace-detail-section" aria-label="공개 자료로 확인한 매장 정보">
-          <h3>확인한 매장 정보</h3><p>{venue.curated_listing.moods.join(' · ')}</p><p>{venue.curated_listing.seat_summary}</p>
+          <h3>확인한 매장 정보</h3><p>{venue.curated_listing.moods.join(' · ')}</p>
           <h4>대표 메뉴</h4><p>{venue.curated_listing.representative_menus.join(' · ')}</p>
           {venue.curated_listing.budget_example ? <div><h4>1인 주문 예시 {venue.curated_listing.budget_example.amount_krw.toLocaleString('ko-KR')}원</h4>
             <ul>{venue.curated_listing.budget_example.items.map(item => <li key={item.name}>{item.name} · {item.price_krw.toLocaleString('ko-KR')}원</li>)}</ul>

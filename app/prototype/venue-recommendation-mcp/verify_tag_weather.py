@@ -103,6 +103,8 @@ def verify_pilot(pilot, tags):
                     or type(example["amount_krw"]) is not int or sum(prices) != example["amount_krw"]
                     or not example["source_url"].startswith("https://") or not example["checked_on"]):
                 raise ValueError(f"1인 주문 예시의 금액 또는 근거 오류 {venue['name']}")
+        if "seats" not in venue:
+            continue
         seats = venue["seats"]
         for kind in ("indoor", "outdoor"):
             if seats[kind] not in ("CONFIRMED", "ABSENT", "UNKNOWN"):
@@ -168,10 +170,7 @@ def seat_result(seats, seating, weather):
     return "ranked", "SEATING_UNVERIFIED", 0
 
 
-def recommend(pilot, query, labels, ancestors):
-    weather, seating = query["weather"], query["seating"]
-    if weather not in WEATHER or seating not in SEATING:
-        raise ValueError("날씨 또는 좌석 선택 상태가 올바르지 않습니다.")
+def match_venues(pilot, query, labels, ancestors):
     preferred = {resolve(value, labels, "MOOD") for value in query["preferred_moods"]}
     orders = []
     for order in query["orders"]:
@@ -185,7 +184,6 @@ def recommend(pilot, query, labels, ancestors):
         menu_tags = expand(menu["cuisine_tag_ids"] + menu["menu_type_tag_ids"], ancestors)
         menus_by_venue[menu["venue_id"]].append((menu["menu_id"], menu_tags))
 
-    decisions = {"ranked": [], "pending": [], "excluded": []}
     for venue in sorted(pilot["venues"], key=lambda row: row["venue_id"]):
         if query["district"] is not None and venue["district"] != query["district"]:
             continue
@@ -197,12 +195,24 @@ def recommend(pilot, query, labels, ancestors):
         if not all(menu_groups):
             continue
 
+        yield venue, {
+            "venue_id": venue_id,
+            "matched_mood_ids": sorted(preferred & expand(venue["mood_tag_ids"], ancestors)),
+            "matched_menu_groups": menu_groups,
+        }
+
+
+def recommend(pilot, query, labels, ancestors):
+    weather, seating = query["weather"], query["seating"]
+    if weather not in WEATHER or seating not in SEATING:
+        raise ValueError("날씨 또는 좌석 선택 상태가 올바르지 않습니다.")
+    decisions = {"ranked": [], "pending": [], "excluded": []}
+    for venue, matched in match_venues(pilot, query, labels, ancestors):
         bucket, seat, outdoor_priority = seat_result(venue["seats"], seating, weather)
         if bucket is None:
             continue
-        mood_ids = sorted(preferred & expand(venue["mood_tag_ids"], ancestors))
-        result = {"venue_id": venue_id, "matched_mood_ids": mood_ids, "matched_menu_groups": menu_groups, "seat": seat}
-        rank = (-len(mood_ids), -outdoor_priority, venue_id)
+        result = {**matched, "seat": seat}
+        rank = (-len(matched["matched_mood_ids"]), -outdoor_priority, matched["venue_id"])
         decisions[bucket].append((rank, result))
 
     return {bucket: [result for _, result in sorted(rows)] for bucket, rows in decisions.items()}

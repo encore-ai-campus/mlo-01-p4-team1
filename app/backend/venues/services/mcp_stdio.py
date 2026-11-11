@@ -117,22 +117,28 @@ class VenueMcpClient:
     def list_tags(self):
         return self._call_tool("list_venue_tags", {})
 
+    def list_tool_specs(self):
+        return self._request("tools/list", {}, "tools", list)
+
     def recommend(self, arguments):
         return self._call_tool("recommend_venues", arguments)
 
     def _call_tool(self, name, arguments):
+        return self._request("tools/call", {"name": name, "arguments": arguments}, "structuredContent", dict)
+
+    def _request(self, method, params, result_key, result_type):
         if not self.lock.acquire(timeout=CALL_TIMEOUT):
             raise VenueMcpUnavailable("Venue MCP is busy")
         try:
             if self.process is None or self.process.poll() is not None:
                 self.stop(abort=True)
                 self.start()
-            result = self.send("tools/call", {"name": name, "arguments": arguments})
+            result = self.send(method, params)
             if result.get("isError"):
                 raise VenueMcpRequestError("MCP could not process the request")
-            content = result.get("structuredContent")
-            if not isinstance(content, dict):
-                raise VenueMcpUnavailable("MCP tool result is missing")
+            content = result.get(result_key)
+            if not isinstance(content, result_type):
+                raise VenueMcpUnavailable("MCP tool response is missing")
             return content
         except VenueMcpRequestError:
             raise
@@ -184,13 +190,18 @@ def with_local_venue_mcp(application):
         return application
 
     command = [os.environ.get("VENUE_MCP_PYTHON") or sys.executable, "-B", "-X", "utf8", server]
-    for variable, option in (
-        ("VENUE_MCP_CATALOG", "--catalog"),
-        ("VENUE_MCP_LOCATIONS", "--locations"),
-        ("VENUE_MCP_VENUES_CSV", "--venues-csv"),
-        ("VENUE_WEATHER_BASE_URL", "--weather-base-url"),
-    ):
-        value = os.environ.get(variable)
-        if value:
-            command.extend((option, value))
+    public_catalog = os.environ.get("VENUE_MCP_PUBLIC_CATALOG")
+    if public_catalog:
+        command.extend(("--public-catalog", public_catalog, "--allow-preview-catalog"))
+    else:
+        for variable, option in (
+            ("VENUE_MCP_CATALOG", "--catalog"),
+            ("VENUE_MCP_LOCATIONS", "--locations"),
+            ("VENUE_MCP_VENUES_CSV", "--venues-csv"),
+        ):
+            value = os.environ.get(variable)
+            if value:
+                command.extend((option, value))
+    if weather_url := os.environ.get("VENUE_WEATHER_BASE_URL"):
+        command.extend(("--weather-base-url", weather_url))
     return VenueMcpApplication(application, command)
