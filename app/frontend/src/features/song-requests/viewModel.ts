@@ -35,7 +35,7 @@ const labels: Record<string, string> = {
   REVIEW_PENDING: '검수 대기', PROCESSING: '처리 중', REGISTERED: '등록 완료', AVAILABLE: '이용 가능', FAILED: '처리 확인 중',
   APPROVED_WAITING_PROCESSING: '승인 · 처리 대기', PUBLISHED: '등록 완료', RECEIVED: '처리 중', VALIDATION_PENDING: '최종 확인 중',
   INPUT_PENDING: '입력 확인 대기', READY: '처리 대기', RUNNING: '처리 중',
-  RECEIVED_PENDING_REVIEW: '결과 수신 · 검수 대기', CANCELLED: '취소',
+  RECEIVED_PENDING_REVIEW: '결과 수신 · 검수 대기', CANCELLED: '취소', SUPERSEDED: '링크 변경 · 이전 작업',
 };
 export const statusLabel = (value?: string | null) => value ? labels[value] || '처리 상태 확인 중' : '처리 상태 확인 중';
 export const dateLabel = (value?: string | null) => value && Number.isFinite(new Date(value).getTime()) ? new Intl.DateTimeFormat('ko-KR', {dateStyle: 'medium', timeStyle: 'short'}).format(new Date(value)) : '시각 확인 중';

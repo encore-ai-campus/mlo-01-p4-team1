@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import stat
 import sys
 import tempfile
 import unittest
@@ -10,7 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
-from pc_sender.errors import ValidationError
+from pc_sender.errors import RetryableTaskError, ValidationError
 from pc_sender.runner import AudioPreparer, WorkerHTTP, run_once
 from pc_sender.store import Outbox
 from pc_sender.transport import HTTPResponse
@@ -20,6 +21,7 @@ from pc_sender.validation import canonical
 NOW = 1_800_000_000
 VIDEO_A = "AAAAAAAAAAA"
 VIDEO_B = "BBBBBBBBBBB"
+VIDEO_C = "CCCCCCCCCCC"
 
 
 def source(video_id):
@@ -28,6 +30,14 @@ def source(video_id):
 
 def task(video_id):
     return {"id": str(uuid4()), "source_ref": source(video_id)}
+
+
+def write_wave(root, video_id):
+    path = root / (video_id + ".wav")
+    with wave.open(str(path), "wb") as audio:
+        audio.setparams((1, 2, 24000, 0, "NONE", "not compressed"))
+        audio.writeframes(bytes(60000))
+    return path
 
 
 class Api:
@@ -77,21 +87,19 @@ class RunnerTests(unittest.TestCase):
     def test_unprepared_track_does_not_block_ready_track(self):
         absent, present = task(VIDEO_A), task(VIDEO_B)
         api = Api([absent, present])
-        with wave.open(str(self.root / (VIDEO_B + ".wav")), "wb") as audio:
-            audio.setparams((1, 2, 24000, 0, "NONE", "not compressed"))
-            audio.writeframes(bytes(36000))
+        write_wave(self.root, VIDEO_B)
         result = run_once(self.outbox, api, self.predict, self.root, clock=lambda: NOW)
         self.assertEqual(api.claimed, [present["id"]])
         self.assertEqual(result["status"], "RECEIVED")
         self.assertEqual(result["inference"], "CANDIDATES_GENERATED")
         payload = json.loads(api.sent[0])
         self.assertEqual(payload["tags"], {"genre": ["K-POP"], "mood": ["CALM", "GROOVY"]})
-        self.assertEqual(payload["metadata"], {"duration_ms": 750})
+        self.assertEqual(payload["metadata"], {"duration_ms": 1250})
         self.assertIsNone(payload["track_id"])
 
     def test_retry_replays_byte_identical_result_without_reprocessing(self):
         api = Api([task(VIDEO_A)])
-        (self.root / (VIDEO_A + ".wav")).touch()
+        write_wave(self.root, VIDEO_A)
         api.http_status = 503
         first = run_once(self.outbox, api, self.predict, self.root, clock=lambda: NOW)
         self.assertEqual(first["status"], "RETRY")
@@ -103,13 +111,18 @@ class RunnerTests(unittest.TestCase):
 
     def test_model_failure_never_sends_a_result(self):
         api = Api([task(VIDEO_A)])
-        (self.root / (VIDEO_A + ".wav")).touch()
+        write_wave(self.root, VIDEO_A)
 
         def fail(path, *, timeout):
             raise ValidationError("MODEL_EXECUTION_FAILED")
 
-        with self.assertRaisesRegex(ValidationError, "MODEL_EXECUTION_FAILED"):
-            run_once(self.outbox, api, fail, self.root, clock=lambda: NOW)
+        result = run_once(self.outbox, api, fail, self.root, clock=lambda: NOW)
+        self.assertEqual(result["issues"], [{
+            "task_id": api.ready[0]["id"], "code": "MODEL_EXECUTION_FAILED",
+            "status": "BLOCKED", "attempts": 1, "retry_after": None,
+        }])
+        run_once(self.outbox, api, self.predict, self.root, clock=lambda: NOW + 1000)
+        self.assertEqual(len(api.claimed), 1)
         self.assertFalse(api.sent)
         self.assertFalse(self.outbox.status())
 
@@ -120,13 +133,113 @@ class RunnerTests(unittest.TestCase):
         def prepare(root, reference):
             if reference == source(VIDEO_A):
                 return None
-            path = root / (VIDEO_B + ".wav")
-            path.touch()
-            return path
+            return write_wave(root, VIDEO_B)
 
         result = run_once(self.outbox, api, self.predict, self.root, preparer=prepare, clock=lambda: NOW)
         self.assertEqual(result["prepare_failed"], 1)
         self.assertEqual(api.claimed, [present["id"]])
+        self.assertEqual(result["issues"][0]["code"], "AUDIO_PREPARER_FAILED")
+
+    def test_corrupt_wav_does_not_block_other_jobs_and_replacement_is_seen(self):
+        invalid, valid = task(VIDEO_A), task(VIDEO_B)
+        api = Api([invalid, valid])
+        (self.root / (VIDEO_A + ".wav")).write_bytes(b"not a WAV")
+        write_wave(self.root, VIDEO_B)
+        first = run_once(self.outbox, api, self.predict, self.root, clock=lambda: NOW)
+        self.assertEqual(first["issues"][0]["code"], "INVALID_PREPARED_WAV")
+        self.assertEqual(api.claimed, [valid["id"]])
+        api.ready = [invalid]
+        blocked = run_once(self.outbox, api, self.predict, self.root, clock=lambda: NOW)
+        self.assertEqual(blocked["issues"], first["issues"])
+        self.assertEqual(api.claimed, [valid["id"]])
+        write_wave(self.root, VIDEO_A)
+        repaired = run_once(self.outbox, api, self.predict, self.root, clock=lambda: NOW)
+        self.assertEqual(repaired["status"], "RECEIVED")
+        self.assertEqual(api.claimed, [valid["id"], invalid["id"]])
+
+    def test_symlink_is_not_opened_and_the_next_job_runs(self):
+        invalid, valid = task(VIDEO_A), task(VIDEO_B)
+        api = Api([invalid, valid])
+        target = write_wave(self.root, VIDEO_B)
+        link = self.root / (VIDEO_A + ".wav")
+        try:
+            link.symlink_to(target)
+        except OSError:
+            # Windows may disallow creating links. Supply the same lstat result
+            # without weakening the production check or opening the bad path.
+            original_lstat = Path.lstat
+            target_info = original_lstat(target)
+            link_info = os.stat_result((stat.S_IFLNK | 0o777, *target_info[1:]))
+
+            def lstat(path):
+                return link_info if path == link else original_lstat(path)
+
+            with patch.object(Path, "lstat", lstat):
+                result = run_once(self.outbox, api, self.predict, self.root, clock=lambda: NOW)
+        else:
+            result = run_once(self.outbox, api, self.predict, self.root, clock=lambda: NOW)
+        self.assertEqual(result["issues"][0]["code"], "INVALID_PREPARED_WAV")
+        self.assertEqual(api.claimed, [valid["id"]])
+
+    def test_model_timeout_waits_for_lease_and_keeps_queue_moving(self):
+        slow, valid = task(VIDEO_A), task(VIDEO_B)
+        api = Api([slow, valid])
+        for video in (VIDEO_A, VIDEO_B):
+            write_wave(self.root, video)
+
+        def predict(path, *, timeout):
+            if path.stem == VIDEO_A:
+                raise RetryableTaskError("MODEL_EXECUTION_TIMEOUT")
+            return self.predict(path, timeout=timeout)
+
+        result = run_once(self.outbox, api, predict, self.root, clock=lambda: NOW)
+        self.assertEqual(result["status"], "RECEIVED")
+        self.assertEqual(api.claimed, [slow["id"], valid["id"]])
+        self.assertEqual(result["issues"][0]["retry_after"], NOW + 900)
+        api.ready = [slow]
+        result = run_once(self.outbox, api, predict, self.root, clock=lambda: NOW + 899)
+        self.assertEqual(result["issues"][0]["status"], "RETRY_WAIT")
+        self.assertEqual(api.claimed, [slow["id"], valid["id"]])
+
+    def test_preparation_retry_is_bounded_and_persists_between_polls(self):
+        unavailable, valid = task(VIDEO_A), task(VIDEO_B)
+        api = Api([unavailable, valid])
+        calls = []
+
+        def prepare(root, reference):
+            calls.append(reference)
+            if reference == source(VIDEO_A):
+                raise RetryableTaskError("AUDIO_PREPARATION_TIMEOUT")
+            return write_wave(root, VIDEO_B)
+
+        result = run_once(self.outbox, api, self.predict, self.root, preparer=prepare, clock=lambda: NOW)
+        self.assertEqual(result["status"], "RECEIVED")
+        self.assertEqual(result["issues"][0]["retry_after"], NOW + 15)
+        self.assertEqual(api.claimed, [valid["id"]])
+        api.ready = [unavailable]
+        with Outbox(self.root / "outbox.sqlite3") as reopened:
+            for offset in (14, 15, 44, 45, 900):
+                result = run_once(reopened, api, self.predict, self.root, preparer=prepare,
+                                  clock=lambda: NOW + offset)
+            self.assertEqual(result["issues"][0]["status"], "RETRY_EXHAUSTED")
+            self.assertEqual(result["issues"][0]["attempts"], 3)
+            self.assertIsNone(result["issues"][0]["retry_after"])
+            self.assertEqual(reopened.task_failures()[0]["task_id"], unavailable["id"])
+            reopened.reset_task_failure(unavailable["id"])
+            self.assertEqual(reopened.task_failures(), [])
+        self.assertEqual(calls, [source(VIDEO_A), source(VIDEO_B), source(VIDEO_A), source(VIDEO_A)])
+
+    def test_one_delivery_retry_does_not_starve_other_jobs(self):
+        first, second, third = task(VIDEO_A), task(VIDEO_B), task(VIDEO_C)
+        api = Api([first, second, third])
+        for video in (VIDEO_A, VIDEO_B, VIDEO_C):
+            write_wave(self.root, video)
+        api.http_status = 503
+        run_once(self.outbox, api, self.predict, self.root, clock=lambda: NOW)
+        run_once(self.outbox, api, self.predict, self.root, clock=lambda: NOW + 2)
+        self.assertEqual(api.claimed, [first["id"], second["id"]])
+        self.assertEqual(api.sent[0], api.sent[1])
+        self.assertNotEqual(api.sent[1], api.sent[2])
 
     def test_preparer_uses_canonical_argument_and_removes_worker_token(self):
         code = ('import os,sys,wave; assert "TOKEN_FOR_TEST" not in os.environ; '

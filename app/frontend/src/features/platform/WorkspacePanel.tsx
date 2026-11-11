@@ -1,6 +1,8 @@
 import {useEffect,useState,type FormEvent} from 'react';
 import {call,etag,labels,ownerWrite,type Account} from './api';
 import {OwnerSongRequests} from '../song-requests/SongRequests';
+import {createSongRequestClient} from '../song-requests/client';
+import {useResource} from '../song-requests/hooks';
 export const LINKED_VENUE_FIXTURE = 'demo-linked-venue-000001';
 const LINKED_VENUE_NAME = '그레인바운더리';
 
@@ -22,6 +24,12 @@ export function WorkspacePanel({account}:{account:Account}){
   const linksCatalogVenue = fixture === LINKED_VENUE_FIXTURE;
   const catalogSearch = fixture === 'catalog-search' || fixture.startsWith('catalog:');
   const business=account.memberships.some(m=>m.type==='BUSINESS'&&m.status==='ACTIVE');
+  const [songRequestClient]=useState(createSongRequestClient);
+  const songAccess=useResource(async signal=>business
+    ? {accountId:account.account_id,session:await songRequestClient.getSession(signal)}
+    : null,[songRequestClient,business,account.account_id,stores]);
+  const songSession=songAccess.value?.accountId===account.account_id ? songAccess.value.session : null;
+  const canRequestSongs=songSession?.authenticated && songSession.managed_venues.length>0;
   async function refresh(){
     const incoming=await call<{items:Invite[]}>('/me/workspace-invitations');setInvites(incoming.items);
     if(business){const [c,w]=await Promise.all([call<{items:Claim[]}>('/me/workspace-claims'),call<{items:Workspace[]}>('/me/workspaces')]);setClaims(c.items);setStores(w.items);return w.items;}
@@ -55,7 +63,7 @@ export function WorkspacePanel({account}:{account:Account}){
   }
   return <>{error&&<div className="p-alert error" role="alert">{error}</div>}{message&&<div className="p-alert" role="status">{message}</div>}
   {business?<><section className="p-summary"><div><small>연결 매장</small><strong>{stores.length}</strong></div><div><small>연결 내역</small><strong>{claims.length}</strong></div><div><small>수락 대기 초대</small><strong>{invites.filter(i=>i.state==='PENDING').length}</strong></div></section>
-  <section className="p-card"><h2>뮤더 선곡</h2><p>날씨에 맞는 선곡표를 만들고 승인한 뒤 매장에 적용할 수 있습니다.</p><div className="p-actions"><a className="p-link-button" href="/muther">뮤더에서 선곡 만들기</a><a className="p-link-button owner-song-link" href="#song-requests">곡 추가 신청</a></div></section>
+  <section className="p-card"><h2>뮤더 선곡</h2><p>날씨에 맞는 선곡표를 만들고 승인한 뒤 매장에 적용할 수 있습니다.</p><div className="p-actions"><a className="p-link-button" href="/muther">뮤더에서 선곡 만들기</a>{canRequestSongs&&<a className="p-link-button owner-song-link" href="#song-requests">곡 추가 신청</a>}</div></section>
   <div className="p-columns"><section className="p-card"><div className="p-card-heading"><h2>내 매장</h2><button disabled={busy} onClick={()=>void run(refresh)}>새로고침</button></div>{stores.length===0?<p className="p-muted">아직 연결된 매장이 없습니다. 매장을 찾거나 기존 매장의 직원 초대를 수락하세요.</p>:stores.map(store=><button key={store.id} disabled={busy} className={'p-store '+(selected?.id===store.id?'selected':'')} onClick={()=>void run(()=>choose(store))}><span><strong>{store.display_name}</strong><small>{store.status==='ACTIVE'?'운영 가능':'이용 상태 확인 필요'}</small></span><Badge value={store.my_role}/></button>)}</section>
   <section className="p-card">
     <h2>내 매장 연결</h2>
@@ -86,7 +94,7 @@ export function WorkspacePanel({account}:{account:Account}){
   {selected.my_role==='OWNER'&&<><hr/><h3>직원 · 매니저 초대</h3><p className="p-muted">직원이 발급한 15분 수신 코드를 입력합니다. 초대는 24시간 유효하며 직원이 직접 수락합니다.</p><form className="p-invite-form" onSubmit={e=>{e.preventDefault();void run(async()=>{try{await ownerWrite(`/workspaces/${selected.id}/invitations`,'POST',{recipient_code:recipientCode,role},selected.revision,password);setRecipientCode('');setMessage('초대를 보냈습니다. 대상 계정의 초대함에서 수락해 주세요.');}finally{setPassword('');}});}}><label>초대 수신 코드<input required autoComplete="off" value={recipientCode} onChange={e=>setRecipientCode(e.target.value)}/></label><label>역할<select value={role} onChange={e=>setRole(e.target.value)}><option value="STAFF">직원</option><option value="MANAGER">매니저</option></select></label><label>소유자 비밀번호 재확인<input required type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/></label><button disabled={busy}>초대 생성</button></form></>}
   {members.length>0&&<><hr/><h3>매장 구성원</h3>{members.map(member=><div className="p-row" key={member.id}><strong>{member.nickname}</strong><Badge value={member.role}/>{selected.my_role==='OWNER'&&member.role!=='OWNER'&&<><button disabled={busy||!password} onClick={()=>void run(async()=>{try{await ownerWrite(`/workspaces/${selected.id}/memberships/${member.id}`,'PATCH',{role:member.role==='STAFF'?'MANAGER':'STAFF'},member.revision,password);await choose(selected);}finally{setPassword('');}})}>역할 변경</button><button disabled={busy||!password} onClick={()=>void run(async()=>{try{await ownerWrite(`/workspaces/${selected.id}/memberships/${member.id}/revocations`,'POST',{reason_code:'STAFF_DEPARTURE'},member.revision,password);await choose(selected);}finally{setPassword('');}})}>권한 회수</button></>}</div>)}{selected.my_role==='OWNER'&&<p className="p-muted">구성원 변경은 위 소유자 비밀번호 재확인란 입력 후 사용할 수 있습니다.</p>}</>}
   </section>}
-  <OwnerSongRequests/>
+  {canRequestSongs&&<OwnerSongRequests client={songRequestClient} session={songSession}/>}
   </>:<section className="p-card"><h2>사업자 이용 유형을 추가하세요</h2><p>가입 계정을 유지하면서 muther.를 사용할 수 있습니다.</p><a href="/platform/account">이용 안내 확인하고 추가</a></section>}
   <section className="p-card"><h2>기존 매장에 직원으로 참여하기</h2><p>내 계정에 연결된 수신 코드를 소유자에게 전달하세요. 이메일 등록은 필요하지 않습니다.</p><div className="p-actions"><button disabled={busy} onClick={()=>void run(async()=>{const value=await call<{recipient_code:string}>('/me/invitation-receivers','POST',{});setReceiver(value.recipient_code);})}>초대 수신 코드 발급</button><button disabled={busy} onClick={()=>void run(refresh)}>초대함 새로고침</button></div>{receiver&&<p className="p-code"><code>{receiver}</code><small>15분 · 일회용 · 이 계정에 결합됨</small></p>}<h3>내 초대함</h3>{invites.length===0&&<p className="p-muted">받은 초대가 없습니다.</p>}{invites.map(invite=><div className="p-row" key={invite.id}><div><strong>{invite.workspace_display_name}</strong><small>{labels[invite.role]} 초대</small></div><Badge value={invite.state}/>{invite.state==='PENDING'&&(business?<><button disabled={busy} onClick={()=>void run(async()=>{await call(`/workspace-invitations/${invite.id}/acceptances`,'POST',{},etag(invite.revision));setReceiver('');await refresh();setMessage('매장 초대를 수락했습니다. 내 매장에서 매장을 선택해 운영을 시작하세요.');})}>초대 수락</button><button disabled={busy} onClick={()=>void run(async()=>{await call(`/workspace-invitations/${invite.id}/declines`,'POST',{},etag(invite.revision));await refresh();})}>거절</button></>:<a href="/platform/account">사업자 유형 먼저 추가</a>)}</div>)}</section></>;
 }

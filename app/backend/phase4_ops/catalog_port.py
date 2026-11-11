@@ -34,3 +34,12 @@ def existing_track(track_id):
     matching = [row for row in rows if row['track_id'] == track_id and row.get('eligible') is True]
     require(len(matching) == 1, 'TRACK_NOT_AVAILABLE', '등록된 사용 가능 음악을 확인해 주세요.', 422)
     return matching[0]
+
+
+def require_confirmed_existing_track(track_id, source):
+    # Ordinary music review and CSV updates also lock this Track before changing it.
+    locked_id = Track.objects.select_for_update().filter(pk=track_id).values_list('pk', flat=True).first()
+    require(locked_id is not None, 'TRACK_NOT_AVAILABLE', '등록된 사용 가능 음악을 확인해 주세요.', 422)
+    existing_track(track_id)
+    require(Track.objects.filter(pk=track_id).filter(confirmed_video_filter(source)).exists(),
+            'TRACK_SOURCE_MISMATCH', '검수한 영상과 일치하는 기존 곡을 확인해 주세요.', 422)

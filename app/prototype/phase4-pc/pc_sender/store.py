@@ -63,6 +63,10 @@ class Outbox:
             receipt_id TEXT, occurred_at REAL NOT NULL
         )""")
         self.connection.execute("CREATE INDEX IF NOT EXISTS sender_history ON sender_attempts(result_id,event_id)")
+        self.connection.execute("""CREATE TABLE IF NOT EXISTS worker_tasks (
+            task_id TEXT PRIMARY KEY, input_key TEXT NOT NULL, attempts INTEGER NOT NULL,
+            code TEXT, retryable INTEGER NOT NULL DEFAULT 0, retry_after REAL, result_id TEXT, updated_at REAL NOT NULL
+        )""")
         self.connection.execute(f"PRAGMA application_id={APPLICATION_ID}")
         self.connection.execute("PRAGMA user_version=1")
 
@@ -76,9 +80,11 @@ class Outbox:
             self.connection.execute("ROLLBACK")
             raise
 
-    def enqueue(self, values, *, now: float) -> dict:
+    def enqueue(self, values, *, now: float, input_key: str | None = None) -> dict:
         _time(now)
         results = validate_input(values)
+        if input_key is not None and len(results) != 1:
+            raise ValidationError("INVALID_TASK_RESULT_COUNT")
         counts = {"inserted": 0, "existing": 0}
         with self._transaction():
             for result in results:
@@ -90,14 +96,67 @@ class Outbox:
                     if existing["payload_sha256"] != result["payload_sha256"] or bytes(existing["body"]) != body:
                         raise Conflict("RESULT_ID_CONFLICT")
                     counts["existing"] += 1
-                    continue
-                self.connection.execute("""INSERT INTO sender_outbox
-                    (result_id,payload_sha256,body,status,next_attempt,created_at,updated_at)
-                    VALUES (?,?,?,'PENDING',?,?,?)""",
-                    (result["result_id"], result["payload_sha256"], body, now, now, now))
-                self._record(result["result_id"], "PENDING", 0, now)
-                counts["inserted"] += 1
+                else:
+                    self.connection.execute("""INSERT INTO sender_outbox
+                        (result_id,payload_sha256,body,status,next_attempt,created_at,updated_at)
+                        VALUES (?,?,?,'PENDING',?,?,?)""",
+                        (result["result_id"], result["payload_sha256"], body, now, now, now))
+                    self._record(result["result_id"], "PENDING", 0, now)
+                    counts["inserted"] += 1
+                if input_key is not None:
+                    self.connection.execute("""INSERT INTO worker_tasks
+                        (task_id,input_key,attempts,result_id,updated_at) VALUES (?,?,0,?,?)
+                        ON CONFLICT(task_id) DO UPDATE SET input_key=excluded.input_key,attempts=0,
+                        code=NULL,retryable=0,retry_after=NULL,result_id=excluded.result_id,updated_at=excluded.updated_at""",
+                        (result["task_id"], input_key, result["result_id"], now))
         return counts
+
+    def task_state(self, task_id: str, input_key: str) -> dict | None:
+        row = self.connection.execute("""SELECT COALESCE(delivery.attempts,task.attempts) AS attempts,
+            task.code,task.retryable,
+            CASE WHEN delivery.status='RETRY' THEN delivery.next_attempt ELSE task.retry_after END AS retry_after,
+            delivery.status AS delivery_status,delivery.last_error AS delivery_error
+            FROM worker_tasks AS task LEFT JOIN sender_outbox AS delivery ON delivery.result_id=task.result_id
+            WHERE task.task_id=? AND task.input_key=?""", (task_id, input_key)).fetchone()
+        return dict(row) if row is not None else None
+
+    def fail_task(self, task_id: str, input_key: str, code: str, *, now: float,
+                  retry: bool, max_attempts: int, earliest_retry: float = 0) -> dict:
+        _time(now)
+        with self._transaction():
+            previous = self.connection.execute("""SELECT attempts FROM worker_tasks
+                WHERE task_id=? AND input_key=? AND result_id IS NULL""", (task_id, input_key)).fetchone()
+            attempts = (previous["attempts"] if previous else 0) + 1
+            retry_after = (max(min(earliest_retry, now + 3600), now + min(300, 15 * 2 ** (attempts - 1)))
+                           if retry and attempts < max_attempts else None)
+            self.connection.execute("""INSERT INTO worker_tasks
+                (task_id,input_key,attempts,code,retryable,retry_after,updated_at) VALUES (?,?,?,?,?,?,?)
+                ON CONFLICT(task_id) DO UPDATE SET input_key=excluded.input_key,attempts=excluded.attempts,
+                code=excluded.code,retryable=excluded.retryable,retry_after=excluded.retry_after,
+                result_id=NULL,updated_at=excluded.updated_at""",
+                (task_id, input_key, attempts, code, int(retry), retry_after, now))
+        return {"attempts": attempts, "code": code, "retry_after": retry_after}
+
+    def task_failures(self, *, limit=100) -> list[dict]:
+        if type(limit) is not int or not 1 <= limit <= 1000:
+            raise ValidationError("INVALID_STATUS_LIMIT")
+        return [dict(row) for row in self.connection.execute("""SELECT task.task_id,
+            COALESCE(delivery.last_error,task.code) AS code,
+            COALESCE(delivery.attempts,task.attempts) AS attempts,
+            CASE WHEN delivery.status='RETRY' THEN delivery.next_attempt ELSE task.retry_after END AS retry_after,
+            task.result_id,delivery.status AS delivery_status,task.updated_at
+            FROM worker_tasks AS task LEFT JOIN sender_outbox AS delivery ON delivery.result_id=task.result_id
+            WHERE task.code IS NOT NULL OR delivery.status IN ('RETRY','REJECTED','DEAD')
+            ORDER BY task.updated_at DESC,task.task_id LIMIT ?""", (limit,))]
+
+    def reset_task_failure(self, task_id: str):
+        with self._transaction():
+            removed = self.connection.execute("""DELETE FROM worker_tasks WHERE task_id=? AND (
+                code IS NOT NULL OR result_id IN (
+                    SELECT result_id FROM sender_outbox WHERE status IN ('REJECTED','DEAD')
+                ))""", (task_id,)).rowcount
+            if removed != 1:
+                raise ValidationError("TASK_FAILURE_NOT_RESETTABLE")
 
     def _record(self, result_id, state, attempt, now, code=None, receipt_id=None):
         self.connection.execute("""INSERT INTO sender_attempts

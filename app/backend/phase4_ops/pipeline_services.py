@@ -27,11 +27,22 @@ def locked_task(task_id):
     return PipelineTask.objects.select_for_update().select_related('item').get(pk=task_id)
 
 
+def locked_review_result(task_id, expected_revision):
+    task = locked_task(task_id)
+    require(task.revision == expected_revision, 'REVISION_CONFLICT', '최신 검수 상태를 확인해 주세요.', 409)
+    receipt = getattr(task, 'receipt', None)
+    item = task.item
+    require(task.is_current and task.status == item.pipeline_status == 'RECEIVED_PENDING_REVIEW' and
+            item.review_status == 'APPROVED' and receipt is not None and not item.track_id,
+            'INVALID_STATE', '최종 검수 대기 중인 결과만 처리할 수 있습니다.', 409)
+    return task, receipt
+
+
 @transaction.atomic
 def claim(task_id):
     task = locked_task(task_id)
     now = timezone.now()
-    require(task.item.review_status == 'APPROVED' and (
+    require(task.is_current and task.item.review_status == 'APPROVED' and (
         task.status == 'READY' or (task.status == 'RUNNING' and task.lease_expires_at is not None
                                    and task.lease_expires_at <= now)),
         'TASK_NOT_READY', '처리 가능한 승인 작업이 아닙니다.', 409)
@@ -125,7 +136,7 @@ def receive(data):
     validate_dictionary(data['tags'])
     task = locked_task(task_id)
     require(task.item_id == item_id, 'TASK_NOT_FOUND', '결과의 작업 연결을 확인해 주세요.', 404)
-    require(task.item.review_status == 'APPROVED' and task.status == 'RUNNING',
+    require(task.is_current and task.item.review_status == 'APPROVED' and task.status == 'RUNNING',
             'TASK_NOT_ACTIVE', '유효한 승인 작업이 아닙니다.', 409)
     require(task.lease_expires_at is not None and task.lease_expires_at > timezone.now()
             and hmac.compare_digest(task.lease_token_hash, hashlib.sha256(data['lease_token'].encode('utf-8')).hexdigest()),

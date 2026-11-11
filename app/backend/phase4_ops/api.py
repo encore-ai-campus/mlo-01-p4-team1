@@ -11,7 +11,7 @@ from django.middleware.csrf import get_token
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 
-from . import pipeline_services, registration_services, song_services
+from . import pipeline_services, recovery_services, registration_services, song_services
 from . import serialization as out
 from .access import managed_venues, principal
 from .errors import OperationError, require
@@ -172,9 +172,18 @@ def admin_task_finalize(request, actor, pk):
                     lambda: registration_services.finalize(actor, pk, data))
 
 
+@endpoint({'POST'}, 'review_songs')
+def admin_task_recover(request, actor, pk):
+    data = body(request)
+    return mutation(request, actor, 'task-recover:' + str(pk), data,
+                    lambda: recovery_services.recover(actor, pk, data))
+
+
 @endpoint({'GET'}, worker=True)
 def worker_tasks(request, actor):
-    rows = PipelineTask.objects.filter(item__review_status='APPROVED').select_related('item').order_by('updated_at', 'id')
+    rows = PipelineTask.objects.filter(
+        is_current=True, item__review_status='APPROVED',
+    ).select_related('item').order_by('updated_at', 'id')
     from django.db.models import Q
     rows = rows.filter(Q(status='READY') | Q(status='RUNNING', lease_expires_at__lte=timezone.now()))
     return listing(rows, out.task, request)

@@ -54,7 +54,10 @@ export interface AdminTask {
   status: string;
   track_name: string;
   artist_name: string;
+  source_ref: string;
   revision: number;
+  is_current?: boolean;
+  linked_track_id?: string | null;
   result: {model_version: string; tags: SongTags; metadata?: Partial<TrackMetadata> | null} | null;
   registration?: {track_id: string; tags: SongTags} | null;
 }
@@ -62,6 +65,11 @@ export type SongReview = {expected_revision: number; reason: string} & (
   {decision: 'APPROVE'; youtube_url: string} |
   {decision: 'LINK_EXISTING'; track_id: string} |
   {decision: 'HOLD' | 'REJECT'}
+);
+export type SongResultRecovery = {expected_revision: number; reason: string} & (
+  {decision: 'REJECT'} |
+  {decision: 'LINK_EXISTING'; track_id: string} |
+  {decision: 'REQUEUE'; youtube_url: string}
 );
 
 interface Items<T> {items: T[]; has_more?: boolean;}
@@ -109,6 +117,8 @@ export function createSongRequestClient() {
       transport.get<Items<AdminTask> & {tag_options?: SongTags}>('/admin/tasks' + listQuery(page), signal),
     finalizeSong: (id: string, body: FinalSongReview) =>
       mutate<AdminTask>(`/admin/tasks/${encodeURIComponent(id)}/finalize`, body),
+    recoverSong: (id: string, body: SongResultRecovery) =>
+      mutate<AdminTask>(`/admin/tasks/${encodeURIComponent(id)}/recover`, body),
   };
 }
 

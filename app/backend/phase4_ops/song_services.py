@@ -78,6 +78,20 @@ def submit(actor, data):
     return out.submission(batch), 201
 
 
+def check_queue_source(row, confirmed_url):
+    lock('song-source:' + fingerprint(confirmed_url))
+    matches = lookup({'track_name': row.track_name, 'artist_name': row.artist_name, 'youtube_url': confirmed_url})
+    require(not any(match['confirmed'] for match in matches), 'DUPLICATE_TRACK',
+            '이미 등록된 영상입니다. 기존 곡으로 연결해 주세요.', 409)
+    require(not PipelineTask.objects.filter(
+        is_current=True, source_ref=confirmed_url, item__review_status='APPROVED',
+    ).exclude(item=row).exists(), 'DUPLICATE_SOURCE', '같은 영상의 승인된 작업이 있습니다.', 409)
+
+
+def queue_input(row, confirmed_url):
+    return {'youtube_url': confirmed_url, 'track_name': row.track_name, 'artist_name': row.artist_name}
+
+
 @transaction.atomic
 def review(actor, item_id, data):
     require('review_songs' in actor.capabilities, 'PERMISSION_DENIED', '곡 검수 권한이 필요합니다.', 403)
@@ -93,7 +107,7 @@ def review(actor, item_id, data):
             (row.review_status == 'APPROVED' and decision in {'HOLD', 'REJECT'}),
             'INVALID_STATE', '현재 상태에서 처리할 수 없는 결정입니다.', 409)
     reason = text(data.get('reason', ''), '공개 사유', 1000, optional=decision in {'APPROVE', 'LINK_EXISTING'})
-    require(not InferenceReceipt.objects.filter(task__item=row).exists(), 'RESULT_ALREADY_RECEIVED',
+    require(not InferenceReceipt.objects.filter(task__item=row, task__is_current=True).exists(), 'RESULT_ALREADY_RECEIVED',
             '이미 서버에 결과가 저장된 신청입니다.', 409)
     if decision == 'LINK_EXISTING':
         track_id = text(data.get('track_id', ''), '곡 ID', 128)
@@ -103,20 +117,15 @@ def review(actor, item_id, data):
     elif decision == 'APPROVE':
         confirmed_url = youtube_url(data.get('youtube_url', ''))
         require(bool(confirmed_url), 'VIDEO_REQUIRED', '곡과 일치하는 YouTube 링크를 확인해 입력해 주세요.')
-        lock('song-source:' + fingerprint(confirmed_url))
-        matches = lookup({'track_name': row.track_name, 'artist_name': row.artist_name, 'youtube_url': confirmed_url})
-        require(not any(match['confirmed'] for match in matches), 'DUPLICATE_TRACK',
-                '이미 등록된 영상입니다. 기존 곡으로 연결해 주세요.', 409)
-        require(not PipelineTask.objects.filter(source_ref=confirmed_url, item__review_status='APPROVED').exclude(item=row).exists(),
-                'DUPLICATE_SOURCE', '같은 영상의 승인된 작업이 있습니다.', 409)
+        check_queue_source(row, confirmed_url)
         row.youtube_url = confirmed_url
         row.review_status = 'APPROVED'
         row.pipeline_status = 'READY'
-        task, _ = PipelineTask.objects.get_or_create(item=row)
+        task, _ = PipelineTask.objects.get_or_create(item=row, is_current=True)
         require(task.status in {'INPUT_PENDING', 'CANCELLED'}, 'INVALID_STATE', '기존 처리 작업을 확인해 주세요.', 409)
         task.status = 'READY'
         task.source_ref = confirmed_url
-        task.input_payload = {'youtube_url': confirmed_url, 'track_name': row.track_name, 'artist_name': row.artist_name}
+        task.input_payload = queue_input(row, confirmed_url)
         task.lease_token_hash = ''
         task.lease_expires_at = None
         task.revision += 1
@@ -124,7 +133,7 @@ def review(actor, item_id, data):
         record('task', task.pk, actor.account_id, 'INPUT_PREPARED', task.revision)
     else:
         row.review_status = 'HOLD' if decision == 'HOLD' else 'REJECTED'
-        task = PipelineTask.objects.select_for_update().filter(item=row).first()
+        task = PipelineTask.objects.select_for_update().filter(item=row, is_current=True).first()
         if task:
             task.status = 'CANCELLED'
             task.lease_token_hash = ''

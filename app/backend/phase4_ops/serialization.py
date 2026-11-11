@@ -36,10 +36,13 @@ def task(row, operator=False):
               'lease_expires_at': row.lease_expires_at.isoformat() if row.lease_expires_at else None,
               'updated_at': row.updated_at.isoformat()}
     if operator:
+        result['is_current'] = row.is_current
         receipt = getattr(row, 'receipt', None)
         result['result'] = ({'model_version': receipt.candidate['model_version'], 'tags': receipt.candidate['tags']}
                             if receipt else None)
         if receipt and 'metadata' in receipt.candidate:
             result['result']['metadata'] = receipt.candidate['metadata']
         result['registration'] = row.registration
+        if row.status == 'LINKED':
+            result['linked_track_id'] = row.item.track_id
     return result

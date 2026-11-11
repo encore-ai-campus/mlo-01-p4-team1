@@ -12,6 +12,7 @@ urlpatterns = [
     path('admin/song-items/<uuid:pk>/review', api.admin_song_review),
     path('admin/tasks', api.admin_tasks),
     path('admin/tasks/<uuid:pk>/finalize', api.admin_task_finalize),
+    path('admin/tasks/<uuid:pk>/recover', api.admin_task_recover),
     path('worker/tasks', api.worker_tasks),
     path('worker/tasks/<uuid:pk>/claim', api.worker_claim),
     path('worker/results', api.worker_receive),

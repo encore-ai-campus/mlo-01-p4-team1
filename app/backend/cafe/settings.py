@@ -1,5 +1,6 @@
 """C integration host. SQLite and synthetic inputs require explicit local demo mode."""
 import os
+from ipaddress import IPv4Network
 from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
 
@@ -21,6 +22,22 @@ MIDDLEWARE = ['django.middleware.security.SecurityMiddleware',
               'django.contrib.sessions.middleware.SessionMiddleware',
               'backend.common.identity.GuestCookieMiddleware',
               'django.middleware.common.CommonMiddleware', 'django.middleware.csrf.CsrfViewMiddleware']
+PHASE4_TRUSTED_PROXY_CIDRS = ()
+if os.environ.get('PHASE4_TRUSTED_PROXY_CIDRS'):
+    try:
+        private_networks = tuple(map(IPv4Network, ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16')))
+        PHASE4_TRUSTED_PROXY_CIDRS = tuple(
+            IPv4Network(value.strip()) for value in os.environ['PHASE4_TRUSTED_PROXY_CIDRS'].split(',')
+        )
+        if LOCAL_DEMO or not all(
+            any(network.subnet_of(private) and network != private for private in private_networks)
+            for network in PHASE4_TRUSTED_PROXY_CIDRS
+        ):
+            raise ValueError
+    except ValueError as exc:
+        raise ImproperlyConfigured('PHASE4_TRUSTED_PROXY_CIDRS requires specific private IPv4 ingress subnets') from exc
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_MLO_TRUSTED_SCHEME', 'https')
+    MIDDLEWARE.insert(0, 'backend.cafe.ingress.TrustedCloudFrontScheme')
 ROOT_URLCONF = 'backend.cafe.urls'
 APP_REVISION = os.environ.get('APP_REVISION', '')
 FRONTEND_DIST = BASE_DIR/'frontend/dist'
@@ -89,6 +106,7 @@ ADMIN_PASSKEY_REQUIRED = not LOCAL_DEMO or os.environ.get('ADMIN_PASSKEY_REQUIRE
 ADMIN_PASSKEY_RP_ID = os.environ.get('ADMIN_PASSKEY_RP_ID', 'localhost' if LOCAL_DEMO else '')
 ADMIN_PASSKEY_ORIGIN = os.environ.get('ADMIN_PASSKEY_ORIGIN', 'http://localhost:5173' if LOCAL_DEMO else '')
 PLATFORM_ENABLED = os.environ.get('PLATFORM_LOCAL_MVP') == '1'
+PHASE4_OWNER_PORTAL_ENABLED = os.environ.get('PHASE4_OWNER_PORTAL_ENABLED') == '1'
 PHASE4_SONG_POLICY = {
     'version': 'owner-song-requests-v1', 'allow_general_users': False, 'require_approved_venue': True,
     'quota_scope': 'account', 'window_days': None, 'period_limit': None, 'count_all_submitted': True,

@@ -11,6 +11,10 @@ class ValidationError(SenderError):
     pass
 
 
+class RetryableTaskError(SenderError):
+    """A temporary problem with one job, rather than a rejected input."""
+
+
 class Conflict(SenderError):
     pass
 

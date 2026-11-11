@@ -109,15 +109,22 @@ function SongRequestHistory({client}: {client: SongRequestClient}) {
   </section>;
 }
 
-export function OwnerSongRequests() {
-  const [client] = useState(createSongRequestClient);
+export function OwnerSongRequests({client, session}: {client: SongRequestClient; session: Session}) {
   const [historyRevision, setHistoryRevision] = useState(0);
-  const session = useResource(signal => client.getSession(signal), [client]);
   return <div id="song-requests" className="owner-song-requests">
-    <ResourceState {...session} retry={session.reload}/>
-    {session.value && (session.value.authenticated ? <div className="owner-song-grid">
-      <SongRequestForm client={client} session={session.value} onSubmitted={() => setHistoryRevision(value => value + 1)}/>
+    <div className="owner-song-grid">
+      <SongRequestForm client={client} session={session} onSubmitted={() => setHistoryRevision(value => value + 1)}/>
       <SongRequestHistory key={historyRevision} client={client}/>
-    </div> : <Notice error>곡 신청에 필요한 로그인 상태를 확인해 주세요.</Notice>)}
+    </div>
   </div>;
+}
+
+export function OwnerSongRequestsPortal() {
+  const [client] = useState(createSongRequestClient);
+  const session = useResource(signal => client.getSession(signal), [client]);
+  return <>
+    <ResourceState {...session} retry={session.reload}/>
+    {session.value?.authenticated && session.value.managed_venues.length > 0
+      && <OwnerSongRequests client={client} session={session.value}/>}
+  </>;
 }

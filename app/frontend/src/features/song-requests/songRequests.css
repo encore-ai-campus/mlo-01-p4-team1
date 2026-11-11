@@ -116,6 +116,9 @@
   background: var(--request-accent);
 }
 .phase4-operations .p4-meta:first-child { margin: 0; }
+.phase4-operations .p4-result-recovery { margin-top: 14px; }
+.phase4-operations .p4-result-recovery summary { cursor: pointer; color: var(--request-accent); }
+.phase4-operations .p4-result-recovery form { margin-top: 10px; }
 
 @media (max-width: 720px) {
   .phase4-operations .p4-song-row { grid-template-columns: auto minmax(0, 1fr); }

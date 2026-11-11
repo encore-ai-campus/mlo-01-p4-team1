@@ -44,7 +44,8 @@ class SongItem(models.Model):
 
 class PipelineTask(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    item = models.OneToOneField(SongItem, on_delete=models.PROTECT, related_name='task')
+    item = models.ForeignKey(SongItem, on_delete=models.PROTECT, related_name='tasks')
+    is_current = models.BooleanField(default=True)
     status = models.CharField(max_length=24, default='INPUT_PENDING', db_index=True)
     source_ref = models.CharField(max_length=500, blank=True)
     input_payload = models.JSONField(default=dict)
@@ -54,6 +55,11 @@ class PipelineTask(models.Model):
     lease_expires_at = models.DateTimeField(null=True)
     attempts = models.PositiveIntegerField(default=0)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints: ClassVar[list] = [
+            models.UniqueConstraint(fields=['item'], condition=models.Q(is_current=True), name='p4_current_task'),
+        ]
 
 
 class InferenceReceipt(models.Model):

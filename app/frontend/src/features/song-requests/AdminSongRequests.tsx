@@ -1,6 +1,6 @@
 import {useState, type FormEvent} from 'react';
 import {canonicalYoutubeVideoUrl} from '../recommendation/youtubeReview';
-import {createSongRequestClient, type AdminSongItem, type AdminTask, type SongRequestClient, type SongReview, type SongTags} from './client';
+import {createSongRequestClient, type AdminSongItem, type AdminTask, type SongRequestClient, type SongResultRecovery, type SongReview, type SongTags} from './client';
 import {useAction, useResource} from './hooks';
 import {ActionState, Empty, ListPagination, Notice, ResourceState} from './ui';
 import {statusLabel, tagLabel} from './viewModel';
@@ -142,20 +142,93 @@ function TagSummary({tags, prefix}: {tags: SongTags; prefix: string}) {
   </>;
 }
 
-function SongProcessingResults({client, revision, onRegistered, onShowTrack}: {
+const recoveryLabels: Record<SongResultRecovery['decision'], string> = {
+  REJECT: '반려',
+  LINK_EXISTING: '기존 곡 연결',
+  REQUEUE: '링크 수정 후 다시 처리',
+};
+
+function SongResultRecoveryForm({client, task, onRecovered}: {
+  client: SongRequestClient;
+  task: AdminTask;
+  onRecovered: (decision: SongResultRecovery['decision']) => void;
+}) {
+  const [decision, setDecision] = useState<SongResultRecovery['decision'] | ''>('');
+  const [reason, setReason] = useState('');
+  const [trackId, setTrackId] = useState('');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const action = useAction();
+  const url = canonicalYoutubeVideoUrl(youtubeUrl.trim());
+  const originalUrl = canonicalYoutubeVideoUrl(task.source_ref);
+  const canSubmit = !!decision && !!reason.trim() &&
+    (decision !== 'LINK_EXISTING' || !!trackId.trim()) &&
+    (decision !== 'REQUEUE' || (!!url && url !== originalUrl));
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!canSubmit || !decision) return;
+    const common = {expected_revision: task.revision, reason: reason.trim()};
+    const body: SongResultRecovery | null = decision === 'LINK_EXISTING'
+      ? {...common, decision, track_id: trackId.trim()}
+      : decision === 'REQUEUE' ? (url ? {...common, decision, youtube_url: url} : null)
+      : {...common, decision};
+    if (body) void action.run(() => client.recoverSong(task.id, body), () => onRecovered(decision), '');
+  }
+
+  return <details className="p4-result-recovery">
+    <summary>반려 · 기존 곡 연결 · 링크 수정</summary>
+    <form onSubmit={submit}>
+      <fieldset disabled={action.pending}>
+        <legend>검수 결과 처리</legend>
+        <label>처리 방법<select required value={decision} onChange={event => setDecision(event.target.value as typeof decision)}>
+          <option value="">선택해 주세요</option>
+          <option value="REJECT">{recoveryLabels.REJECT}</option>
+          <option value="LINK_EXISTING">{recoveryLabels.LINK_EXISTING}</option>
+          <option value="REQUEUE">{recoveryLabels.REQUEUE}</option>
+        </select></label>
+        {decision === 'LINK_EXISTING' && <>
+          <label>기존 곡 ID<input required maxLength={128} value={trackId} onChange={event => setTrackId(event.target.value)}/></label>
+          <p className="p4-meta"><a href="#music-list">음악 목록</a>에서 승인된 곡의 ID를 확인해 주세요. 같은 영상으로 확인된 곡만 연결할 수 있습니다.</p>
+        </>}
+        {decision === 'REQUEUE' && <>
+          <label>수정한 YouTube 주소<input type="url" required maxLength={2048} value={youtubeUrl}
+            onChange={event => setYoutubeUrl(event.target.value)}/></label>
+          {url && (url === originalUrl ? <p className="p4-meta">이전 영상과 다른 주소를 입력해 주세요.</p>
+            : <p><a href={url} target="_blank" rel="noopener noreferrer">수정한 영상 확인 ↗</a></p>)}
+        </>}
+        <label>신청자에게 공개할 사유<input required maxLength={1000} value={reason} onChange={event => setReason(event.target.value)}/></label>
+        <div><button type="submit" disabled={!canSubmit}>{decision ? recoveryLabels[decision] : '검수 결과 저장'}</button></div>
+      </fieldset>
+      <ActionState {...action}/>
+    </form>
+  </details>;
+}
+
+function SongProcessingResults({client, revision, onRegistered, onShowTrack, onRecovered}: {
   client: SongRequestClient;
   revision: number;
   onRegistered: (trackId: string) => void;
   onShowTrack: (trackId: string) => void;
+  onRecovered: () => void;
 }) {
   const [page, setPage] = useState(0);
   const [registeredTrackId, setRegisteredTrackId] = useState('');
+  const [recoveryNotice, setRecoveryNotice] = useState('');
   const resource = useResource(signal => client.getAdminTasks(page, signal), [client, revision, page]);
   const tagOptions = resource.value?.tag_options;
   function registered(trackId: string) {
     setRegisteredTrackId(trackId);
+    setRecoveryNotice('');
     onRegistered(trackId);
     resource.reload();
+  }
+  function recovered(decision: SongResultRecovery['decision']) {
+    setRegisteredTrackId('');
+    setRecoveryNotice(decision === 'REQUEUE' ? '수정한 링크로 태깅을 다시 요청했습니다.'
+      : decision === 'LINK_EXISTING' ? '기존 음악 목록의 곡에 연결했습니다.' : '곡 신청을 반려했습니다.');
+    setPage(0);
+    resource.reload();
+    onRecovered();
   }
   return <section className="p4-section">
     <div className="p4-section-heading">
@@ -163,24 +236,32 @@ function SongProcessingResults({client, revision, onRegistered, onShowTrack}: {
       <button type="button" className="p4-secondary" onClick={resource.reload}>처리 현황 새로고침</button>
     </div>
     {registeredTrackId && <Notice>음악 목록에 등록했습니다. <a href="#music-list" onClick={() => onShowTrack(registeredTrackId)}>등록한 곡 보기</a></Notice>}
+    <Notice>{recoveryNotice}</Notice>
     <ResourceState {...resource} retry={resource.reload}/>
     {resource.value && (resource.value.items.length ? <ul className="p4-result-list">
-      {resource.value.items.map(task => <li key={`${task.id}:${task.revision}`} className="p4-card">
-        <h3>{task.track_name} · {task.artist_name}</h3>
-        <span className="p4-badge">{statusLabel(task.status)}</span>
-        {task.result && <dl className="p4-result-tags">
-          <div><dt>모델 버전</dt><dd>{task.result.model_version}</dd></div>
-          <TagSummary prefix="모델 추천" tags={task.result.tags}/>
-        </dl>}
-        {task.registration && <>
-          <dl className="p4-result-tags"><TagSummary prefix="확정" tags={task.registration.tags}/></dl>
-          <a href="#music-list" onClick={() => onShowTrack(task.registration!.track_id)}>음악 목록에서 보기</a>
-        </>}
-        {task.status === 'RECEIVED_PENDING_REVIEW' && task.result && !task.registration &&
-          (tagOptions?.genre.length && tagOptions.mood.length
-            ? <FinalSongReviewForm client={client} task={task} result={task.result} options={tagOptions} onRegistered={registered}/>
-            : <p className="p4-meta">확정할 수 있는 태그 목록을 불러오지 못했습니다. 처리 현황을 새로고침해 주세요.</p>)}
-      </li>)}
+      {resource.value.items.map(task => {
+        const {result, registration} = task;
+        const sourceUrl = canonicalYoutubeVideoUrl(task.source_ref);
+        const trackId = registration?.track_id || task.linked_track_id;
+        const canReview = task.is_current !== false && task.status === 'RECEIVED_PENDING_REVIEW' && !!result && !registration;
+        return <li key={`${task.id}:${task.revision}`} className="p4-card">
+          <h3>{task.track_name} · {task.artist_name}</h3>
+          <span className="p4-badge">{statusLabel(task.status)}</span>
+          {sourceUrl && <p><a href={sourceUrl} target="_blank" rel="noopener noreferrer">태깅 대상 영상 확인 ↗</a></p>}
+          {result && <dl className="p4-result-tags">
+            <div><dt>모델 버전</dt><dd>{result.model_version}</dd></div>
+            <TagSummary prefix="모델 추천" tags={result.tags}/>
+          </dl>}
+          {registration && <dl className="p4-result-tags"><TagSummary prefix="등록 시" tags={registration.tags}/></dl>}
+          {trackId && <a href="#music-list" onClick={() => onShowTrack(trackId)}>음악 목록에서 보기</a>}
+          {canReview && <>
+            {tagOptions?.genre.length && tagOptions.mood.length
+              ? <FinalSongReviewForm client={client} task={task} result={result} options={tagOptions} onRegistered={registered}/>
+              : <p className="p4-meta">확정할 수 있는 태그 목록을 불러오지 못했습니다. 처리 현황을 새로고침해 주세요.</p>}
+            <SongResultRecoveryForm client={client} task={task} onRecovered={recovered}/>
+          </>}
+        </li>;
+      })}
     </ul> : <Empty>아직 처리 작업이 없습니다.</Empty>)}
     <ListPagination label="추론용 PC 처리 현황 페이지" page={page} hasMore={resource.value?.has_more} loading={resource.loading} onPage={setPage}/>
   </section>;
@@ -214,7 +295,7 @@ function SongReviewQueue({client, onRegistered, onShowTrack}: {
       </div> : <Empty>해당 상태의 곡 신청이 없습니다.</Empty>)}
       <ListPagination label="곡 신청 검수 페이지" page={page} hasMore={resource.value?.has_more} loading={resource.loading} onPage={setPage}/>
     </section>
-    <SongProcessingResults client={client} revision={revision} onShowTrack={onShowTrack}
+    <SongProcessingResults client={client} revision={revision} onShowTrack={onShowTrack} onRecovered={resource.reload}
       onRegistered={trackId => {onRegistered(trackId); resource.reload();}}/>
   </>;
 }

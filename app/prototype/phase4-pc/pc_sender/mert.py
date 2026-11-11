@@ -63,12 +63,24 @@ def predict(wav, baseline, refinement, selected, spec, device):
     experiment.BASE, experiment.WORK = baseline, refinement
     encoder = encoders.Encoder(baseline, "mert2", spec, device=device)
     try:
-        with sf.SoundFile(wav) as audio:
-            if audio.format not in {"WAV", "WAVEX", "RF64"} or audio.channels != 1 or audio.samplerate != 24000:
+        try:
+            audio_file = sf.SoundFile(wav)
+        except (OSError, RuntimeError):
+            raise ValidationError("INVALID_PREPARED_WAV") from None
+        with audio_file as audio:
+            if (audio.format not in {"WAV", "WAVEX", "RF64"} or audio.channels != 1
+                    or audio.samplerate != 24000 or len(audio) < 24000):
                 raise ValidationError("INVALID_PREPARED_WAV")
             ranges = common.boundaries(len(audio))
-            vectors = [encoder.segment(audio.read(right - left, dtype="float32"))
-                       for left, right in ranges]
+            vectors = []
+            for left, right in ranges:
+                try:
+                    samples = audio.read(right - left, dtype="float32")
+                except (OSError, RuntimeError):
+                    raise ValidationError("INVALID_PREPARED_WAV") from None
+                if len(samples) != right - left or not np.isfinite(samples).all():
+                    raise ValidationError("INVALID_PREPARED_WAV")
+                vectors.append(encoder.segment(samples))
         mean, deviation = features.summarize(vectors, ranges)
         _, scores = experiment.predict_selected(selected, {"L24": (mean[None, :], deviation[None, :])})
         if scores.shape != (1, len(GENRES) + len(MOODS)) or not np.isfinite(scores).all():
@@ -85,6 +97,7 @@ def main(argv=None):
     parser.add_argument("--baseline-root", type=Path, required=True)
     parser.add_argument("--refinement-root", type=Path, required=True)
     parser.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
+    parser.add_argument("--worker-json-errors", action="store_true", help=argparse.SUPPRESS)
     inputs = parser.add_mutually_exclusive_group(required=True)
     inputs.add_argument("--check", action="store_true")
     inputs.add_argument("--wav", type=Path)
@@ -98,7 +111,7 @@ def main(argv=None):
         print(json.dumps(output, ensure_ascii=False, sort_keys=True))
         return 0
     except ValidationError as exc:
-        print(json.dumps({"error": exc.code}), file=sys.stderr)
+        print(json.dumps({"error": exc.code}), file=sys.stdout if args.worker_json_errors else sys.stderr)
     except (OSError, ValueError, TypeError, KeyError, RuntimeError, ImportError):
         print('{"error":"MERT_INFERENCE_UNAVAILABLE"}', file=sys.stderr)
     return 2

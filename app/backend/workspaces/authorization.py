@@ -10,6 +10,11 @@ from backend.recommendation.errors import require
 from .models import ServiceMembership, Workspace, WorkspaceMembership
 
 
+def song_portal_only():
+    return (settings.PHASE4_OWNER_PORTAL_ENABLED and not settings.MEMBER_LOCAL_PREVIEW
+            and settings.MEMBER_POLICIES_READY and bool(settings.MEMBER_LOOKUP_KEY))
+
+
 def enabled():
     require(settings.PLATFORM_ENABLED and settings.MEMBER_LOCAL_PREVIEW,
             'PLATFORM_NOT_READY', '로컬 플랫폼 MVP가 활성화되지 않았습니다.', 503)

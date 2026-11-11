@@ -8,7 +8,7 @@ from backend.recommendation.policy import GENRES, THEMES
 from . import serialization as out
 from .catalog_port import confirmed_video_filter
 from .errors import require
-from .pipeline_services import locked_task, validate_dictionary, validate_tags
+from .pipeline_services import locked_review_result, validate_dictionary, validate_tags
 from .transactions import lock, record
 from .validation import expected_revision, fingerprint, shape, text, track_duration, youtube_url
 
@@ -26,13 +26,8 @@ def finalize(actor, task_id, data):
     duration = track_duration(data['duration_ms'])
     require(type(data['explicit']) is bool, 'INVALID_METADATA', '청소년 유해 표시 값을 확인해 주세요.', 422)
 
-    task = locked_task(task_id)
+    task, receipt = locked_review_result(task_id, revision)
     item = task.item
-    require(task.revision == revision, 'REVISION_CONFLICT', '최신 검수 상태를 확인해 주세요.', 409)
-    receipt = getattr(task, 'receipt', None)
-    require(task.status == item.pipeline_status == 'RECEIVED_PENDING_REVIEW' and
-            item.review_status == 'APPROVED' and receipt is not None and not item.track_id,
-            'INVALID_STATE', '최종 검수 대기 중인 결과만 등록할 수 있습니다.', 409)
     url = youtube_url(item.youtube_url)
     require(url and url == task.source_ref == receipt.candidate['source_ref'],
             'SOURCE_MISMATCH', '승인한 영상과 추론 결과의 연결을 확인해 주세요.', 409)

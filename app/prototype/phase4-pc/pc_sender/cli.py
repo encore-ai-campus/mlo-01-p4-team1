@@ -13,7 +13,7 @@ from .runner import AudioPreparer, MertCommand, WorkerHTTP, run_once
 from .service import send_once
 from .store import Outbox
 from .transport import HTTPTransport, validate_endpoint
-from .validation import load_results
+from .validation import _uuid, load_results
 
 
 def parser():
@@ -24,6 +24,10 @@ def parser():
     add.add_argument("file")
     status = commands.add_parser("status", help="본문·토큰을 제외한 송신 상태를 조회합니다")
     status.add_argument("--limit", type=int, default=100)
+    failures = commands.add_parser("task-failures", help="곡별 처리 실패 사유와 다음 시도 시각을 조회합니다")
+    failures.add_argument("--limit", type=int, default=100)
+    reset = commands.add_parser("reset-task-failure", help="원인을 해결한 작업의 로컬 실패 상태를 지웁니다")
+    reset.add_argument("task_id")
     history = commands.add_parser("history", help="본문·토큰 없는 곡별 송신/재시도 이력을 조회합니다")
     history.add_argument("result_id")
     history.add_argument("--limit", type=int, default=100)
@@ -74,6 +78,12 @@ def main(argv=None):
                 output = outbox.enqueue(values, now=time.time())
             elif args.command == "status":
                 output = {"results": outbox.status(limit=args.limit)}
+            elif args.command == "task-failures":
+                output = {"tasks": outbox.task_failures(limit=args.limit)}
+            elif args.command == "reset-task-failure":
+                _uuid(args.task_id, "task_id")
+                outbox.reset_task_failure(args.task_id)
+                output = {"task_id": args.task_id, "reset": True}
             elif args.command == "history":
                 output = {"history": outbox.history(args.result_id, limit=args.limit)}
             elif args.command == "requeue":
