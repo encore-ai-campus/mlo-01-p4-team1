@@ -9,6 +9,7 @@ Authlib==1.9.1
 boto3==1.43.114
 botocore==1.43.114
 certifi==2026.7.22
+cbor2==6.2.0.post2
 cffi==2.1.1
 charset-normalizer==3.5.2
 click==8.5.0
@@ -39,6 +40,7 @@ psycopg-binary==3.3.6
 pyasn1==0.6.4
 pyasn1_modules==0.4.2
 pycparser==3.11
+pyOpenSSL==26.4.0
 pydantic==2.14.1
 pydantic_core==2.50.1
 python-dateutil==2.9.0.post0
@@ -58,3 +60,6 @@ uritemplate==4.2.0
 urllib3==2.8.0
 uvicorn==0.54.0
 websockets==16.1.1
+webauthn==3.0.1
+# PyPI 2026.10.26 wheel SHA256: a05c5b5d8562f7e8a62f5334348b406af4930d56d3a65f8021d14af0e22339ae
+yt-dlp==2026.10.26

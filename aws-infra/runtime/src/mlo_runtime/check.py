@@ -28,11 +28,9 @@ def main():
                 "B-U1-U3": [
                     python,
                     "-m",
-                    "unittest",
-                    "discover",
-                    "-s",
+                    "mlo_runtime.suite",
+                    "--start",
                     str(RUNTIME / "tests/unit"),
-                    "-v",
                 ],
                 "ansible-syntax": [
                     str(binary / "ansible-playbook"),
@@ -57,46 +55,38 @@ def main():
                 "B-I1-I3-process": [
                     python,
                     "-m",
-                    "unittest",
-                    "discover",
-                    "-s",
+                    "mlo_runtime.suite",
+                    "--start",
                     str(RUNTIME / "tests/integration"),
-                    "-p",
+                    "--pattern",
                     "test_offline.py",
-                    "-v",
                 ],
                 "B-I2-I4-docker": [
                     python,
                     "-m",
-                    "unittest",
-                    "discover",
-                    "-s",
+                    "mlo_runtime.suite",
+                    "--start",
                     str(RUNTIME / "tests/integration"),
-                    "-p",
+                    "--pattern",
                     "test_docker.py",
-                    "-v",
                 ],
                 "B-I3-haproxy-web": [
                     python,
                     "-m",
-                    "unittest",
-                    "discover",
-                    "-s",
+                    "mlo_runtime.suite",
+                    "--start",
                     str(RUNTIME / "tests/integration"),
-                    "-p",
+                    "--pattern",
                     "test_proxy_web.py",
-                    "-v",
                 ],
                 "B-I4-spark-delta": [
                     python,
                     "-m",
-                    "unittest",
-                    "discover",
-                    "-s",
+                    "mlo_runtime.suite",
+                    "--start",
                     str(RUNTIME / "tests/integration"),
-                    "-p",
+                    "--pattern",
                     "test_spark.py",
-                    "-v",
                 ],
             }
         )
@@ -107,9 +97,12 @@ def main():
             ("B-I6-zookeeper-quorum", "test_zookeeper.py"),
             ("B-I7-supervisor", "test_supervisor.py"),
             ("B-I8-relay-tls", "test_relay.py"),
+            ("B-I9-spark-cluster-fence", "test_spark_cluster.py"),
+            ("B-I10-track2-catalog", "test_catalog*.py"),
+            ("B-I11-observation-stack", "test_observability.py"),
         ]:
-            commands[name] = [python, "-m", "unittest", "discover", "-s", str(RUNTIME / "tests/integration"), "-p", pattern, "-v"]
-            if not (RUNTIME / "tests/integration" / pattern).is_file():
+            commands[name] = [python, "-m", "mlo_runtime.suite", "--start", str(RUNTIME / "tests/integration"), "--pattern", pattern]
+            if not any((RUNTIME / "tests/integration").glob(pattern)):
                 raise RuntimeError("mandatory integration suite is missing: " + pattern)
     for name, command in commands.items():
         print("RUN: " + name, flush=True)

@@ -151,6 +151,12 @@ def initialize(lab, bundle):
             connection.executemany("insert into events values(?,?)", [(n, "preserve-" + str(n)) for n in range(8)])
         atomic(folder / "control.json", {"writes_blocked": False, "stopped": False,
                                         "barrier_id": digest([bundle["binding"]["generation"], node])})
+    if "track2" in bundle:
+        from .track2 import initialize as initialize_track2
+        identity = read(lab / "identity.json")
+        atomic(lab / "identity.json", {**identity, "track2_sha256": digest(bundle["track2"])})
+        atomic(lab / "track2-spec.json", bundle["track2"])
+        initialize_track2(lab, bundle["track2"])
 
 
 class Simulator:
@@ -162,6 +168,9 @@ class Simulator:
 
     def preflight(self, plan_hash, *, bind=False):
         identity = read(self.lab / "identity.json")
+        if "track2" in self.bundle:
+            need(identity.get("track2_sha256") == digest(self.bundle["track2"])
+                 and read(self.lab / "track2-spec.json") == self.bundle["track2"], "Track2 hook registry changed")
         need(identity["plan_sha256"] in (None, plan_hash), "lab already bound to another plan; reconcile")
         need(read(self.lab / "activity.json") == {"creation": False, "deployment": False},
              "creation/deployment overlaps shutdown")
@@ -179,6 +188,9 @@ class Simulator:
     def observe(self, step):
         with database(self.lab / "simulator.db") as connection:
             effect = connection.execute("select proof from effects where step=?", (step["id"],)).fetchone()
+            if step["action"].startswith("track2-"):
+                from .track2 import observe
+                return observe(self.lab, self.bundle["track2"], step, json.loads(effect[0]) if effect else None)
             if not effect:
                 runtime = self._runtime(connection)
                 if step["action"] == "freeze" and (runtime["frozen"] or not runtime["restarts"]):
@@ -228,11 +240,17 @@ class Simulator:
     def apply(self, step):
         need(self.observe(step)["status"] == "not_started", "duplicate/ambiguous adapter invocation")
         action, target = step["action"], step["target"]
+        if "track2" in self.bundle and action in {"stateful", "delete", "backup-data"}:
+            from .track2 import sealed
+            sealed(self.lab, self.bundle["track2"])
         if action == "delete":
             for node in ("postgresql", "mongodb"):
                 need(self.observe({"id": "stateful:" + node, "action": "stateful", "target": node})["status"] == "completed",
                      "current stateful evidence missing")
-        if action == "stateful":
+        if action.startswith("track2-"):
+            from .track2 import apply
+            proof = apply(self.lab, self.bundle["track2"], step)
+        elif action == "stateful":
             hook = BASE / "scripts/stateful-hook.py"
             binding = {"node": target, "generation": self.bundle["binding"]["generation"],
                        "hook": str(hook), "sha256": file_hash(hook)}
@@ -261,7 +279,7 @@ class Simulator:
                 need(runtime["frozen"] == 1 and runtime["restarts"] == 0, "new work/restart not inhibited")
                 if action == "idle":
                     connection.execute("update runtime set value=0 where key='jobs'")
-                else:
+                elif action != "track2-freeze":
                     need(runtime["jobs"] == 0, "work/driver/executor not idle")
                 if action == "delete":
                     if target.startswith(tuple(a + ":aws_ebs_volume." for a in self.bundle["inventory"]["accounts"])) or ":aws_s3_bucket.data" in target:

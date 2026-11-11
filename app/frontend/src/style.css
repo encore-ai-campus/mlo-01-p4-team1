@@ -1,4 +1,4 @@
-:root{font-family:"맑은 고딕","Malgun Gothic",system-ui,sans-serif;color:#122146;background:#fff;font-synthesis:none;font-size:14px;--blue:#087bf1;--navy:#0d205d;--line:#dce6f2;--muted:#77869e}
+:root{font-family:"맑은 고딕","Malgun Gothic",system-ui,sans-serif;color:#122146;background:#fff;font-synthesis:none;font-size:14px;--muther-primary:#bfdcee;--blue:#087bf1;--navy:#0d205d;--line:#dce6f2;--muted:#77869e}
 *{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button,a,select{touch-action:manipulation}button{cursor:pointer;border:1px solid #cbdcf0;background:#fff;color:var(--navy);border-radius:6px;padding:10px 14px;font-weight:600}button:hover:not(:disabled){background:#eff6ff}button:disabled{cursor:default;opacity:.45}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #147ff2;outline-offset:3px}a{color:inherit;text-decoration:none}h1,h2,h3,p{margin-top:0}h2{font-size:20px;letter-spacing:-.6px;line-height:1.4;margin:0 0 8px;color:var(--navy)}h3{font-size:17px}p{line-height:1.6}small{font-size:11px;color:var(--muted)}svg.icon{width:18px;height:18px;flex:none}.weather-icon{width:64px;height:55px;flex:none}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.muted{color:var(--muted);font-size:12px}.eyebrow{font-size:12px;color:var(--blue);font-weight:700}
 .header{height:62px;padding:0 max(3.125%,calc((100% - 1440px)/2));display:flex;align-items:center;gap:34px;border-bottom:1px solid var(--line);background:#fff}.brand{font-size:24px;font-weight:700;letter-spacing:-1px;color:var(--navy);white-space:nowrap}.brand span{color:#0d215f}.header .nav-active{align-self:stretch;display:flex;align-items:center;border-bottom:3px solid var(--blue);font-size:15px;font-weight:700;color:#0875df;padding:3px 8px 0}.header nav{margin-left:auto;display:flex;align-items:center;gap:24px;font-size:13px;white-space:nowrap}.header nav button{padding:8px 0;background:none;border:0;font-size:13px;font-weight:400}.header nav a+button,.header nav button+a{border-left:1px solid #dce6f2;padding-left:24px}.demo-note{font-size:10px;color:#5d7fa6;background:#f1f7fe;border:1px solid #dce9f7;border-radius:4px;padding:3px 6px;white-space:nowrap}
 .banner{height:120px;max-width:1536px;margin:auto;overflow:hidden;background:#f5f8fc;display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--line)}.banner-bottom{height:104px;border-top:1px solid var(--line);border-bottom:0}.banner a{height:100%;width:100%;position:relative}.banner img{width:100%;height:100%;object-fit:cover}.banner a span{position:absolute;left:20px;bottom:12px;background:#fff;padding:4px 10px;border-radius:4px;font-size:11px}.ad-empty{font-size:11px;letter-spacing:1px;color:#a1aec0}
@@ -90,3 +90,14 @@
 .selection-bottom .generation-notice{margin:8px 0 0;font-size:12px;line-height:1.5;color:#537399}
 @media(min-width:1301px){.region-section .selected-region{font-size:22px}}
 @media(max-width:700px){.region-section .selected-region{font-size:18px}}
+
+/* Login illustration and submit action use the selected sky blue. */
+.login-symbol > .weather-icon > path { fill: var(--muther-primary); stroke: var(--muther-primary); }
+.login-symbol > .icon { color: var(--muther-primary); }
+.login-card form > .primary,
+.login-card form > .primary:hover:not(:disabled) { background: var(--muther-primary); border-color: var(--muther-primary); color: #242424; }
+
+/* Common login Figma text colors. */
+.login-card, .login-card h1, .login-card label, .login-card input { color: #222222; }
+.login-card .login-description, .login-card .login-caption,
+.login-card input::placeholder { color: #666b70; }

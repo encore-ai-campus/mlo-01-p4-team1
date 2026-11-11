@@ -58,9 +58,27 @@ Runtime은 node별 `service.json`을 읽기 전용으로 연결하고 private IP
 인증 session·Guest TTL·provider 및 업무 adapter는 수락한 별도 운영 설정을 함께 제공합니다.
 운영 migration은 승인된 단일 실행자가 별도 단계에서 수행하고, 구/신 이미지 호환 근거 없이 자동 rollback을 허용하지 않습니다.
 
+곡 신청과 태깅 워커를 AWS 테스트 환경에서 연결할 때는 다음 값을 공통 API에만 제공합니다.
+Docker 운영 이미지는 보호된 `app-env.json`, native API는 보호된 `application.env`를 사용합니다.
+
+- `PHASE4_WORKER_TOKEN`: 워커의 `PHASE4_SENDER_TOKEN`과 같은 비밀값입니다.
+- `PHASE4_TRUSTED_PROXY_CIDRS`: 요청을 직접 전달하는 승인된 ALB의 사설 서브넷입니다.
+  CloudFront가 뷰어 프로토콜 헤더를 생성하고, ALB와 API에 직접 우회 접근할 수 없는 구성을 확인한 뒤 설정합니다.
+  앱은 이 서브넷에서 들어온 `CloudFront-Forwarded-Proto: https`만 HTTPS 판정에 사용합니다.
+- `PHASE4_OWNER_PORTAL_ENABLED=1`: 운영 회원 정책과 키를 갖춘 환경에서 `/platform/business`의 곡 신청을 엽니다.
+  이미 승인된 활성 매장 점주만 신청할 수 있으며 합성 사업자 확인과 시연 매장 쓰기 기능은 열리지 않습니다.
+
+별도 PostgreSQL에 `phase4_ops` 마이그레이션을 적용한 뒤 실제 추론용 PC에서 작업 조회, 태깅 결과 수신,
+검수 대기, 최종 승인, 음악 목록 재조회를 한 건의 작업 ID로 확인합니다. `0003_pipeline_attempts` 적용 후
+재추론 이력이 생긴 DB를 이전 1:1 스키마로 되돌릴 때는 데이터 보존 계획이 필요합니다.
+
 ## MongoDB 초기화 경계
 
 Runtime `mongod.yaml`은 `ads-rs`와 보호된 `mongodb-keyfile`을 요구합니다. 한 EC2의 단일멤버 구성은
 transaction 지원을 위한 것이며 replica failover를 제공하지 않습니다. 기존 데이터의 계정·replica set·
 키와 TLS SAN을 먼저 검토하고 명시적으로 초기화합니다. 앱 시작 때 `rs.initiate`·`rs.reconfig`를 자동 실행하지 않습니다.
 배포 전 로컬 시험의 초기화는 새 project의 빈 disposable DB에만 적용합니다.
+
+## 사용자 화면
+
+web 운영 target은 고정 Node/pnpm 도구로 React를 빌드하고 결과를 같은 Django 이미지에 포함합니다. `/signup`, `/mypage`, 로그인·복구·관리자 화면의 직접 접근과 공개 정적 자산을 제공하며 Vite 개발 서버를 운영에 사용하지 않습니다. HTML은 no-store, 해시 자산은 immutable cache이며 임의 소스 파일이나 API 경로를 SPA로 대체하지 않습니다. 운영 readiness는 프런트 빌드 누락도 거부합니다.

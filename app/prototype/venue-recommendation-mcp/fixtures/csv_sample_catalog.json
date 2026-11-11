@@ -1,0 +1,2266 @@
+{
+  "version": "0.2-seoul-curated-mvp-2026-11-10",
+  "venues": [
+    {
+      "venue_id": "VN_SL_033264",
+      "name": "파스텔서촌점",
+      "district": "종로구",
+      "admin_dong": "청운효자동",
+      "address": "서울특별시 종로구 필운대로3길 2",
+      "mood_tag_ids": [
+        "mood_daylight"
+      ],
+      "mood_evidence": {
+        "mood_daylight": {
+          "urls": [
+            "https://github.com/encore-ai-campus/mlo-01-p4-team1/blob/07f6f1c/app/backend/venues/sample_data/seoul_venues_demo_sample.csv"
+          ]
+        }
+      },
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "CONFIRMED",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=MbhAFpGh10v7",
+              "https://pastelcoffee.com/article/%EC%95%84%EC%B9%B4%EC%9D%B4%EB%B8%8C/8/7510/"
+            ]
+          },
+          "outdoor": {
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=MbhAFpGh10v7"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA0101202502A0074235",
+      "name": "어니언 성수",
+      "district": "성동구",
+      "admin_dong": "성수2가3동",
+      "address": "서울특별시 성동구 아차산로9길 8",
+      "coordinates": [
+        37.5447283798433,
+        127.058117511196
+      ],
+      "venue_category": "CAFE",
+      "sub_category": "베이커리 카페",
+      "mood_tag_ids": [
+        "mood_retro",
+        "mood_factory",
+        "mood_bustling"
+      ],
+      "mood_evidence": {
+        "mood_retro": {
+          "urls": [
+            "https://love.seoul.go.kr/articles/10330",
+            "https://english.visitseoul.net/eat/Cafe-Onion/ENP020587",
+            "https://www.diningcode.com/profile.php?rid=gwMOA9twBJDG"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_factory": {
+          "urls": [
+            "https://love.seoul.go.kr/articles/10330",
+            "https://english.visitseoul.net/eat/Cafe-Onion/ENP020587",
+            "https://www.diningcode.com/profile.php?rid=gwMOA9twBJDG"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_bustling": {
+          "urls": [
+            "https://love.seoul.go.kr/articles/10330",
+            "https://english.visitseoul.net/eat/Cafe-Onion/ENP020587",
+            "https://www.diningcode.com/profile.php?rid=gwMOA9twBJDG"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://english.visitseoul.net/eat/Cafe-Onion/ENP020587",
+              "https://www.diningcode.com/profile.php?rid=gwMOA9twBJDG"
+            ],
+            "checked_on": "2026-11-06"
+          },
+          "outdoor": {
+            "urls": [
+              "https://english.visitseoul.net/eat/Cafe-Onion/ENP020587",
+              "https://www.diningcode.com/profile.php?rid=gwMOA9twBJDG"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "CONFIRMED"
+      },
+      "public_listing": {
+        "moods": [
+          "레트로 감성",
+          "공장 감성",
+          "북적이는"
+        ],
+        "representative_menus": [
+          "팡도르",
+          "카페라테",
+          "이 초콜릿 라떼는 최고라고 자부한다"
+        ],
+        "seat_summary": "실내 테이블과 야외 테라스",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA010120220812594063",
+      "name": "성수 대림창고",
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "address": "서울특별시 성동구 성수이로 78",
+      "coordinates": [
+        37.54163866784,
+        127.056644130739
+      ],
+      "venue_category": "CAFE",
+      "sub_category": "복합문화 카페",
+      "mood_tag_ids": [
+        "mood_retro",
+        "mood_gallery",
+        "mood_bustling"
+      ],
+      "mood_evidence": {
+        "mood_retro": {
+          "urls": [
+            "https://love.seoul.go.kr/articles/10330",
+            "https://www.diningcode.com/profile.php?rid=TpMlBoL70Tge"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_gallery": {
+          "urls": [
+            "https://love.seoul.go.kr/articles/10330",
+            "https://www.diningcode.com/profile.php?rid=TpMlBoL70Tge"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_bustling": {
+          "urls": [
+            "https://love.seoul.go.kr/articles/10330",
+            "https://www.diningcode.com/profile.php?rid=TpMlBoL70Tge"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://love.seoul.go.kr/articles/10330",
+              "https://www.diningcode.com/profile.php?rid=TpMlBoL70Tge"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN"
+      },
+      "public_listing": {
+        "moods": [
+          "레트로 감성",
+          "전시 감성",
+          "북적이는"
+        ],
+        "representative_menus": [
+          "아메리카노",
+          "파네토네",
+          "아메리칸 츄잉쿠키"
+        ],
+        "seat_summary": "실내 홀 좌석. 정원 소개는 있으나 일반 야외 좌석은 미확인.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      },
+      "budget_example": {
+        "amount_krw": 6500,
+        "items": [
+          {
+            "name": "아메리카노",
+            "price_krw": 6500
+          }
+        ],
+        "source_url": "https://pcmap.place.naver.com/restaurant/37910590/menu/list",
+        "checked_on": "2026-11-10",
+        "limits": "공개 메뉴 단가의 합계. 최소 주문·추가요금·당일 가격 미확인."
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA010120220810598548",
+      "name": "할아버지공장",
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "address": "서울특별시 성동구 성수이로7가길 9",
+      "coordinates": [
+        37.5411799548479,
+        127.054957822246
+      ],
+      "venue_category": "CAFE",
+      "sub_category": "복합문화 카페",
+      "mood_tag_ids": [
+        "mood_retro",
+        "mood_garden",
+        "mood_gallery"
+      ],
+      "mood_evidence": {
+        "mood_retro": {
+          "urls": [
+            "https://danielfooddiary.com/2023/04/15/grandpafactorycafe/",
+            "https://xn--ok0b236bp0a.com/place/26024"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_garden": {
+          "urls": [
+            "https://danielfooddiary.com/2023/04/15/grandpafactorycafe/",
+            "https://xn--ok0b236bp0a.com/place/26024"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_gallery": {
+          "urls": [
+            "https://danielfooddiary.com/2023/04/15/grandpafactorycafe/",
+            "https://xn--ok0b236bp0a.com/place/26024"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://danielfooddiary.com/2023/04/15/grandpafactorycafe/",
+              "https://xn--ok0b236bp0a.com/place/26024"
+            ],
+            "checked_on": "2026-11-06"
+          },
+          "outdoor": {
+            "urls": [
+              "https://danielfooddiary.com/2023/04/15/grandpafactorycafe/",
+              "https://xn--ok0b236bp0a.com/place/26024"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "CONFIRMED"
+      },
+      "public_listing": {
+        "moods": [
+          "레트로 감성",
+          "정원 감성",
+          "전시 감성"
+        ],
+        "representative_menus": [
+          "얼그레이 밀크티",
+          "유자 레몬 에이드",
+          "트리플 베리 프렌치토스트"
+        ],
+        "seat_summary": "실내 홀과 테라스 좌석",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA010120220812374911",
+      "name": "로와이드 서울숲",
+      "district": "성동구",
+      "admin_dong": "성수1가2동",
+      "address": "서울특별시 성동구 서울숲2길 22-1",
+      "coordinates": [
+        37.5469429926014,
+        127.041054628691
+      ],
+      "venue_category": "CAFE",
+      "sub_category": "베이커리 카페",
+      "mood_tag_ids": [
+        "mood_relaxed",
+        "mood_gallery"
+      ],
+      "mood_evidence": {
+        "mood_relaxed": {
+          "urls": [
+            "https://love.seoul.go.kr/articles/10330"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_gallery": {
+          "urls": [
+            "https://love.seoul.go.kr/articles/10330"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://love.seoul.go.kr/articles/10330",
+              "https://www.ktriptips.com/kor/food/2895111"
+            ],
+            "checked_on": "2026-11-06"
+          },
+          "outdoor": {
+            "urls": [
+              "https://love.seoul.go.kr/articles/10330",
+              "https://www.ktriptips.com/kor/food/2895111"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "CONFIRMED"
+      },
+      "public_listing": {
+        "moods": [
+          "여유로운",
+          "전시 감성"
+        ],
+        "representative_menus": [
+          "소금빵",
+          "로우 라떼",
+          "서머에이드"
+        ],
+        "seat_summary": "실내 테이블과 2층 테라스. 에이드 메뉴는 계절에 따라 달라질 수 있음.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA0101202507A0036508",
+      "name": "챔프커피 성수",
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "address": "서울특별시 성동구 성수이로10길 6",
+      "coordinates": [
+        37.5398280789702,
+        127.055760193107
+      ],
+      "venue_category": "CAFE",
+      "sub_category": "카페",
+      "mood_tag_ids": [
+        "mood_calm"
+      ],
+      "mood_evidence": {
+        "mood_calm": {
+          "urls": [
+            "https://www.diningcode.com/profile.php?rid=4NHXcFUtrRYL",
+            "https://bizw.kr/brand/197840"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=4NHXcFUtrRYL"
+            ],
+            "checked_on": "2026-11-06"
+          },
+          "outdoor": {
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=4NHXcFUtrRYL"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "CONFIRMED"
+      },
+      "public_listing": {
+        "moods": [
+          "차분한"
+        ],
+        "representative_menus": [
+          "챔프커피(플랫화이트)",
+          "초콜릿쿠키",
+          "피치 크러쉬 에이드"
+        ],
+        "seat_summary": "실내 테이블과 매장 앞 야외 테이블",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA0101202305A0080350",
+      "name": "서울브루어리 성수",
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "address": "서울특별시 성동구 연무장길 28-12",
+      "coordinates": [
+        37.5430642610056,
+        127.052277440785
+      ],
+      "venue_category": "PUB",
+      "sub_category": "수제맥주 탭룸",
+      "mood_tag_ids": [
+        "mood_lively"
+      ],
+      "mood_evidence": {
+        "mood_lively": {
+          "urls": [
+            "https://www.seoulbrewery.com/217",
+            "https://heypop.kr/place/73593/"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://heypop.kr/place/73593/",
+              "https://www.diningcode.com/profile.php?rid=2VTdj9NjNk9j"
+            ],
+            "checked_on": "2026-11-06"
+          },
+          "outdoor": {
+            "urls": [
+              "https://heypop.kr/place/73593/",
+              "https://www.diningcode.com/profile.php?rid=2VTdj9NjNk9j"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "CONFIRMED"
+      },
+      "public_listing": {
+        "moods": [
+          "활기찬"
+        ],
+        "representative_menus": [
+          "서울 라이스 라거",
+          "서울브루어리 프라이드 치킨",
+          "아티장 치즈 샤퀴테리 플래터"
+        ],
+        "seat_summary": "실내 홀과 1층 야외 테라스. 옥상의 일반 영업시간 개방은 미확인.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      },
+      "budget_example": {
+        "amount_krw": 21500,
+        "items": [
+          {
+            "name": "토마토 샐러드와 올리브",
+            "price_krw": 13000
+          },
+          {
+            "name": "서울 라이스 라거 400mL",
+            "price_krw": 8500
+          }
+        ],
+        "source_url": "https://tag-here.com/menu/seoulbrewery-seongsu/view",
+        "checked_on": "2026-11-10",
+        "limits": "공개 메뉴 단가의 합계. 최소 주문·추가요금·당일 가격 미확인."
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA0101202602A0034194",
+      "name": "세스크 멘슬",
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "address": "서울특별시 성동구 성수이로14길 7",
+      "coordinates": [
+        37.5410621365841,
+        127.056417391383
+      ],
+      "venue_category": "PUB",
+      "sub_category": "샤퀴테리 식당",
+      "mood_tag_ids": [
+        "mood_cozy"
+      ],
+      "mood_evidence": {
+        "mood_cozy": {
+          "urls": [
+            "https://korean.visitkorea.or.kr/detail/ms_detail.do?cotid=0b5495d9-366c-4ba4-845e-e797a78c6137"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://korean.visitkorea.or.kr/detail/ms_detail.do?cotid=0b5495d9-366c-4ba4-845e-e797a78c6137",
+              "https://www.diningcode.com/profile.php?rid=IgWpZwm9bn3X"
+            ],
+            "checked_on": "2026-11-06"
+          },
+          "outdoor": {
+            "urls": [
+              "https://korean.visitkorea.or.kr/detail/ms_detail.do?cotid=0b5495d9-366c-4ba4-845e-e797a78c6137",
+              "https://www.diningcode.com/profile.php?rid=IgWpZwm9bn3X"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "CONFIRMED"
+      },
+      "public_listing": {
+        "moods": [
+          "아늑한"
+        ],
+        "representative_menus": [
+          "슈스터",
+          "햄플레터",
+          "치즈플레터"
+        ],
+        "seat_summary": "실내 좌석과 가게 앞 테라스. 테라스 운영은 방문 시점에 따라 달라질 수 있음.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA0101202308A0047504",
+      "name": "성수오뎅",
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "address": "서울특별시 성동구 성덕정17길 11",
+      "coordinates": [
+        37.5382516163598,
+        127.055148023493
+      ],
+      "venue_category": "PUB",
+      "sub_category": "이자카야",
+      "mood_tag_ids": [
+        "mood_cozy",
+        "mood_dim_lighting"
+      ],
+      "mood_evidence": {
+        "mood_cozy": {
+          "urls": [
+            "https://www.diningcode.com/profile.php?rid=OGaSCNMAe0Fv",
+            "https://www.tabling.co.kr/place/677cd87c66de5f0698949732"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_dim_lighting": {
+          "urls": [
+            "https://www.diningcode.com/profile.php?rid=OGaSCNMAe0Fv",
+            "https://www.tabling.co.kr/place/677cd87c66de5f0698949732"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=OGaSCNMAe0Fv",
+              "https://www.tabling.co.kr/place/677cd87c66de5f0698949732"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN"
+      },
+      "public_listing": {
+        "moods": [
+          "아늑한",
+          "은은한 조명"
+        ],
+        "representative_menus": [
+          "홀리 세트(모둠 오뎅)",
+          "사케 도쿠리",
+          "일본 생맥주"
+        ],
+        "seat_summary": "실내 카운터 좌석. 소비자 안내는 지하 1층, 상가 원본은 1층 표기.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      },
+      "budget_example": {
+        "amount_krw": 16900,
+        "items": [
+          {
+            "name": "스지",
+            "price_krw": 9000
+          },
+          {
+            "name": "기린 생맥주",
+            "price_krw": 7900
+          }
+        ],
+        "source_url": "https://map.naver.com/p/entry/place/1234978037?placePath=%2Fmenu",
+        "checked_on": "2026-11-10",
+        "limits": "공개 메뉴 단가의 합계. 최소 주문·추가요금·당일 가격 미확인."
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA010120220803986154",
+      "name": "밤새우리",
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "address": "서울특별시 성동구 성덕정17길 12",
+      "coordinates": [
+        37.5383236063643,
+        127.055340427193
+      ],
+      "venue_category": "PUB",
+      "sub_category": "이자카야",
+      "mood_tag_ids": [
+        "mood_cozy"
+      ],
+      "mood_evidence": {
+        "mood_cozy": {
+          "urls": [
+            "https://www.diningcode.com/profile.php?rid=4iNBmiGn1fj8"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=4iNBmiGn1fj8"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN"
+      },
+      "public_listing": {
+        "moods": [
+          "아늑한"
+        ],
+        "representative_menus": [
+          "빠네 투움바 크림파스타",
+          "차돌짬뽕나베",
+          "숙성연어회+참치회"
+        ],
+        "seat_summary": "실내 테이블",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA0101202504A0054143",
+      "name": "용용선생 마라도원",
+      "district": "성동구",
+      "admin_dong": "성수2가3동",
+      "address": "서울특별시 성동구 아차산로11길 3",
+      "coordinates": [
+        37.5441873258679,
+        127.059033657371
+      ],
+      "venue_category": "PUB",
+      "sub_category": "중식 주점",
+      "mood_tag_ids": [
+        "mood_retro",
+        "mood_lively"
+      ],
+      "mood_evidence": {
+        "mood_retro": {
+          "urls": [
+            "https://korean.visitseoul.net/restaurants/Maradowon/KOP9xvv34"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_lively": {
+          "urls": [
+            "https://korean.visitseoul.net/restaurants/Maradowon/KOP9xvv34"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://korean.visitseoul.net/restaurants/Maradowon/KOP9xvv34",
+              "https://www.diningcode.com/profile.php?rid=83lHgjp89EK9"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN"
+      },
+      "public_listing": {
+        "moods": [
+          "레트로 감성",
+          "활기찬"
+        ],
+        "representative_menus": [
+          "직화마라탕",
+          "고추바삭유림기",
+          "고량주"
+        ],
+        "seat_summary": "실내 홀 좌석",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA010120220810045634",
+      "name": "호랑이",
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "address": "서울특별시 중구 을지로 157",
+      "coordinates": [
+        37.5675198109677,
+        126.995427058491
+      ],
+      "venue_category": "CAFE",
+      "sub_category": "카페",
+      "mood_tag_ids": [
+        "mood_retro",
+        "mood_intimate",
+        "mood_bustling",
+        "mood_dim_lighting"
+      ],
+      "mood_evidence": {
+        "mood_retro": {
+          "urls": [
+            "https://korean.visitkorea.or.kr/detail/ms_detail.do?cotid=408ef082-b3fc-4b54-a0fd-73c16f002be6",
+            "https://www.diningcode.com/profile.php?rid=ocEeIojJ0jDE"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_intimate": {
+          "urls": [
+            "https://korean.visitkorea.or.kr/detail/ms_detail.do?cotid=408ef082-b3fc-4b54-a0fd-73c16f002be6",
+            "https://www.diningcode.com/profile.php?rid=ocEeIojJ0jDE"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_bustling": {
+          "urls": [
+            "https://korean.visitkorea.or.kr/detail/ms_detail.do?cotid=408ef082-b3fc-4b54-a0fd-73c16f002be6",
+            "https://www.diningcode.com/profile.php?rid=ocEeIojJ0jDE"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_dim_lighting": {
+          "urls": [
+            "https://korean.visitkorea.or.kr/detail/ms_detail.do?cotid=408ef082-b3fc-4b54-a0fd-73c16f002be6",
+            "https://www.diningcode.com/profile.php?rid=ocEeIojJ0jDE"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://korean.visitkorea.or.kr/detail/ms_detail.do?cotid=408ef082-b3fc-4b54-a0fd-73c16f002be6"
+            ],
+            "checked_on": "2026-11-06"
+          },
+          "outdoor": {
+            "urls": [
+              "https://korean.visitkorea.or.kr/detail/ms_detail.do?cotid=408ef082-b3fc-4b54-a0fd-73c16f002be6"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "CONFIRMED"
+      },
+      "public_listing": {
+        "moods": [
+          "레트로 감성",
+          "아담한",
+          "북적이는",
+          "은은한 조명"
+        ],
+        "representative_menus": [
+          "호랑이라떼",
+          "후르츠산도"
+        ],
+        "seat_summary": "대림상가 3층의 실내 테이블과 가게 앞 야외 테이블",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA0101202406A0288695",
+      "name": "리오네커피",
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "address": "서울특별시 중구 을지로 157",
+      "coordinates": [
+        37.5675198109677,
+        126.995427058491
+      ],
+      "venue_category": "CAFE",
+      "sub_category": "카페",
+      "mood_tag_ids": [
+        "mood_retro",
+        "mood_intimate",
+        "mood_relaxed"
+      ],
+      "mood_evidence": {
+        "mood_retro": {
+          "urls": [
+            "https://v.daum.net/v/BXx5lXuScM",
+            "https://www.diningcode.com/profile.php?rid=SysM2qlCGmYR"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_intimate": {
+          "urls": [
+            "https://v.daum.net/v/BXx5lXuScM",
+            "https://www.diningcode.com/profile.php?rid=SysM2qlCGmYR"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_relaxed": {
+          "urls": [
+            "https://v.daum.net/v/BXx5lXuScM",
+            "https://www.diningcode.com/profile.php?rid=SysM2qlCGmYR"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=SysM2qlCGmYR"
+            ],
+            "checked_on": "2026-11-06"
+          },
+          "outdoor": {
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=SysM2qlCGmYR"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "CONFIRMED"
+      },
+      "public_listing": {
+        "moods": [
+          "레트로 감성",
+          "아담한",
+          "여유로운"
+        ],
+        "representative_menus": [
+          "리오네커피",
+          "피를로",
+          "에그타르트"
+        ],
+        "seat_summary": "대림상가 3층의 실내 창가와 가게 앞 야외 좌석",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA0101202308A0023211",
+      "name": "콘티뉴이티 을지로",
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "address": "서울특별시 중구 수표로 30",
+      "coordinates": [
+        37.5638344344932,
+        126.990390504763
+      ],
+      "venue_category": "CAFE",
+      "sub_category": "카페",
+      "mood_tag_ids": [
+        "mood_relaxed",
+        "mood_cozy",
+        "mood_green"
+      ],
+      "mood_evidence": {
+        "mood_relaxed": {
+          "urls": [
+            "https://eng.cafeshow.com/eng/partners/enjoycafe_view.asp?idx=2267",
+            "https://happymeal0225.tistory.com/v/262"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_cozy": {
+          "urls": [
+            "https://eng.cafeshow.com/eng/partners/enjoycafe_view.asp?idx=2267",
+            "https://happymeal0225.tistory.com/v/262"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_green": {
+          "urls": [
+            "https://eng.cafeshow.com/eng/partners/enjoycafe_view.asp?idx=2267",
+            "https://happymeal0225.tistory.com/v/262"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=g7y7xR0wy3kL",
+              "https://happymeal0225.tistory.com/v/262"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN"
+      },
+      "public_listing": {
+        "moods": [
+          "여유로운",
+          "아늑한",
+          "식물이 있는"
+        ],
+        "representative_menus": [
+          "데일리 브루잉커피",
+          "에그타르트",
+          "솔티카라멜 휘낭시에"
+        ],
+        "seat_summary": "3층 실내 테이블",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA0101202406A0574179",
+      "name": "빠우 을지로점",
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "address": "서울특별시 중구 을지로 157",
+      "coordinates": [
+        37.5675198109677,
+        126.995427058491
+      ],
+      "venue_category": "CAFE",
+      "sub_category": "도넛·디저트",
+      "mood_tag_ids": [
+        "mood_intimate",
+        "mood_retro"
+      ],
+      "mood_evidence": {
+        "mood_intimate": {
+          "urls": [
+            "https://gajaseoul.com/ko/store/bbawoo_euljiro"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_retro": {
+          "urls": [
+            "https://gajaseoul.com/ko/store/bbawoo_euljiro"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "outdoor": {
+            "urls": [
+              "https://gajaseoul.com/ko/store/bbawoo_euljiro",
+              "https://www.diningcode.com/profile.php?rid=9GTTRyLjPT8e"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "UNKNOWN",
+        "outdoor": "CONFIRMED"
+      },
+      "public_listing": {
+        "moods": [
+          "아담한",
+          "레트로 감성"
+        ],
+        "representative_menus": [
+          "빠우도나스",
+          "찹쌀핫도그",
+          "콜드브루커피"
+        ],
+        "seat_summary": "대림상가 3층 통로 쪽 테라스. 실내 취식 좌석은 미확인.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA0101202406A0436560",
+      "name": "피즈소셜클럽",
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "address": "서울특별시 중구 을지로35길 51-4",
+      "coordinates": [
+        37.569051584762,
+        127.001324369092
+      ],
+      "venue_category": "CAFE",
+      "sub_category": "음악 카페",
+      "mood_tag_ids": [
+        "mood_cozy",
+        "mood_retro",
+        "mood_jazz"
+      ],
+      "mood_evidence": {
+        "mood_cozy": {
+          "urls": [
+            "https://korean.visitseoul.net/restaurants/2024-fizzsocial/KOPoeqke0",
+            "https://tododot.tistory.com/237"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_retro": {
+          "urls": [
+            "https://korean.visitseoul.net/restaurants/2024-fizzsocial/KOPoeqke0",
+            "https://tododot.tistory.com/237"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_jazz": {
+          "urls": [
+            "https://korean.visitseoul.net/restaurants/2024-fizzsocial/KOPoeqke0",
+            "https://tododot.tistory.com/237"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://tododot.tistory.com/237",
+              "https://www.diningcode.com/profile.php?rid=bAuJmKJST3Ad"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN"
+      },
+      "public_listing": {
+        "moods": [
+          "아늑한",
+          "레트로 감성",
+          "재즈 감성"
+        ],
+        "representative_menus": [
+          "핸드드립 커피",
+          "피즈 토스트",
+          "피스타치오 치즈케이크"
+        ],
+        "seat_summary": "4층 실내 테이블",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA0101202601A0000133",
+      "name": "만선호프 본점",
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "address": "서울특별시 중구 을지로13길 19",
+      "coordinates": [
+        37.5672583247445,
+        126.99178231701
+      ],
+      "venue_category": "PUB",
+      "sub_category": "호프",
+      "mood_tag_ids": [
+        "mood_bustling",
+        "mood_retro"
+      ],
+      "mood_evidence": {
+        "mood_bustling": {
+          "urls": [
+            "https://v.daum.net/v/20260901161527985",
+            "https://polle.com/place/3KlTaX/%EB%A7%8C%EC%84%A0%ED%98%B8%ED%94%84"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_retro": {
+          "urls": [
+            "https://v.daum.net/v/20260901161527985",
+            "https://polle.com/place/3KlTaX/%EB%A7%8C%EC%84%A0%ED%98%B8%ED%94%84"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://v.daum.net/v/20260901161527985",
+              "https://polle.com/place/3KlTaX/%EB%A7%8C%EC%84%A0%ED%98%B8%ED%94%84"
+            ],
+            "checked_on": "2026-11-06"
+          },
+          "outdoor": {
+            "urls": [
+              "https://v.daum.net/v/20260901161527985",
+              "https://polle.com/place/3KlTaX/%EB%A7%8C%EC%84%A0%ED%98%B8%ED%94%84"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "CONFIRMED"
+      },
+      "public_listing": {
+        "moods": [
+          "북적이는",
+          "레트로 감성"
+        ],
+        "representative_menus": [
+          "생맥주",
+          "노가리",
+          "마늘치킨"
+        ],
+        "seat_summary": "본점 실내와 골목 야외 테이블. 루프탑은 행사·운영 조건에 따라 이용이 달라질 수 있음.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA010120220813725653",
+      "name": "을지맥옥 본관",
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "address": "서울특별시 중구 수표로 48-16",
+      "coordinates": [
+        37.5654652648108,
+        126.990729860816
+      ],
+      "venue_category": "PUB",
+      "sub_category": "수제맥주 펍",
+      "mood_tag_ids": [
+        "mood_neon",
+        "mood_bustling"
+      ],
+      "mood_evidence": {
+        "mood_neon": {
+          "urls": [
+            "https://polle.com/place/1dGIYQ/%EC%9D%84%EC%A7%80%EB%A7%A5%EC%98%A5",
+            "https://www.diningcode.com/profile.php?rid=Q7ZV9j67LaE3"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_bustling": {
+          "urls": [
+            "https://polle.com/place/1dGIYQ/%EC%9D%84%EC%A7%80%EB%A7%A5%EC%98%A5",
+            "https://www.diningcode.com/profile.php?rid=Q7ZV9j67LaE3"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://polle.com/place/1dGIYQ/%EC%9D%84%EC%A7%80%EB%A7%A5%EC%98%A5",
+              "https://www.diningcode.com/profile.php?rid=Q7ZV9j67LaE3"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN"
+      },
+      "public_listing": {
+        "moods": [
+          "네온 감성",
+          "북적이는"
+        ],
+        "representative_menus": [
+          "을지맥옥 체리 사워 IPA",
+          "콰트로 치즈 피자",
+          "마라 통 닭날개 튀김"
+        ],
+        "seat_summary": "수표로 48-16 본관 실내. 별관 좌석과 구분.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA010120220806312398",
+      "name": "꽃지로 을지로본점",
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "address": "서울특별시 중구 을지로12길 16",
+      "coordinates": [
+        37.5656004326489,
+        126.990967540372
+      ],
+      "venue_category": "PUB",
+      "sub_category": "이자카야",
+      "mood_tag_ids": [
+        "mood_retro",
+        "mood_music"
+      ],
+      "mood_evidence": {
+        "mood_retro": {
+          "urls": [
+            "https://nyam.io/place/detail/QYfTzZGF8B/%EA%BD%83%EC%A7%80%EB%A1%9C-%EC%9D%84%EC%A7%80%EB%A1%9C%EB%B3%B8%EC%A0%90"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_music": {
+          "urls": [
+            "https://nyam.io/place/detail/QYfTzZGF8B/%EA%BD%83%EC%A7%80%EB%A1%9C-%EC%9D%84%EC%A7%80%EB%A1%9C%EB%B3%B8%EC%A0%90"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://nyam.io/place/detail/QYfTzZGF8B/%EA%BD%83%EC%A7%80%EB%A1%9C-%EC%9D%84%EC%A7%80%EB%A1%9C%EB%B3%B8%EC%A0%90",
+              "https://www.diningcode.com/profile.php?rid=iZef7DRr3dc6"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN"
+      },
+      "public_listing": {
+        "moods": [
+          "레트로 감성",
+          "음악 듣기 좋은"
+        ],
+        "representative_menus": [
+          "야키토리 10종 세트",
+          "모둠 어묵나베",
+          "꽃 덴뿌라 모둠튀김"
+        ],
+        "seat_summary": "1층 실내 바와 테이블",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA010120220809285496",
+      "name": "끽비어컴퍼니 을지로",
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "address": "서울특별시 중구 을지로 157",
+      "coordinates": [
+        37.5675198109677,
+        126.995427058491
+      ],
+      "venue_category": "PUB",
+      "sub_category": "수제맥주 탭룸",
+      "mood_tag_ids": [
+        "mood_calm",
+        "mood_intimate"
+      ],
+      "mood_evidence": {
+        "mood_calm": {
+          "urls": [
+            "https://www.daangn.com/kr/local-profile/%EB%81%BD%EB%B9%84%EC%96%B4%EC%BB%B4%ED%8D%BC%EB%8B%88-drujjub2bk1u/",
+            "https://www.diningcode.com/profile.php?rid=lrJxYR2hg14t"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_intimate": {
+          "urls": [
+            "https://www.daangn.com/kr/local-profile/%EB%81%BD%EB%B9%84%EC%96%B4%EC%BB%B4%ED%8D%BC%EB%8B%88-drujjub2bk1u/",
+            "https://www.diningcode.com/profile.php?rid=lrJxYR2hg14t"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=lrJxYR2hg14t"
+            ],
+            "checked_on": "2026-11-06"
+          },
+          "outdoor": {
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=lrJxYR2hg14t"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "CONFIRMED"
+      },
+      "public_listing": {
+        "moods": [
+          "차분한",
+          "아담한"
+        ],
+        "representative_menus": [
+          "끽비어 수제맥주",
+          "항정칠리&소세지",
+          "맥앤치즈 파스타"
+        ],
+        "seat_summary": "대림상가 3층의 실내 바·테이블과 야외 테라스. 맥주 탭 구성은 변동.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA010120220808380978",
+      "name": "을지로보석",
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "address": "서울특별시 중구 마른내로 11-10",
+      "coordinates": [
+        37.5651407804695,
+        126.989247137946
+      ],
+      "venue_category": "PUB",
+      "sub_category": "다이닝 주점",
+      "mood_tag_ids": [
+        "mood_intimate"
+      ],
+      "mood_evidence": {
+        "mood_intimate": {
+          "urls": [
+            "https://ficornonfic.tistory.com/133",
+            "https://moment.hyundai-steel.com/moment-detail/50132"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://ficornonfic.tistory.com/133"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN"
+      },
+      "public_listing": {
+        "moods": [
+          "아담한"
+        ],
+        "representative_menus": [
+          "제철 한식 코스(매운돼지갈비찜·들기름 낙지젓 카펠리니 등)",
+          "와인",
+          "사케"
+        ],
+        "seat_summary": "3층 실내 바와 테이블. 코스와 주류 구성은 변동.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA0101202311A0007966",
+      "name": "성수포차",
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "address": "서울특별시 성동구 성덕정17길 4",
+      "coordinates": [
+        37.537557740536,
+        127.055373805093
+      ],
+      "venue_category": "PUB",
+      "sub_category": "포차",
+      "mood_tag_ids": [
+        "mood_retro",
+        "mood_lively"
+      ],
+      "mood_evidence": {
+        "mood_retro": {
+          "urls": [
+            "https://www.diningcode.com/profile.php?rid=zONs5vlol9Gh"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_lively": {
+          "urls": [
+            "https://www.diningcode.com/profile.php?rid=zONs5vlol9Gh"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=zONs5vlol9Gh"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN"
+      },
+      "public_listing": {
+        "moods": [
+          "레트로 감성",
+          "활기찬"
+        ],
+        "representative_menus": [
+          "어묵탕",
+          "계란말이",
+          "제육볶음"
+        ],
+        "seat_summary": "성덕정17길 4의 실내 테이블. 이전 주소의 노상 포장마차 정보와 구분.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA0106202607A2432100",
+      "name": "토리키조쿠 을지로3가점",
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "address": "서울특별시 중구 을지로 114-3",
+      "coordinates": [
+        37.5660689268153,
+        126.990661872355
+      ],
+      "venue_category": "PUB",
+      "sub_category": "이자카야",
+      "mood_tag_ids": [
+        "mood_bustling"
+      ],
+      "mood_evidence": {
+        "mood_bustling": {
+          "urls": [
+            "https://torikizoku-kor.com/",
+            "https://www.diningcode.com/profile.php?rid=Xk3b6cmXGoud"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=Xk3b6cmXGoud"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN"
+      },
+      "public_listing": {
+        "moods": [
+          "북적이는"
+        ],
+        "representative_menus": [
+          "닭다리살 키조쿠 타레",
+          "카망베르 고로케",
+          "더 프리미엄 몰츠 생맥주"
+        ],
+        "seat_summary": "2층 실내 테이블과 오픈 주방 앞 카운터.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      },
+      "budget_example": {
+        "amount_krw": 9800,
+        "items": [
+          {
+            "name": "닭다리살 키조쿠 타레 1주문(꼬치 2개)",
+            "price_krw": 4900
+          },
+          {
+            "name": "더 프리미엄 몰츠 생맥주",
+            "price_krw": 4900
+          }
+        ],
+        "source_url": "https://torikizoku-kor.com/wp-public/wp-content/uploads/2026/01/menu_kor.pdf",
+        "checked_on": "2026-11-10",
+        "limits": "공개 메뉴 단가의 합계. 최소 주문·추가요금·당일 가격 미확인."
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA0101202308A0100813",
+      "name": "니어민트+ 을지로",
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "address": "서울특별시 중구 을지로 127",
+      "coordinates": [
+        37.5665825971914,
+        126.99206536675
+      ],
+      "venue_category": "PUB",
+      "sub_category": "피자펍 | 수제맥주 탭룸",
+      "mood_tag_ids": [
+        "mood_dim_lighting",
+        "mood_lively",
+        "mood_music"
+      ],
+      "mood_evidence": {
+        "mood_dim_lighting": {
+          "urls": [
+            "https://www.magpiebrewing.com/locations",
+            "https://laball-e.tistory.com/14"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_lively": {
+          "urls": [
+            "https://www.magpiebrewing.com/locations",
+            "https://laball-e.tistory.com/14"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_music": {
+          "urls": [
+            "https://www.magpiebrewing.com/locations",
+            "https://laball-e.tistory.com/14"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://www.magpiebrewing.com/locations",
+              "https://laball-e.tistory.com/14"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN"
+      },
+      "public_listing": {
+        "moods": [
+          "은은한 조명",
+          "활기찬",
+          "음악 듣기 좋은"
+        ],
+        "representative_menus": [
+          "페퍼로니 피자",
+          "클래식 마르게리타 피자",
+          "맥파이 포터"
+        ],
+        "seat_summary": "4층 실내 탭룸 테이블과 소파.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA010120220801533893",
+      "name": "더랜치브루잉 을지로3가점",
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "address": "서울특별시 중구 을지로12길 11",
+      "coordinates": [
+        37.5656455046012,
+        126.991261825771
+      ],
+      "venue_category": "PUB",
+      "sub_category": "피자펍",
+      "mood_tag_ids": [
+        "mood_lively"
+      ],
+      "mood_evidence": {
+        "mood_lively": {
+          "urls": [
+            "https://www.bestpizzaseoul.com/",
+            "https://www.diningcode.com/profile.php?rid=BsagiWQ5QuBA"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://www.bestpizzaseoul.com/",
+              "https://www.diningcode.com/profile.php?rid=BsagiWQ5QuBA"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN"
+      },
+      "public_listing": {
+        "moods": [
+          "활기찬"
+        ],
+        "representative_menus": [
+          "디트로이트 페퍼로니",
+          "을지로 라거",
+          "오리지널 치킨 윙"
+        ],
+        "seat_summary": "1층 실내 펍 테이블.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA0101202508A0037997",
+      "name": "제이드앤워터 성수 LCDC점",
+      "district": "성동구",
+      "admin_dong": "성수2가3동",
+      "address": "서울특별시 성동구 연무장17길 10",
+      "coordinates": [
+        37.5417263100345,
+        127.061555019888
+      ],
+      "venue_category": "CAFE",
+      "sub_category": "브런치",
+      "mood_tag_ids": [
+        "mood_relaxed",
+        "mood_urban_view"
+      ],
+      "mood_evidence": {
+        "mood_relaxed": {
+          "urls": [
+            "https://korean.visitseoul.net/restaurants/JadeWaterSeongsuLCDC/KOPhuefly",
+            "https://lcdc-seoul.com/lcdc/shop/"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_urban_view": {
+          "urls": [
+            "https://korean.visitseoul.net/restaurants/JadeWaterSeongsuLCDC/KOPhuefly",
+            "https://lcdc-seoul.com/lcdc/shop/"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://korean.visitseoul.net/restaurants/JadeWaterSeongsuLCDC/KOPhuefly",
+              "https://lcdc-seoul.com/lcdc/shop/"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN"
+      },
+      "public_listing": {
+        "moods": [
+          "여유로운",
+          "도심 뷰"
+        ],
+        "representative_menus": [
+          "옥앤수 몬테크리스토",
+          "옥앤수 새우산도",
+          "옥앤수 김치 프라이드 라이스"
+        ],
+        "seat_summary": "LCDC 4층 실내 홀.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA010120220813167101",
+      "name": "적당",
+      "district": "중구",
+      "admin_dong": "명동",
+      "address": "서울특별시 중구 을지로 29",
+      "coordinates": [
+        37.5664912382563,
+        126.981018026167
+      ],
+      "venue_category": "CAFE",
+      "sub_category": "전통 디저트 카페",
+      "mood_tag_ids": [
+        "mood_calm",
+        "mood_dim_lighting"
+      ],
+      "mood_evidence": {
+        "mood_calm": {
+          "urls": [
+            "https://korean.visitkorea.or.kr/detail/rem_detail.do?cotid=000a93d2-4ed5-4a30-b7ff-8536e9ed7fea",
+            "https://esendial.tistory.com/8372"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_dim_lighting": {
+          "urls": [
+            "https://korean.visitkorea.or.kr/detail/rem_detail.do?cotid=000a93d2-4ed5-4a30-b7ff-8536e9ed7fea",
+            "https://esendial.tistory.com/8372"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://korean.visitkorea.or.kr/detail/rem_detail.do?cotid=000a93d2-4ed5-4a30-b7ff-8536e9ed7fea",
+              "https://esendial.tistory.com/8372"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN"
+      },
+      "public_listing": {
+        "moods": [
+          "차분한",
+          "은은한 조명"
+        ],
+        "representative_menus": [
+          "밤양갱",
+          "밀크티 양갱",
+          "백설기 앙버터"
+        ],
+        "seat_summary": "건물 1층 후문 쪽 실내 테이블.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA0106202507A2312203",
+      "name": "맥파이앤타이거 성수티룸",
+      "district": "성동구",
+      "admin_dong": "성수2가3동",
+      "address": "서울특별시 성동구 성수이로 97",
+      "coordinates": [
+        37.5436569330896,
+        127.056589079948
+      ],
+      "venue_category": "CAFE",
+      "sub_category": "티룸",
+      "mood_tag_ids": [
+        "mood_calm",
+        "mood_urban_view",
+        "mood_book"
+      ],
+      "mood_evidence": {
+        "mood_calm": {
+          "urls": [
+            "https://magpie-and-tiger.com/showdesign/store.html",
+            "https://www.diningcode.com/profile.php?rid=TrlEABcNpj8Z"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_urban_view": {
+          "urls": [
+            "https://magpie-and-tiger.com/showdesign/store.html",
+            "https://www.diningcode.com/profile.php?rid=TrlEABcNpj8Z"
+          ],
+          "checked_on": "2026-11-06"
+        },
+        "mood_book": {
+          "urls": [
+            "https://magpie-and-tiger.com/showdesign/store.html",
+            "https://www.diningcode.com/profile.php?rid=TrlEABcNpj8Z"
+          ],
+          "checked_on": "2026-11-06"
+        }
+      },
+      "seats": {
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "urls": [
+              "https://magpie-and-tiger.com/showdesign/store.html",
+              "https://www.diningcode.com/profile.php?rid=TrlEABcNpj8Z"
+            ],
+            "checked_on": "2026-11-06"
+          }
+        },
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN"
+      },
+      "public_listing": {
+        "moods": [
+          "차분한",
+          "도심 뷰",
+          "책 읽기 좋은"
+        ],
+        "representative_menus": [
+          "목련현미녹차",
+          "자몽 홍차 아이스티",
+          "바스크 치즈케이크"
+        ],
+        "seat_summary": "5층 실내 테이블과 통창 바. 건물 옥상의 일반 이용은 미확인.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    },
+    {
+      "venue_id": "VN_MVP_MA010120220800186207",
+      "name": "산울림1992",
+      "district": "마포구",
+      "admin_dong": "서강동",
+      "address": "서울특별시 마포구 서강로9길 60",
+      "source_store_id": "MA010120220800186207",
+      "source_csv": "서울_매장_확장_검증_38곳.csv",
+      "mood_tag_ids": [
+        "mood_cozy",
+        "mood_conversation"
+      ],
+      "mood_evidence": {
+        "mood_cozy": {
+          "observed": "예약 안내가 이 지점의 아늑한 분위기를 설명합니다.",
+          "urls": [
+            "https://autoreserve.com/ko/restaurants/mfqgu33ticuUcinGZUa8"
+          ]
+        },
+        "mood_conversation": {
+          "observed": "예약 안내에서 넓은 테이블 간격과 대화하기 편한 환경을 설명합니다.",
+          "urls": [
+            "https://autoreserve.com/ko/restaurants/mfqgu33ticuUcinGZUa8"
+          ]
+        }
+      },
+      "seats": {
+        "indoor": "CONFIRMED",
+        "outdoor": "UNKNOWN",
+        "outdoor_in_rain": "UNKNOWN",
+        "evidence": {
+          "indoor": {
+            "observed": "지하 1층 실내 홀과 바 테이블.",
+            "urls": [
+              "https://www.diningcode.com/profile.php?rid=dYGzVuySFVs8"
+            ]
+          }
+        }
+      },
+      "coordinates": [
+        37.5546422349158,
+        126.930523626816
+      ],
+      "venue_category": "PUB",
+      "sub_category": "막걸리·전통주점",
+      "public_listing": {
+        "moods": [
+          "아늑한",
+          "대화하기 편한"
+        ],
+        "representative_menus": [
+          "해물파전",
+          "복순도가 손막걸리"
+        ],
+        "seat_summary": "지하 1층 실내 홀과 바 테이블.",
+        "checked_on": "2026-11-06",
+        "registry_url": "https://www.data.go.kr/data/15083033/fileData.do"
+      }
+    }
+  ],
+  "menus": [
+    {
+      "menu_id": "MN_DEMO_03581",
+      "venue_id": "VN_SL_033264",
+      "name": "콜드브루",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_cold_brew"
+      ],
+      "evidence": {
+        "urls": [
+          "https://github.com/encore-ai-campus/mlo-01-p4-team1/blob/07f6f1c/app/backend/venues/sample_data/seoul_venue_menus_demo_sample.csv",
+          "https://www.diningcode.com/profile.php?rid=MbhAFpGh10v7"
+        ]
+      }
+    },
+    {
+      "menu_id": "MN_DEMO_03582",
+      "venue_id": "VN_SL_033264",
+      "name": "아메리카노",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_americano"
+      ],
+      "evidence": {
+        "urls": [
+          "https://github.com/encore-ai-campus/mlo-01-p4-team1/blob/07f6f1c/app/backend/venues/sample_data/seoul_venue_menus_demo_sample.csv",
+          "https://www.diningcode.com/profile.php?rid=MbhAFpGh10v7"
+        ]
+      }
+    },
+    {
+      "menu_id": "MN_DEMO_03579",
+      "venue_id": "VN_SL_033264",
+      "name": "초코청크쿠키",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_cookie"
+      ],
+      "evidence": {
+        "urls": [
+          "https://github.com/encore-ai-campus/mlo-01-p4-team1/blob/07f6f1c/app/backend/venues/sample_data/seoul_venue_menus_demo_sample.csv",
+          "https://www.diningcode.com/profile.php?rid=MbhAFpGh10v7"
+        ]
+      }
+    },
+    {
+      "menu_id": "MN_MVP_MA010120220812594063_01",
+      "venue_id": "VN_MVP_MA010120220812594063",
+      "name": "파네토네",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_bread"
+      ],
+      "evidence": {
+        "observed": "수집본과 성수이로 78 지점의 메뉴 목록에서 확인했습니다.",
+        "urls": [
+          "https://polle.com/place/3sFKT9/%EB%8C%80%EB%A6%BC%EC%B0%BD%EA%B3%A0"
+        ]
+      }
+    },
+    {
+      "name": "아메리카노",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_americano"
+      ],
+      "evidence": {
+        "urls": [
+          "https://pcmap.place.naver.com/restaurant/37910590/menu/list"
+        ],
+        "checked_on": "2026-11-10"
+      },
+      "venue_id": "VN_MVP_MA010120220812594063",
+      "menu_id": "MN_MVP_MA010120220812594063_02"
+    },
+    {
+      "menu_id": "MN_MVP_MA010120220812374911_01",
+      "venue_id": "VN_MVP_MA010120220812374911",
+      "name": "소금빵",
+      "evidence": {
+        "observed": "서울시 소개가 다양한 소금빵을 대표 메뉴로 명시합니다.",
+        "urls": [
+          "https://love.seoul.go.kr/articles/10330"
+        ]
+      },
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_salt_bread"
+      ]
+    },
+    {
+      "menu_id": "MN_MVP_MA010120220812374911_02",
+      "venue_id": "VN_MVP_MA010120220812374911",
+      "name": "아메리카노",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_americano"
+      ],
+      "evidence": {
+        "observed": "매장 소개가 아메리카노와 원두 선택을 안내합니다.",
+        "urls": [
+          "https://www.ktriptips.com/kor/food/2895111"
+        ]
+      }
+    },
+    {
+      "menu_id": "MN_MVP_MA0101202305A0080350_01",
+      "venue_id": "VN_MVP_MA0101202305A0080350",
+      "name": "서울 호펜바이세 (드래프트)",
+      "evidence": {
+        "observed": "운영사가 크래프트 맥주로 소개하고 성수점 드래프트 제공을 명시합니다.",
+        "urls": [
+          "https://www.seoulbrewery.com/features"
+        ]
+      },
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_draft_beer",
+        "menu_craft_beer"
+      ]
+    },
+    {
+      "menu_id": "MN_MVP_MA0101202305A0080350_02",
+      "venue_id": "VN_MVP_MA0101202305A0080350",
+      "name": "체코식 다크 라거 굴라쉬",
+      "evidence": {
+        "observed": "지점 QR 메뉴가 굴라쉬를 비프 스튜로 설명합니다.",
+        "urls": [
+          "https://tag-here.com/menu/seoulbrewery-seongsu/view"
+        ]
+      },
+      "cuisine_tag_ids": [
+        "cuisine_czech"
+      ],
+      "menu_type_tag_ids": [
+        "menu_goulash"
+      ]
+    },
+    {
+      "name": "토마토 샐러드와 올리브",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_salad"
+      ],
+      "evidence": {
+        "urls": [
+          "https://tag-here.com/menu/seoulbrewery-seongsu/view"
+        ],
+        "checked_on": "2026-11-10"
+      },
+      "venue_id": "VN_MVP_MA0101202305A0080350",
+      "menu_id": "MN_MVP_MA0101202305A0080350_03"
+    },
+    {
+      "name": "서울 라이스 라거 400mL",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_draft_beer"
+      ],
+      "evidence": {
+        "urls": [
+          "https://tag-here.com/menu/seoulbrewery-seongsu/view"
+        ],
+        "checked_on": "2026-11-10"
+      },
+      "venue_id": "VN_MVP_MA0101202305A0080350",
+      "menu_id": "MN_MVP_MA0101202305A0080350_04"
+    },
+    {
+      "menu_id": "MN_MVP_MA0101202305A0080350_05",
+      "venue_id": "VN_MVP_MA0101202305A0080350",
+      "name": "서울브루어리 프라이드 치킨",
+      "evidence": {
+        "observed": "서울브루어리 성수 공개 메뉴판의 프라이드 치킨 항목.",
+        "urls": [
+          "https://tag-here.com/menu/seoulbrewery-seongsu/view"
+        ]
+      },
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_fried_chicken"
+      ]
+    },
+    {
+      "menu_id": "MN_MVP_MA0101202308A0047504_01",
+      "venue_id": "VN_MVP_MA0101202308A0047504",
+      "name": "홀리 세트 (모둠 오뎅, 2인)",
+      "evidence": {
+        "observed": "지점 메뉴의 모둠 오뎅과 예약 안내의 오뎅 육수를 확인했습니다. 같은 주소의 일본식 오뎅 제공 기록을 계열 근거로 사용했습니다.",
+        "urls": [
+          "https://map.naver.com/p/entry/place/1234978037?placePath=%2Fmenu",
+          "https://m.booking.naver.com/booking/6/bizes/1147878/items/5956999?area=bmp&theme=place&service-target=map-pc&lang=ko",
+          "https://www.diningcode.com/profile.php?rid=OGaSCNMAe0Fv"
+        ]
+      },
+      "cuisine_tag_ids": [
+        "cuisine_japanese"
+      ],
+      "menu_type_tag_ids": [
+        "menu_fishcake_soup"
+      ]
+    },
+    {
+      "menu_id": "MN_MVP_MA0101202308A0047504_02",
+      "venue_id": "VN_MVP_MA0101202308A0047504",
+      "name": "기린 생맥주",
+      "evidence": {
+        "observed": "지점 메뉴에 기린 생맥주가 기재되어 있습니다.",
+        "urls": [
+          "https://map.naver.com/p/entry/place/1234978037?placePath=%2Fmenu"
+        ]
+      },
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_draft_beer"
+      ]
+    },
+    {
+      "menu_id": "MN_MVP_MA0101202504A0054143_01",
+      "venue_id": "VN_MVP_MA0101202504A0054143",
+      "name": "직화마라탕(2인)",
+      "evidence": {
+        "observed": "대표메뉴 안내에 직화마라탕(2인)과 마라육수가 명시되어 있습니다. 관광재단의 중국식 콘셉트와 마라탕 설명을 함께 확인했습니다.",
+        "urls": [
+          "https://korean.visitseoul.net/restaurants/Maradowon/KOP9xvv34"
+        ]
+      },
+      "cuisine_tag_ids": [
+        "cuisine_chinese"
+      ],
+      "menu_type_tag_ids": [
+        "menu_malatang"
+      ]
+    },
+    {
+      "name": "닭다리살 키조쿠 타레 1주문(꼬치 2개)",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_yakitori"
+      ],
+      "evidence": {
+        "urls": [
+          "https://torikizoku-kor.com/wp-public/wp-content/uploads/2026/01/menu_kor.pdf"
+        ],
+        "checked_on": "2026-11-10"
+      },
+      "venue_id": "VN_MVP_MA0106202607A2432100",
+      "menu_id": "MN_MVP_MA0106202607A2432100_01"
+    },
+    {
+      "name": "더 프리미엄 몰츠 생맥주",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_draft_beer"
+      ],
+      "evidence": {
+        "urls": [
+          "https://torikizoku-kor.com/wp-public/wp-content/uploads/2026/01/menu_kor.pdf"
+        ],
+        "checked_on": "2026-11-10"
+      },
+      "venue_id": "VN_MVP_MA0106202607A2432100",
+      "menu_id": "MN_MVP_MA0106202607A2432100_02"
+    },
+    {
+      "menu_id": "MN_MVP_MA0101202508A0037997_01",
+      "venue_id": "VN_MVP_MA0101202508A0037997",
+      "name": "옥앤수 새우산도",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_sando"
+      ],
+      "evidence": {
+        "observed": "서울관광재단의 해당 지점 대표 메뉴입니다.",
+        "urls": [
+          "https://korean.visitseoul.net/restaurants/JadeWaterSeongsuLCDC/KOPhuefly"
+        ]
+      }
+    },
+    {
+      "menu_id": "MN_MVP_MA0101202508A0037997_02",
+      "venue_id": "VN_MVP_MA0101202508A0037997",
+      "name": "옥앤수 김치 프라이드 라이스",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_fried_rice"
+      ],
+      "evidence": {
+        "observed": "서울관광재단 대표 메뉴에서 해당 메뉴명을 확인했습니다.",
+        "urls": [
+          "https://korean.visitseoul.net/restaurants/JadeWaterSeongsuLCDC/KOPhuefly"
+        ]
+      }
+    },
+    {
+      "menu_id": "MN_MVP_MA0101202508A0037997_03",
+      "venue_id": "VN_MVP_MA0101202508A0037997",
+      "name": "옥앤수 초리조 라구 파스타",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_pasta"
+      ],
+      "evidence": {
+        "observed": "서울관광재단 대표 메뉴에서 해당 메뉴명을 확인했습니다.",
+        "urls": [
+          "https://korean.visitseoul.net/restaurants/JadeWaterSeongsuLCDC/KOPhuefly"
+        ]
+      }
+    },
+    {
+      "menu_id": "MN_MVP_MA010120220813167101_01",
+      "venue_id": "VN_MVP_MA010120220813167101",
+      "name": "밀크티 양갱",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_yanggaeng"
+      ],
+      "evidence": {
+        "observed": "한국관광공사와 방문 기록에 나온 수집 사례입니다. 시범에서 양갱 메뉴로 분류했습니다.",
+        "urls": [
+          "https://korean.visitkorea.or.kr/detail/rem_detail.do?cotid=000a93d2-4ed5-4a30-b7ff-8536e9ed7fea",
+          "https://polle.com/place/4p30o0/%EC%A0%81%EB%8B%B9"
+        ]
+      }
+    },
+    {
+      "menu_id": "MN_MVP_MA010120220813167101_02",
+      "venue_id": "VN_MVP_MA010120220813167101",
+      "name": "백설기 앙버터",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_rice_cake"
+      ],
+      "evidence": {
+        "observed": "관광공사가 백설기와 팥으로 만든 간식으로 설명합니다.",
+        "urls": [
+          "https://korean.visitkorea.or.kr/detail/rem_detail.do?cotid=000a93d2-4ed5-4a30-b7ff-8536e9ed7fea"
+        ]
+      }
+    },
+    {
+      "menu_id": "MN_MVP_MA010120220800186207_seafood_pajeon",
+      "venue_id": "VN_MVP_MA010120220800186207",
+      "name": "해물파전",
+      "cuisine_tag_ids": [
+        "cuisine_korean"
+      ],
+      "menu_type_tag_ids": [
+        "menu_pajeon"
+      ],
+      "evidence": {
+        "observed": "예약 메뉴가 해물파전을 한식 안주로 안내합니다.",
+        "urls": [
+          "https://autoreserve.com/ko/restaurants/mfqgu33ticuUcinGZUa8"
+        ]
+      }
+    },
+    {
+      "menu_id": "MN_MVP_MA010120220800186207_makgeolli",
+      "venue_id": "VN_MVP_MA010120220800186207",
+      "name": "복순도가 손막걸리",
+      "cuisine_tag_ids": [],
+      "menu_type_tag_ids": [
+        "menu_makgeolli"
+      ],
+      "evidence": {
+        "observed": "지점 예약 메뉴의 막걸리 목록에서 확인했습니다.",
+        "urls": [
+          "https://autoreserve.com/ko/restaurants/mfqgu33ticuUcinGZUa8"
+        ]
+      }
+    }
+  ],
+  "basis": [
+    "팀 시연 CSV 원본 ID에 연결된 파스텔서촌점",
+    "서울_매장_확장_검증_38곳.csv 중 성수·을지로 27곳",
+    "시범 카탈로그에서 확인한 산울림1992와 해물파전·손막걸리",
+    "공개 지점 메뉴를 대조한 1인 주문 예시 4건"
+  ],
+  "notes": [
+    "분위기는 공개자료 기반 태그",
+    "우천 야외 이용 정책 미확인",
+    "주문 예시는 확인한 메뉴 단가의 합계"
+  ]
+}

@@ -129,8 +129,9 @@ def render(output):
             test.write_text(original[:start]+'variables { binding = '+json.dumps(bound)+' }\n'+original[end:])
             raw=run([str(tool),'-chdir='+str(root),'test','-json','-verbose'],env,artifacts/('bound-'+account+'-artifact-controller-test.jsonl'))
             bound_states[account]=state_from_test(raw)
-        from security import audit_bound,audit_transfer
+        from security import audit_bound,audit_transfer,bound_mutation_checks
         audit_bound(bound_states['encore1'],bound)
+        bound_mutation_checks(bound_states['encore1'],bound)
         audit_transfer(bound_states,bound)
         import copy
         wrong_ids=copy.deepcopy(bound)
@@ -144,6 +145,8 @@ def render(output):
         require(refused.returncode!=0 and 'Controller prefixes must equal this account actual EC2 instance set' in refused.stdout,'stale/cross-account controller instance binding accepted')
         print('PASS: evaluated Terraform precondition rejects swapped cross-account controller IDs')
         test_dispatcher(bound_states['encore1'],bound,work)
+        from track2_integration import exercise
+        exercise(work,env,artifacts,tool,parts,bound)
         require(export(list(reversed(parts)))==inv,'order-dependent exporter')
         # Exporter must preserve a previous valid inventory on failed replacement.
         before=Path(output).read_bytes()
@@ -162,7 +165,7 @@ def main():
         render(output)
         if not a.render:
             latest=read_json(FOUNDATION/'.artifacts/latest-run.json')
-            run([sys.executable,'-m','unittest','discover','-s',str(FOUNDATION/'tests'),'-p','test_wrapper.py','-v'],os.environ.copy(),FOUNDATION/latest['logs']/'wrapper.log')
+            run([sys.executable,str(ROOT/'scripts/required_suite.py'),'--start',str(FOUNDATION/'tests'),'--pattern','test_wrapper.py'],os.environ.copy(),FOUNDATION/latest['logs']/'wrapper.log')
             print('PASS: fake CLI wrapper failure/restart checks')
     except (ValueError,KeyError,OSError,subprocess.SubprocessError) as exc:print(f'FAIL: {exc}',file=sys.stderr);return 2
     return 0

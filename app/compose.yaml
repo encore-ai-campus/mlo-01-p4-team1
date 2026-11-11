@@ -26,6 +26,16 @@ x-api-environment: &api-env
   MUSIC_RAW_DIRECTORY: /workspace/app/.local/music-raw
   GEMINI_ENABLED: "0"
   YOUTUBE_PLAYBACK_MODE: KEYLESS
+  MEMBER_EMAIL_KEYS: '{"local":"${MLO_DEV_MEMBER_EMAIL_KEY:?Run python3 docker/init_dev_env.py}"}'
+  MEMBER_ACTIVE_EMAIL_KEY: local
+  MEMBER_LOOKUP_KEY: ${MLO_DEV_MEMBER_LOOKUP_KEY:?Run python3 docker/init_dev_env.py}
+  MEMBER_PUBLIC_ORIGIN: http://localhost:5173
+  EMAIL_HOST: mailpit
+  EMAIL_PORT: "1025"
+  EMAIL_USE_TLS: "0"
+  DEFAULT_FROM_EMAIL: accounts@example.org
+  ADMIN_PASSKEY_RP_ID: localhost
+  ADMIN_PASSKEY_ORIGIN: http://localhost:5173
 
 x-ads-environment: &ads-env
   DJANGO_DEBUG: "1"
@@ -41,8 +51,27 @@ x-ads-environment: &ads-env
   ADS_MONGODB_URI: "mongodb://mongo:27017/?replicaSet=ads-rs"
   ADS_MONGODB_DATABASE: advertising_dev
   ADS_COMMON_API_URL: "http://api:8001"
+  ADS_COMMON_DEV_HTTP_ORIGINS: "http://api:8001"
   ADS_INTERNAL_SECRET: ${MLO_DEV_ADS_INTERNAL_SECRET:?Run python3 docker/init_dev_env.py}
   ADS_DELIVERY_SIGNING_KEY: ${MLO_DEV_ADS_SIGNING_KEY:?Run python3 docker/init_dev_env.py}
+  ADS_V2_ENABLED: ${ADS_V2_ENABLED:-0}
+  ADS_V2_SOURCE_MONGODB_URI: "mongodb://mongo:27017/?replicaSet=ads-rs"
+  ADS_V2_SOURCE_MONGODB_DATABASE: ads_v2_source_dev
+  ADS_V2_SINK_MONGODB_URI: "mongodb://mongo:27017/?replicaSet=ads-rs"
+  ADS_V2_SINK_MONGODB_DATABASE: ads_v2_sink_dev
+  ADS_V2_SOURCE_ID: ${ADS_V2_SOURCE_ID:-}
+  ADS_V2_MEDIA_ID: ${ADS_V2_MEDIA_ID:-}
+  ADS_V2_INTERVAL_SECONDS: ${ADS_V2_INTERVAL_SECONDS:-300}
+  ADS_V2_KAFKA_BOOTSTRAP_SERVERS: ${ADS_V2_KAFKA_BOOTSTRAP_SERVERS:-}
+  ADS_V2_KAFKA_TOPIC: ${ADS_V2_KAFKA_TOPIC:-}
+  ADS_V2_KAFKA_USERNAME: ${ADS_V2_KAFKA_USERNAME:-}
+  ADS_V2_KAFKA_PASSWORD: ${ADS_V2_KAFKA_PASSWORD:-}
+  ADS_V2_KAFKA_CA_FILE: /opt/mlo/analytics-runtime/kafka-ca.pem
+  ADS_V2_KAFKA_PARTITIONS: ${ADS_V2_KAFKA_PARTITIONS:-0}
+  ADS_V2_KAFKA_REPLICATION_FACTOR: ${ADS_V2_KAFKA_REPLICATION_FACTOR:-0}
+  ADS_V2_SPARK_MASTER: ${ADS_V2_SPARK_MASTER:-}
+  ADS_V2_CHECKPOINT: ${ADS_V2_CHECKPOINT:-}
+  ADS_V2_SPARK_JARS: ${ADS_V2_SPARK_JARS:-}
 
 services:
   postgres:
@@ -67,12 +96,30 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
-    environment: *api-env
+      target: development
+    environment:
+      <<: *api-env
+      # Optional local integration; disabled unless explicitly configured.
+      PLATFORM_LOCAL_MVP: ${PLATFORM_LOCAL_MVP:-0}
+      PHASE4_WORKER_TOKEN: ${PHASE4_WORKER_TOKEN:-}
+      PHASE4_ALLOW_INSECURE_WORKER_LOCAL: ${PHASE4_ALLOW_INSECURE_WORKER_LOCAL:-0}
+      PHASE4_LEASE_SECONDS: ${PHASE4_LEASE_SECONDS:-900}
+      VENUE_MCP_SERVER: ${VENUE_MCP_SERVER:-}
+      VENUE_MCP_SERVICE_ENABLED: ${VENUE_MCP_SERVICE_ENABLED:-0}
+      VENUE_MCP_PUBLIC_CATALOG: ${VENUE_MCP_PUBLIC_CATALOG:-}
+      VENUE_MCP_PYTHON: /opt/mlo/venue-mcp/bin/python
+      VENUE_WEATHER_BASE_URL: ${VENUE_WEATHER_BASE_URL:-}
+      VENUE_LLM_PROVIDER: ${VENUE_LLM_PROVIDER:-}
+      VENUE_LLM_MODEL: ${VENUE_LLM_MODEL:-}
+      GEMINI_ENABLED: ${GEMINI_ENABLED:-0}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_TIMEOUT_MS: ${GEMINI_TIMEOUT_MS:-8000}
     volumes:
       - .:/workspace/app:ro
       - common_local_data:/workspace/app/.local
       - youtube_review_data:/workspace/app/.local-preview-logs
-    command: ["python", "-m", "backend.manage", "runserver", "0.0.0.0:8001"]
+    # ASGI lifespan starts and stops the MCP subprocess; WSGI runserver cannot.
+    command: ["python", "-m", "uvicorn", "backend.cafe.asgi:application", "--host", "0.0.0.0", "--port", "8001"]
     ports:
       - "127.0.0.1:8001:8001"
     depends_on:
@@ -93,6 +140,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+      target: development
     environment: *api-env
     volumes:
       - .:/workspace/app:ro
@@ -103,6 +151,20 @@ services:
       api:
         condition: service_healthy
     restart: unless-stopped
+    networks: [dev]
+
+  account-mail-worker:
+    profiles: [workers]
+    image: mlo-p4-api:dev
+    environment: *api-env
+    volumes:
+      - .:/workspace/app:ro
+    command: ["python", "-m", "backend.manage", "deliver_account_mail"]
+    depends_on:
+      api:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
     networks: [dev]
 
   frontend:
@@ -144,7 +206,7 @@ services:
     networks: [dev]
 
   mongo:
-    profiles: [ads]
+    profiles: [ads, ads-workers, ads-tests, ads-analytics, ads-analytics-spark]
     image: mongo:8.0.17@sha256:9814652e33f0cf8b9fddea8b46dfc9d8e19b130dcfdd7b510ca58bb0d40c8b71
     command: ["mongod", "--replSet", "ads-rs", "--bind_ip_all"]
     volumes:
@@ -159,7 +221,7 @@ services:
     networks: [dev]
 
   mongo-init:
-    profiles: [ads]
+    profiles: [ads, ads-workers, ads-tests, ads-analytics, ads-analytics-spark]
     image: mongo:8.0.17@sha256:9814652e33f0cf8b9fddea8b46dfc9d8e19b130dcfdd7b510ca58bb0d40c8b71
     depends_on:
       mongo:
@@ -175,12 +237,28 @@ services:
     restart: "no"
     networks: [dev]
 
-  ads:
-    profiles: [ads]
+  ads-runtime-init:
+    profiles: [ads, ads-workers, ads-tests]
     image: mlo-p4-ads:dev
     build:
       context: .
       dockerfile: docker/ads.Dockerfile
+      target: development
+    environment: *ads-env
+    command: ["python", "manage.py", "prepare_ads_runtime", "--apply"]
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+    restart: "no"
+    networks: [dev]
+
+  ads:
+    profiles: [ads, ads-workers]
+    image: mlo-p4-ads:dev
+    build:
+      context: .
+      dockerfile: docker/ads.Dockerfile
+      target: development
     environment: *ads-env
     volumes:
       - .:/workspace/app:ro
@@ -190,7 +268,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      mongo-init:
+      ads-runtime-init:
         condition: service_completed_successfully
       api:
         condition: service_healthy
@@ -204,18 +282,27 @@ services:
     networks: [dev]
 
   ads-worker:
-    profiles: [ads-workers]
+    profiles: [ads, ads-workers]
     image: mlo-p4-ads:dev
     build:
       context: .
       dockerfile: docker/ads.Dockerfile
-    environment: *ads-env
+      target: development
+    environment:
+      <<: *ads-env
+      ADS_WORKER_HEALTH_FILE: /tmp/ads-policy-health.json
     volumes:
       - .:/workspace/app:ro
     command: ["python", "manage.py", "run_ads_workers", "--watch"]
     depends_on:
       ads:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "workers.ads_worker_health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
     restart: unless-stopped
     networks: [dev]
 
@@ -225,6 +312,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+      target: development
     environment:
       DJANGO_SETTINGS_MODULE: backend.cafe.settings
       DJANGO_SECRET_KEY: ${MLO_DEV_API_SECRET_KEY:?Run python3 docker/init_dev_env.py}
@@ -243,6 +331,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+      target: development
     environment: *api-env
     # Uses Django's automatically created and deleted *test* PostgreSQL DB.
     # Source is embedded in the image, not bind-mounted read-only.
@@ -253,12 +342,63 @@ services:
     restart: "no"
     networks: [dev]
 
+  ads-analytics-collect:
+    profiles: [ads-analytics]
+    image: mlo-p4-ads-analytics:dev
+    build:
+      context: .
+      dockerfile: docker/ads.Dockerfile
+      target: analytics-worker
+    environment: *ads-env
+    command: ["python", "manage.py", "run_ads_analytics", "--stage", "collect", "--watch"]
+    volumes:
+      - ./.local/ads-analytics-runtime:/opt/mlo/analytics-runtime:ro
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+    restart: "no"
+    networks: [dev]
+
+  ads-analytics-publish:
+    profiles: [ads-analytics]
+    image: mlo-p4-ads-analytics:dev
+    build:
+      context: .
+      dockerfile: docker/ads.Dockerfile
+      target: analytics-worker
+    environment: *ads-env
+    command: ["python", "manage.py", "run_ads_analytics", "--stage", "publish", "--watch"]
+    volumes:
+      - ./.local/ads-analytics-runtime:/opt/mlo/analytics-runtime:ro
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+    restart: "no"
+    networks: [dev]
+
+  ads-analytics-spark:
+    profiles: [ads-analytics-spark]
+    image: mlo-p4-ads-analytics-spark:dev
+    build:
+      context: .
+      dockerfile: docker/ads.Dockerfile
+      target: analytics-spark
+    environment: *ads-env
+    volumes:
+      - ./.local/ads-analytics-runtime:/opt/mlo/analytics-runtime:ro
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+    restart: "no"
+    networks: [dev]
+
   ads-test:
     profiles: [ads-tests]
     image: mlo-p4-ads:dev
     build:
       context: .
       dockerfile: docker/ads.Dockerfile
+      target: development
     environment:
       <<: *ads-env
       ADS_RUN_MONGO_TESTS: "0"
@@ -266,7 +406,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      mongo-init:
+      ads-runtime-init:
         condition: service_completed_successfully
     restart: "no"
     networks: [dev]

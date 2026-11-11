@@ -33,6 +33,7 @@ def bucket_module():
     'aws_s3_bucket_versioning':{'this':{'bucket':ex('aws_s3_bucket.this.id'),'versioning_configuration':[{'status':'Enabled'}]}},
     'aws_s3_bucket_server_side_encryption_configuration':{'this':{'bucket':ex('aws_s3_bucket.this.id'),'rule':[{'apply_server_side_encryption_by_default':[{'sse_algorithm':'AES256'}]}]}},
     'aws_s3_bucket_policy':{'this':{'bucket':ex('aws_s3_bucket.this.id'),'policy':ex('jsonencode({Version="2012-10-17",Statement=concat([{Effect="Deny",Principal="*",Action="s3:*",Resource=[aws_s3_bucket.this.arn,"${aws_s3_bucket.this.arn}/*"],Condition={Bool={"aws:SecureTransport"="false"}}}],var.statements)})')}}}
+    r['aws_s3_bucket_policy']['this']['lifecycle']={'precondition':[{'condition':ex('length('+r['aws_s3_bucket_policy']['this']['policy'][2:-1]+')<=20480'),'error_message':'S3 bucket policy exceeds 20 KiB; review the principal/query registry.'}]}
     return {'terraform':V,'variable':{'name':{'type':'string'},'statements':{'type':'any','default':[]}},'resource':r,'output':{'name':{'value':ex('aws_s3_bucket.this.id')}}}
 
 def account_module():
@@ -56,14 +57,31 @@ def account_module():
     add('aws_route_table','this',{'for_each':ex('local.subnets'),'vpc_id':ex('aws_vpc.this.id')})
     add('aws_route_table_association','this',{'for_each':ex('local.subnets'),'subnet_id':ex('aws_subnet.this[each.key].id'),'route_table_id':ex('aws_route_table.this[each.key].id')})
     add('aws_route','internet',{'for_each':ex('{for k,s in local.subnets:k=>s if s.kind=="public" && contains(["encore1","encore5"],var.account)}'),'route_table_id':ex('aws_route_table.this[each.key].id'),'destination_cidr_block':'0.0.0.0/0','gateway_id':ex('aws_internet_gateway.this[0].id')})
+    # S3A probes each continuous query's bare checkpoint key before listing
+    # its directory. Keep this read-only grant separate from descendant I/O.
+    loc['control_checkpoint_keys'] = ex('[for q in ["weather-stream","feedback-postgresql"]:"aws/${var.binding.environment}/${var.binding.generation}/${q}/checkpoint"]')
+    loc['control_checkpoint_roles'] = ex('[for name in keys(local.nodes):name if var.account=="encore1" && contains(["control-a","control-b"],name)]')
+    loc['control_checkpoint_probes'] = ex('[{Effect="Allow",Action=["s3:GetObject"],'
+        'Resource=[for key in local.control_checkpoint_keys:"arn:aws:s3:::${var.binding.bucket_names.lake}/${key}"]},'
+        '{Effect="Allow",Action=["s3:ListBucket"],Resource=["arn:aws:s3:::${var.binding.bucket_names.lake}"],'
+        'Condition={StringEquals={"s3:prefix"=local.control_checkpoint_keys}}}]')
+    # The endpoint policy is already attached to this gateway. Referencing
+    # its own computed ID there would create a Terraform dependency cycle.
+    checkpoint_endpoint = ('flatten([for name in local.control_checkpoint_roles:[for s in local.control_checkpoint_probes:merge(s,{'
+        'Principal="*",Condition=merge(try(s.Condition,{}),{ArnEquals={"aws:PrincipalArn"="arn:aws:iam::${var.binding.account_ids.encore1}:role/p4-runtime-${name}"}})})]])')
+    loc['control_checkpoint_bound_probes'] = ex('[for s in local.control_checkpoint_probes:merge(s,{Condition={'
+        'StringEquals=merge(try(s.Condition.StringEquals,{}),{"aws:SourceVpce"=aws_vpc_endpoint.s3.id})}})]')
     endpoint_policy=ex('jsonencode({Version="2012-10-17",Statement=concat([{Effect="Allow",Principal="*",Action=["s3:GetObject","s3:GetObjectVersion","s3:PutObject","s3:DeleteObject","s3:AbortMultipartUpload","s3:ListMultipartUploadParts","s3:ListBucket","s3:ListBucketMultipartUploads","s3:GetBucketLocation"],Resource=local.s3_resources,Condition={ArnEquals={"aws:PrincipalArn"=local.local_runtime_arns}}}],[for s in local.controller_grants:merge(s,{Principal="*",Condition=merge(try(s.Condition,{}),{ArnEquals={"aws:PrincipalArn"=local.controller_arn}})})],local.artifact_enabled ? [{Effect="Allow",Principal="*",Action=["s3:GetObjectVersion"],Resource=["arn:aws:s3:::${var.binding.bucket_names.transfer}/${local.artifact_key}"],Condition={StringEquals={"s3:VersionId"=local.artifact_version},ArnEquals={"aws:PrincipalArn"=local.local_runtime_arns}}}] : [])})')
     add('aws_vpc_endpoint','s3',{'vpc_id':ex('aws_vpc.this.id'),'service_name':'com.amazonaws.ap-northeast-2.s3','vpc_endpoint_type':'Gateway','route_table_ids':ex('[for r in aws_route_table.this:r.id]'),'policy':endpoint_policy})
     # Operation traffic has a separate exact key, not a Terraform state or data
     # prefix. Identity, central bucket and local endpoint must all permit it.
     endpoint=r['aws_vpc_endpoint']['s3']['policy'][2:-1]
     endpoint=endpoint.replace('Statement=concat([','Statement=concat([{Effect="Allow",Principal="*",Action='+json.dumps(operation_actions())+',Resource=[local.operation_arn],Condition={ArnEquals={"aws:PrincipalArn"=local.local_runtime_arns}}}],[' ,1)
+    endpoint=endpoint.replace('Statement=concat(', 'Statement=concat('+checkpoint_endpoint+',', 1)
     r['aws_vpc_endpoint']['s3']['policy']=ex(endpoint)
-    add('aws_security_group','host',{'for_each':ex('local.nodes'),'name':ex('"p4-${each.key}"'),'vpc_id':ex('aws_vpc.this.id'),'ingress':[],'egress':[]})
+    # Standalone rules own ingress/egress. Empty inline lists would revoke them
+    # on a later refresh/apply (the default SG remains explicitly closed).
+    add('aws_security_group','host',{'for_each':ex('local.nodes'),'name':ex('"p4-${each.key}"'),'vpc_id':ex('aws_vpc.this.id')})
     add('aws_security_group_rule','flow_in',{'for_each':ex('{for k,f in local.flows:k=>f if contains(keys(local.nodes),f.target)}'),'type':'ingress','security_group_id':ex('aws_security_group.host[each.value.target].id'),'protocol':'tcp','from_port':ex('each.value.low'),'to_port':ex('each.value.high'),'cidr_blocks':ex('["${local.addresses[each.value.source]}/32"]')})
     add('aws_security_group_rule','flow_out',{'for_each':ex('{for k,f in local.flows:k=>f if contains(keys(local.nodes),f.source)}'),'type':'egress','security_group_id':ex('aws_security_group.host[each.value.source].id'),'protocol':'tcp','from_port':ex('each.value.low'),'to_port':ex('each.value.high'),'cidr_blocks':ex('["${local.addresses[each.value.target]}/32"]')})
     add('aws_security_group_rule','ssm_out',{'for_each':ex('local.nodes'),'type':'egress','security_group_id':ex('aws_security_group.host[each.key].id'),'protocol':'tcp','from_port':443,'to_port':443,'cidr_blocks':ex('[cidrsubnet(var.binding.cidrs.encore1,8,1)]')})
@@ -87,28 +105,31 @@ def account_module():
     channel_actions=['ssmmessages:CreateControlChannel','ssmmessages:CreateDataChannel','ssmmessages:OpenControlChannel','ssmmessages:OpenDataChannel']
     ssm=allow(agent_actions+channel_actions,['*'])
     loc['storage_grants']={
-        'control':{'raw':['raw/weather/*'],'lake':['lake/feedback/*','aws/${var.binding.environment}/${var.binding.generation}/*/checkpoint/*']},
+        'control':{'raw':['raw/weather/*'],'lake':['lake/feedback/*',*[f'aws/${{var.binding.environment}}/${{var.binding.generation}}/{q}/checkpoint/*' for q in ['weather-stream','feedback-postgresql','feedback-analytics-batch']]]},
         'spark':{'raw':['raw/weather/*'],'lake':['lake/feedback/*']},
         'gateway':{'raw':['raw/weather/*']},
         'postgresql':{'backup':['backups/${var.binding.environment}/${var.binding.generation}/postgresql/*']},
         'mongodb':{'backup':['backups/${var.binding.environment}/${var.binding.generation}/mongodb/*']}}
     # Same source produces identity and resource policies for cross-account grants.
-    loc['s3_grants']=ex('{for name,n in local.topology:name=>flatten([for purpose,prefixes in lookup(local.storage_grants,n.role,{}) : [{Effect="Allow",Action=["s3:ListBucket","s3:ListBucketMultipartUploads"],Resource=["arn:aws:s3:::${var.binding.bucket_names[purpose]}"],Condition={StringLike={"s3:prefix"=prefixes}}},{Effect="Allow",Action=["s3:GetObject","s3:GetObjectVersion","s3:PutObject","s3:AbortMultipartUpload","s3:ListMultipartUploadParts"],Resource=[for p in prefixes:"arn:aws:s3:::${var.binding.bucket_names[purpose]}/${p}"]}]] )}')
+    # ListBucketMultipartUploads does not support s3:prefix. Do not remove the
+    # prefix condition or grant bucket-wide multipart listings to make it pass.
+    loc['s3_grants']=ex('{for name,n in local.topology:name=>flatten([for purpose,prefixes in lookup(local.storage_grants,n.role,{}) : [{Effect="Allow",Action=["s3:ListBucket"],Resource=["arn:aws:s3:::${var.binding.bucket_names[purpose]}"],Condition={StringLike={"s3:prefix"=prefixes}}},{Effect="Allow",Action=["s3:GetObject","s3:GetObjectVersion","s3:PutObject","s3:AbortMultipartUpload","s3:ListMultipartUploadParts"],Resource=[for p in prefixes:"arn:aws:s3:::${var.binding.bucket_names[purpose]}/${p}"]}]] )}')
     # Checkpoint and Delta writers need scoped cleanup; no bucket lifecycle deletes data.
-    loc['lake_cleanup']=ex('{for name,n in local.topology:name=>(contains(["control","spark"],n.role) ? [{Effect="Allow",Action=["s3:DeleteObject"],Resource=concat(["arn:aws:s3:::${var.binding.bucket_names.lake}/lake/feedback/*"],n.role=="control" ? ["arn:aws:s3:::${var.binding.bucket_names.lake}/aws/${var.binding.environment}/${var.binding.generation}/*/checkpoint/*"] : [])}] : [])}')
-    add('aws_iam_role_policy','runtime',{'for_each':ex('local.nodes'),'role':ex('aws_iam_role.runtime[each.key].id'),'policy':ex('jsonencode({Version="2012-10-17",Statement=concat('+json.dumps([ssm])+',local.s3_grants[each.key],local.lake_cleanup[each.key],[{Effect="Allow",Action=["ssm:GetDocument","ssm:DescribeDocument"],Resource=["arn:aws:ssm:ap-northeast-2:${var.binding.account_ids[var.account]}:document/p4-runtime-artifact"]}])})')})
+    loc['lake_cleanup']=ex('{for name,n in local.topology:name=>(contains(["control","spark"],n.role) ? [{Effect="Allow",Action=["s3:DeleteObject"],Resource=concat(["arn:aws:s3:::${var.binding.bucket_names.lake}/lake/feedback/*"],n.role=="control" ? [for q in ["weather-stream","feedback-postgresql","feedback-analytics-batch"]:"arn:aws:s3:::${var.binding.bucket_names.lake}/aws/${var.binding.environment}/${var.binding.generation}/${q}/checkpoint/*"] : [])}] : [])}')
+    add('aws_iam_role_policy','runtime',{'for_each':ex('local.nodes'),'role':ex('aws_iam_role.runtime[each.key].id'),'policy':ex('jsonencode({Version="2012-10-17",Statement=concat('+json.dumps([ssm])+',local.s3_grants[each.key],local.lake_cleanup[each.key],[for s in local.control_checkpoint_bound_probes:s if contains(local.control_checkpoint_roles,each.key)],[{Effect="Allow",Action=["ssm:GetDocument","ssm:DescribeDocument"],Resource=["arn:aws:ssm:ap-northeast-2:${var.binding.account_ids[var.account]}:document/p4-runtime-artifact"]}])})')})
     add('aws_network_interface','host',{'for_each':ex('local.nodes'),'subnet_id':ex('aws_subnet.this["${each.value.subnet_kind}-${each.value.az_slot}"].id'),'private_ips':ex('[local.addresses[each.key]]'),'security_groups':ex('[aws_security_group.host[each.key].id]'),'lifecycle':{'prevent_destroy':True}})
     add('aws_instance','host',{'for_each':ex('local.nodes'),'ami':ex('var.binding.ami_ids[var.account]'),'instance_type':ex('each.value.instance_type'),'iam_instance_profile':ex('aws_iam_instance_profile.runtime[each.key].name'),'network_interface':[{'network_interface_id':ex('aws_network_interface.host[each.key].id'),'device_index':0,'delete_on_termination':False}],'root_block_device':[{'encrypted':True,'volume_type':'gp3','volume_size':24,'delete_on_termination':True}],'credit_specification':[{'cpu_credits':'standard'}],'metadata_options':[{'http_endpoint':'enabled','http_tokens':'required','http_put_response_hop_limit':2}],'tags':{'Name':ex('each.key'),'Generation':ex('var.binding.generation'),'Project':'mlo-p4'},'lifecycle':{'precondition':[{'condition':ex('data.aws_caller_identity.this.account_id==var.binding.account_ids[var.account]'),'error_message':'Account identity mismatch.'}]}})
     add('aws_ebs_volume','data',{'for_each':ex('local.nodes'),'availability_zone':ex('aws_subnet.this["${each.value.subnet_kind}-${each.value.az_slot}"].availability_zone'),'encrypted':True,'type':'gp3','size':ex('var.data_sizes[each.key]'),'tags':{'Name':ex('"p4-data-${each.key}"')},'lifecycle':{'prevent_destroy':True}})
     add('aws_volume_attachment','data',{'for_each':ex('local.nodes'),'device_name':'/dev/sdf','volume_id':ex('aws_ebs_volume.data[each.key].id'),'instance_id':ex('aws_instance.host[each.key].id'),'force_detach':False,'stop_instance_before_detaching':True})
-    add('aws_security_group','ssm',{'count':ex('var.account=="encore1" ? 1 : 0'),'vpc_id':ex('aws_vpc.this.id'),'ingress':[],'egress':[]})
+    add('aws_security_group','ssm',{'count':ex('var.account=="encore1" ? 1 : 0'),'vpc_id':ex('aws_vpc.this.id')})
     add('aws_security_group_rule','ssm_in',{'for_each':ex('var.account=="encore1" ? local.addresses : {}'),'type':'ingress','security_group_id':ex('aws_security_group.ssm[0].id'),'protocol':'tcp','from_port':443,'to_port':443,'cidr_blocks':ex('["${each.value}/32"]')})
     add('aws_vpc_endpoint','ssm',{'for_each':ex('var.account=="encore1" ? toset(["ssm","ssmmessages"]) : toset([])'),'vpc_id':ex('aws_vpc.this.id'),'service_name':ex('"com.amazonaws.ap-northeast-2.${each.key}"'),'vpc_endpoint_type':'Interface','private_dns_enabled':False,'subnet_ids':ex('[aws_subnet.this["private-a"].id]'),'security_group_ids':ex('[aws_security_group.ssm[0].id]'),'policy':ex('jsonencode({Version="2012-10-17",Statement=[{Effect="Allow",Principal="*",Action=each.key=="ssm" ? '+json.dumps(agent_actions+['ssm:GetDocument','ssm:DescribeDocument'])+' : '+json.dumps(channel_actions)+',Resource="*",Condition={ArnEquals={"aws:PrincipalArn"=local.runtime_arns}}}]})')})
     add('aws_route53_zone','ssm',{'for_each':ex('var.account=="encore1" ? toset(["ssm","ssmmessages"]) : toset([])'),'name':ex('"${each.key}.ap-northeast-2.amazonaws.com"'),'vpc':[{'vpc_id':ex('aws_vpc.this.id'),'vpc_region':'ap-northeast-2'}],'lifecycle':{'ignore_changes':['vpc']}})
     add('aws_route53_record','ssm',{'for_each':ex('aws_route53_zone.ssm'),'zone_id':ex('each.value.zone_id'),'name':ex('each.value.name'),'type':'A','alias':[{'name':ex('aws_vpc_endpoint.ssm[each.key].dns_entry[0].dns_name'),'zone_id':ex('aws_vpc_endpoint.ssm[each.key].dns_entry[0].hosted_zone_id'),'evaluate_target_health':False}]})
     for purpose in ['raw','lake','backup','transfer']:
         # Resource policy each statement gains exact logical runtime principal.
-        statements=ex('flatten([for name,n in local.topology:[for s in concat(local.s3_grants[name],local.lake_cleanup[name]):merge(s,{Principal={AWS="arn:aws:iam::${var.binding.account_ids[n.account]}:root"},Condition=merge(try(s.Condition,{}),{ArnEquals={"aws:PrincipalArn"="arn:aws:iam::${var.binding.account_ids[n.account]}:role/p4-runtime-${name}"}})}) if anytrue([for resource in s.Resource:startswith(resource,"arn:aws:s3:::${var.binding.bucket_names.'+purpose+'}")])]])')
+        probes = ',[for s in local.control_checkpoint_bound_probes:s if contains(local.control_checkpoint_roles,name)]' if purpose == 'lake' else ''
+        statements=ex('flatten([for name,n in local.topology:[for s in concat(local.s3_grants[name],local.lake_cleanup[name]'+probes+'):merge(s,{Principal={AWS="arn:aws:iam::${var.binding.account_ids[n.account]}:root"},Condition=merge(try(s.Condition,{}),{ArnEquals={"aws:PrincipalArn"="arn:aws:iam::${var.binding.account_ids[n.account]}:role/p4-runtime-${name}"}})}) if anytrue([for resource in s.Resource:startswith(resource,"arn:aws:s3:::${var.binding.bucket_names.'+purpose+'}")])]])')
         if purpose=='transfer':
             statements=ex('concat(flatten([for account,ids in try(var.binding.controller_instance_ids,{}) : [for s in [{Effect="Allow",Principal={AWS="arn:aws:iam::${var.binding.account_ids[account]}:root"},Action=["s3:GetBucketLocation"],Resource=["arn:aws:s3:::${var.binding.bucket_names.transfer}"],Condition={ArnEquals={"aws:PrincipalArn"="arn:aws:iam::${var.binding.account_ids[account]}:role/p4-controller-${account}"}}},{Effect="Allow",Principal={AWS="arn:aws:iam::${var.binding.account_ids[account]}:root"},Action=["s3:ListBucket"],Resource=["arn:aws:s3:::${var.binding.bucket_names.transfer}"],Condition={StringLike={"s3:prefix"=[for id in ids:"${id}/*"]},ArnEquals={"aws:PrincipalArn"="arn:aws:iam::${var.binding.account_ids[account]}:role/p4-controller-${account}"}}},{Effect="Allow",Principal={AWS="arn:aws:iam::${var.binding.account_ids[account]}:root"},Action=["s3:GetObject","s3:PutObject","s3:DeleteObject"],Resource=[for id in ids:"arn:aws:s3:::${var.binding.bucket_names.transfer}/${id}/*"],Condition={ArnEquals={"aws:PrincipalArn"="arn:aws:iam::${var.binding.account_ids[account]}:role/p4-controller-${account}"}}}] : s if length(ids)>0]]),local.artifact_enabled ? [{Effect="Allow",Principal={AWS=[for id in values(var.binding.account_ids):"arn:aws:iam::${id}:root"]},Action=["s3:GetObjectVersion"],Resource=["arn:aws:s3:::${var.binding.bucket_names.transfer}/${local.artifact_key}"],Condition={StringEquals={"s3:VersionId"=local.artifact_version},ArnEquals={"aws:PrincipalArn"=local.runtime_arns}}}] : [])')
         modules[purpose]={'count':ex('var.account=="encore1" ? 1 : 0'),'source':'../bucket','name':ex('var.binding.bucket_names.'+purpose),'statements':statements}
@@ -121,6 +142,14 @@ def account_module():
     # Auto-assigned public IPv4 requires EC2 to create the primary interface.
     r['aws_network_interface']['host']['for_each']=ex('{for k,n in local.nodes:k=>n if n.subnet_kind=="private"}')
     host=r['aws_instance']['host']
+    # Architecture target only: native service installation is Runtime-owned.
+    # No downloads, secrets, disk formatting or service startup in Terraform.
+    host['tags']['DataExecutionTarget']=ex('contains(["kafka","spark","elasticsearch"],each.value.role) ? "native-systemd-v1" : (each.value.role=="control" ? "native-drivers-compose-web" : "compose-v1")')
+    native=read_json(ROOT/'aws-infra/contracts/native-host.v1.json')
+    out['native_host_design']={'profile':native['profile'],'ready_for_aws':False,
+        'role_targets':ex('{for name,n in local.nodes:name=>(contains(["kafka","spark","elasticsearch"],n.role) ? "native-systemd" : (n.role=="control" ? "native-drivers-compose-web" : "compose"))}'),
+        'os':native['os'],'installation':'accepted immutable AMI or offline artifact; Runtime owns installation',
+        'deployment_blockers':native['deployment_blockers']}
     interface=host.pop('network_interface')
     host['dynamic']={'network_interface':{'for_each':ex('each.value.subnet_kind=="private" ? [1] : []'),'content':interface[0]}}
     host.update(subnet_id=ex('each.value.subnet_kind=="public" ? aws_subnet.this["public-${each.value.az_slot}"].id : null'),
@@ -157,7 +186,7 @@ def pair_module():
 
 def edge_module():
     r={
-    'aws_security_group':{'alb':{'vpc_id':ex('var.inputs.vpc_id'),'ingress':[{'protocol':'tcp','from_port':80,'to_port':80,'prefix_list_ids':ex('[data.aws_ec2_managed_prefix_list.cloudfront.id]'),'cidr_blocks':[],'ipv6_cidr_blocks':[],'security_groups':[],'self':False,'description':'CloudFront origin only'}],'egress':[]}},
+    'aws_security_group':{'alb':{'vpc_id':ex('var.inputs.vpc_id')}},
     'aws_security_group_rule':{'target_in':{'count':ex('length(var.inputs.control_sgs)'),'type':'ingress','security_group_id':ex('var.inputs.control_sgs[count.index]'),'source_security_group_id':ex('aws_security_group.alb.id'),'protocol':'tcp','from_port':8000,'to_port':8000},'target_out':{'count':ex('length(var.inputs.control_sgs)'),'type':'egress','security_group_id':ex('aws_security_group.alb.id'),'source_security_group_id':ex('var.inputs.control_sgs[count.index]'),'protocol':'tcp','from_port':8000,'to_port':8000}},
     'aws_lb':{'this':{'name':'p4-control','internal':False,'load_balancer_type':'application','security_groups':ex('[aws_security_group.alb.id]'),'subnets':ex('var.inputs.subnets'),'enable_deletion_protection':True}},
     'aws_lb_target_group':{'web':{'name':'p4-control','port':8000,'protocol':'HTTP','vpc_id':ex('var.inputs.vpc_id'),'health_check':[{'path':'/health','port':'traffic-port','protocol':'HTTP','matcher':'200'}]}},
@@ -167,6 +196,7 @@ def edge_module():
     'aws_cloudfront_cache_policy':{'disabled':{'name':'p4-api-no-cache','min_ttl':0,'default_ttl':0,'max_ttl':0,'parameters_in_cache_key_and_forwarded_to_origin':[{'cookies_config':[{'cookie_behavior':'none'}],'headers_config':[{'header_behavior':'none'}],'query_strings_config':[{'query_string_behavior':'none'}]}]}},
     'aws_cloudfront_origin_request_policy':{'api':{'name':'p4-api-all-viewer','cookies_config':[{'cookie_behavior':'all'}],'headers_config':[{'header_behavior':'allViewer'}],'query_strings_config':[{'query_string_behavior':'all'}]}},
     'aws_cloudfront_distribution':{'this':{'enabled':True,'is_ipv6_enabled':True,'origin':[{'domain_name':ex('aws_lb.this.dns_name'),'origin_id':'control','custom_header':[{'name':'X-P4-Origin','value':ex('var.origin_header')}],'custom_origin_config':[{'http_port':80,'https_port':443,'origin_protocol_policy':'http-only','origin_ssl_protocols':['TLSv1.2']}]}],'default_cache_behavior':[{'target_origin_id':'control','viewer_protocol_policy':'redirect-to-https','allowed_methods':['GET','HEAD','OPTIONS','PUT','POST','PATCH','DELETE'],'cached_methods':['GET','HEAD'],'cache_policy_id':ex('aws_cloudfront_cache_policy.disabled.id'),'origin_request_policy_id':ex('aws_cloudfront_origin_request_policy.api.id')}],'restrictions':[{'geo_restriction':[{'restriction_type':'none'}]}],'viewer_certificate':[{'cloudfront_default_certificate':True}],'price_class':'PriceClass_200'}}}
+    r['aws_security_group_rule']['viewer_in']={'type':'ingress','security_group_id':ex('aws_security_group.alb.id'),'protocol':'tcp','from_port':80,'to_port':80,'prefix_list_ids':ex('[data.aws_ec2_managed_prefix_list.cloudfront.id]'),'description':'CloudFront origin only'}
     return {'terraform':V,'variable':{'inputs':{'type':'any'},'origin_header':{'type':'string','sensitive':True,'validation':[{'condition':ex('length(var.origin_header)>=32'),'error_message':'Origin header minimum 32 characters.'}]}},'data':{'aws_ec2_managed_prefix_list':{'cloudfront':{'name':'com.amazonaws.global.cloudfront.origin-facing'}}},'resource':r}
 
 def identity_module():
@@ -186,8 +216,12 @@ def roots():
     common={'binding':binding_var}
     sizes={name:({'kafka':40,'spark':40,'elasticsearch':40,'postgresql':30,'mongodb':30}.get(n['role'],16)) for name,n in NODES.items()}
     for a in ACCOUNTS:
-        root={'terraform':dict(V,backend={'s3':{}}),'variable':common,'provider':{'aws':{'region':'ap-northeast-2','allowed_account_ids':ex('[var.binding.account_ids.'+a+']')}},'module':{'account':{'source':'../../../modules/account','account':a,'binding':ex('var.binding'),'data_sizes':sizes},'identity':{'source':'../../../modules/identity','account':a,'binding':ex('var.binding')}},'output':{'foundation':{'value':ex('module.account.foundation')}}}
-        if a=='encore1':root['module']['edge']={'source':'../../../modules/edge','inputs':ex('module.account.edge_inputs'),'origin_header':ex('var.binding.origin_header')}
+        root={'terraform':dict(V,backend={'s3':{}}),'variable':common,'provider':{'aws':{'region':'ap-northeast-2','allowed_account_ids':ex('[var.binding.account_ids.'+a+']')}},'module':{'account':{'source':'../../../modules/account','account':a,'binding':ex('var.binding'),'data_sizes':sizes,'track2':ex('try(var.binding.track2,'+json.dumps(__import__('track2').DEFAULT)+')')},'identity':{'source':'../../../modules/identity','account':a,'binding':ex('var.binding')}},'output':{'foundation':{'value':ex('module.account.foundation')}}}
+        if a=='encore1':root['module']['edge']={'source':'../../../modules/edge','inputs':ex('module.account.edge_inputs'),'origin_header':ex('var.binding.origin_header'),'track2':ex('try(var.binding.track2,'+json.dumps(__import__('track2').DEFAULT)+')'),'account_id':ex('var.binding.account_ids.encore1'),'viewer_https_demo':ex('try(var.binding.edge_profile=="viewer-https-demo",false)')}
+        # Explicit opt-in adoption of the one existing inline CloudFront rule.
+        # Plan must show an unchanged imported rule, never a revoke/re-authorize.
+        if a=='encore1':root['import']=[{'for_each':ex('try(length(var.binding.existing_edge_viewer_rule_import_id)>0,false) ? {viewer=var.binding.existing_edge_viewer_rule_import_id} : {}'),'to':'module.edge.aws_security_group_rule.viewer_in','id':ex('each.value')}]
+        root['output']['foundation_track2']={'value':ex('merge(module.account.foundation_track2_account,'+('module.edge.foundation_track2_edge' if a=='encore1' else '{}')+')')}
         root['output']['runtime_artifact_boundary']={'value':ex('module.account.runtime_artifact_boundary')}
         put(TF/f'environments/dev/{a}/main.tf.json',root)
     providers=[{'alias':a,'region':'ap-northeast-2','allowed_account_ids':ex('[var.binding.account_ids.'+a+']')} for a in ACCOUNTS]
@@ -214,7 +248,8 @@ def roots():
     put(TF/'bootstrap/main.tf.json',boot)
 
 def build():
-    for name,f in [('bucket',bucket_module),('account',account_module),('pair',pair_module),('edge',edge_module),('identity',identity_module)]: put(TF/f'modules/{name}/main.tf.json',f())
+    from track2 import extend_account,extend_edge
+    for name,f in [('bucket',bucket_module),('account',lambda:extend_account(account_module())),('pair',pair_module),('edge',lambda:extend_edge(edge_module())),('identity',identity_module)]: put(TF/f'modules/{name}/main.tf.json',f())
     roots()
     # Explicit per-account profiles are used only by the separately enabled real runner.
     for path in [TF/'bootstrap/main.tf.json',*(TF/'environments/dev').glob('*/main.tf.json')]:

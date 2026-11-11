@@ -142,18 +142,21 @@ def prepare(binding_path, inventory_path, output):
     }
 
 
-def runtime_clients(review, private_dir):
+def runtime_clients(review, private_dir, *, web=False):
     import boto3
     import botocore.session
     from botocore.config import Config
     from credential_bridge import create_isolated_config
 
-    env, _, _ = create_isolated_config(
-        Path(private_dir) / "deployment-sdk",
-        review["account_ids"],
-        "aws",
-        original=os.environ.copy(),
-    )
+    if web:
+        env = os.environ
+    else:
+        env, _, _ = create_isolated_config(
+            Path(private_dir) / "deployment-sdk",
+            review["account_ids"],
+            "aws",
+            original=os.environ.copy(),
+        )
 
     def clients(account):
         session = botocore.session.Session()
@@ -161,7 +164,7 @@ def runtime_clients(review, private_dir):
         session.set_config_variable(
             "credentials_file", env["AWS_SHARED_CREDENTIALS_FILE"]
         )
-        session.set_config_variable("profile", "p4-controller-" + account)
+        session.set_config_variable("profile", account if web else "p4-controller-" + account)
         sdk = boto3.Session(botocore_session=session)
         config = Config(
             connect_timeout=3,
@@ -183,13 +186,13 @@ def runtime_clients(review, private_dir):
     return clients
 
 
-def execute(gate, receipt_path):
+def execute(gate, receipt_path, *, web_release=None):
     from infra_common.factory import load_guard
 
     review = gate.check()
     p = review["payload"]
     if review["operation"] == "runtime":
-        factory = runtime_clients(review, Path(receipt_path).parent)
+        factory = runtime_clients(review, Path(receipt_path).parent, web=web_release is not None)
         owned = []
 
         def clients(account):
@@ -198,7 +201,7 @@ def execute(gate, receipt_path):
             return values
 
         try:
-            return deploy_runtime(gate, clients, receipt_path)
+            return deploy_runtime(gate, clients, receipt_path, web_release=web_release)
         finally:
             for client in owned:
                 client.close()

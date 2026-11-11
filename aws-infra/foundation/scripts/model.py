@@ -56,7 +56,7 @@ def validate_binding(b, *, real=False):
             actions=s.get('Action',[]); actions=[actions] if isinstance(actions,str) else actions
             resources=s.get('Resource',[]); resources=[resources] if isinstance(resources,str) else resources
             require(s.get('Effect')=='Allow' and actions and resources and 'NotAction' not in s and 'NotResource' not in s,'CI policy must be explicit')
-            require(all('*' not in v for v in actions),'wildcard CI action')
+            require(all('*' not in v and '?' not in v for v in actions),'wildcard CI action')
             if '*' in resources:
                 # EC2 Describe APIs and these non-resource-scoped read APIs
                 # cannot be granted with invented resource ARNs. Writes and
@@ -65,9 +65,13 @@ def validate_binding(b, *, real=False):
                 require(readonly,'unbounded CI resource')
                 if any(a.startswith('ec2:') for a in actions):
                     require(s.get('Condition',{}).get('StringEquals',{}).get('aws:RequestedRegion')=='ap-northeast-2','EC2 read region condition required')
-            if 'iam:PassRole' in actions:
+            if 'iam:passrole' in {action.casefold() for action in actions}:
                 require(s.get('Condition',{}).get('StringEquals',{}).get('iam:PassedToService')=='ec2.amazonaws.com','PassRole service condition required')
-                require(all(v.startswith('arn:aws:iam::') and ':role/p4-runtime-' in v and '*' not in v for v in resources),'PassRole runtime roles only')
+                runtime_arns={f'arn:aws:iam::{b["account_ids"][node["account"]]}:role/p4-runtime-{name}' for name,node in NODES.items()}
+                require(all(v in runtime_arns for v in resources),'PassRole exact topology runtime roles only')
+    if 'existing_edge_viewer_rule_import_id' in b:
+        value=b['existing_edge_viewer_rule_import_id']
+        require(isinstance(value,str) and (value=='' or re.fullmatch(r'sg-[0-9a-f]{17}_ingress_tcp_80_80_pl-[0-9a-f]{8,17}',value)), 'only an exact existing CloudFront HTTP viewer rule may be adopted')
     if b['artifact']:
         artifact=b['artifact']
         require(set(artifact)=={'key','version','sha256','manifest_sha256'},'artifact key/version/archive+manifest hashes required')
@@ -87,6 +91,17 @@ def validate_binding(b, *, real=False):
         require(b['existing_encore3_reviewed'] is True,'encore3 ownership review required')
         require(not any('example-only' in s or 'UNBOUND' in s for s in json.dumps(b).split('"')),'unbound/example value')
         require(len(b['origin_header'])>=32,'origin header length')
+    if 'track2' in b:
+        from track2 import validate_track2
+        validate_track2(b['track2'], b)
+    if 'edge_profile' in b:
+        require(b['edge_profile'] in {'full-tls','viewer-https-demo'}, 'unknown edge transport profile')
+        tls_enabled=b.get('track2',{}).get('tls',{}).get('enabled',False)
+        if b['edge_profile']=='viewer-https-demo':
+            require(not tls_enabled,
+                    'viewer-only HTTPS must not be reported as full origin TLS')
+        else:
+            require(tls_enabled, 'full TLS profile requires the origin and Control TLS inputs')
     return b
 
 def flows():

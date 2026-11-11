@@ -33,9 +33,10 @@ BLOCKED_PREFIXES = (
     "app/analysis/",
     ".local/",
 )
+LOCAL_INSTRUCTION_NAMES = {"agents.md", "agents.override.md", "claude.md", "gemini.md"}
 SENSITIVE_SUFFIXES = (
     ".pem", ".key", ".pfx", ".p12", ".tfstate", ".tfplan",
-    ".sqlite", ".sqlite3", ".db", ".dump", ".bak",
+    ".sqlite", ".sqlite3", ".db", ".dump", ".bak", ".bundle",
 )
 PRIVACY_DOC_NAME = re.compile(
     r"(?:privacy[_-]?audit|security[_-]?audit|personal[_-]?data|"
@@ -134,6 +135,8 @@ def inspect(staged):
             if not src.is_file():
                 continue
             data = src.read_bytes()
+        if pp.name.casefold() in LOCAL_INSTRUCTION_NAMES:
+            critical["local_instruction_file"].append((name, []))
         if any(name.startswith(p) for p in BLOCKED_PREFIXES):
             critical["private_directory"].append((name, []))
         if name.startswith("docs/handoff/infra/") and name not in PUBLIC_INFRA_DOCS:

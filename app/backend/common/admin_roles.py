@@ -2,6 +2,8 @@
 from django.conf import settings
 from django.contrib.auth.models import Group, Permission
 from django.contrib.sessions.models import Session
+from django.contrib.auth import get_user_model
+from django.db import transaction
 
 ROLES = {
     'SUPER_ADMIN': frozenset(('manage_ads', 'manage_music', 'view_feedback', 'view_operations')),
@@ -34,9 +36,11 @@ def revoke_sessions(user):
             session.delete()
 
 
+@transaction.atomic
 def assign_role(user, role):
     if role not in ROLES:
         raise ValueError('invalid_admin_role')
+    get_user_model().objects.select_for_update().get(pk=user.pk)
     permissions = list(Permission.objects.filter(content_type__app_label='common', codename__in=ROLES[role]))
     if len(permissions) != len(ROLES[role]):
         raise ValueError('run_migrations_first')

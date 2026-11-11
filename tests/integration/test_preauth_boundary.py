@@ -572,13 +572,13 @@ class SSMDeployment(PrivateInputs):
             self.stubs.append(Stubber(client))
         self.command = "00000000-0000-0000-0000-000000000001"
 
-    def preflight(self, account=None, artifact=None):
+    def preflight(self, account=None, artifact=None, role="p4-controller-encore1"):
         account = account or self.binding["account_ids"]["encore1"]
         self.stubs[0].add_response(
             "get_caller_identity",
             {
                 "Account": account,
-                "Arn": f"arn:aws:sts::{account}:assumed-role/p4-controller-encore1/local",
+                "Arn": f"arn:aws:sts::{account}:assumed-role/{role}/local",
                 "UserId": "local-test-user",
             },
             {},
@@ -689,6 +689,40 @@ class SSMDeployment(PrivateInputs):
         with self.assertRaises(ValueError):
             execution.deploy_runtime(gate, factory, self.folder / "receipt.json")
         factory.assert_not_called()
+
+    def web_payload(self, order):
+        release = "main-" + "a" * 40
+        nodes = {node["name"]: node["instance_id"] for node in self.inventory["nodes"]}
+        self.document["name"] = "p4-control-web-" + release
+        self.artifact.update(
+            bucket=self.inventory["storage"]["transfer_bucket_ref"],
+            key=f"artifacts/web/{release}.tar.gz",
+        )
+        self.payload.update(operation="deploy", targets=[nodes[node] for node in order])
+        return release
+
+    def test_main_web_release_rejects_unordered_control_targets_before_aws(self):
+        release = self.web_payload(["control-a", "control-b"])
+        gate = self.gate(self.review(payload=self.payload))
+        factory = Mock()
+        with self.assertRaisesRegex(ValueError, "ordered Control targets"):
+            execution.deploy_runtime(
+                gate, factory, self.folder / "receipt.json",
+                web_release=(release, "unused"),
+            )
+        factory.assert_not_called()
+
+    def test_main_web_release_rejects_another_signed_image_before_send(self):
+        release = self.web_payload(["control-b", "control-a"])
+        gate = self.gate(self.review(payload=self.payload))
+        self.preflight(role="p4-ci-web-deploy")
+        with patch("artifact_verifier.inspect_artifact", return_value={
+            "fixture": False, "artifact_version": release, "image_digests": {"web": "signed-other-image"},
+        }), self.assertRaisesRegex(ValueError, "differs from published main web release"):
+            self.invoke(gate, web_release=(release, "published-image"))
+        self.assertFalse((self.folder / "receipt.json").exists())
+        for stub in self.stubs:
+            stub.assert_no_pending_responses()
 
     def test_archive_hash_mismatch_never_reaches_send(self):
         gate = self.gate(self.review(payload=self.payload))

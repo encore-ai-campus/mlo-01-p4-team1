@@ -40,7 +40,7 @@ jobs:
               problems.append("Only develop -> main is the regular release path")
           elif base == "develop" and not (
               head == "feature/infra"
-              or head.startswith(("feat/", "feature/", "fix/", "chore/", "docs/", "test/"))
+              or head.startswith(("feat/", "feature/", "fix/", "chore/", "docs/", "test/", "ci/"))
           ):
               problems.append("Unexpected source branch for develop")
           elif base == "feature/infra" and not head.startswith(

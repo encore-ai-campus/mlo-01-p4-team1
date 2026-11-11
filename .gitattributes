@@ -1,0 +1,3 @@
+# Preserve generated cinematic asset bytes: names contain their SHA-256 prefix.
+app/frontend/public/assets/cinematic/seasons-*.js -text
+app/frontend/public/assets/cinematic/seasons-*.css -text

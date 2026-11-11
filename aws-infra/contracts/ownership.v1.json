@@ -7,6 +7,7 @@
         "AGENTS.md",
         "README.md",
         ".gitignore",
+        ".gitattributes",
         "Makefile",
         "requirements-common.lock.txt",
         "aws-infra/AGENTS.md",
@@ -32,7 +33,9 @@
         "SECURITY.md",
         ".github/pull_request_template.md",
         ".github/workflows/public-source-safety.yml",
-        ".github/workflows/collaboration-check.yml"
+        ".github/workflows/collaboration-check.yml",
+        "PRIVACY-MEMBERSHIP-MYPAGE-DESIGN.md",
+        "TEAM-GIT-COLLABORATION-GUIDE.md"
       ],
       "prefixes": [
         "aws-infra/contracts/",
@@ -60,7 +63,8 @@
       "files": [
         ".github/workflows/runtime-check.yml",
         ".github/workflows/image-build.yml",
-        ".github/workflows/app-deploy.yml"
+        ".github/workflows/app-deploy.yml",
+        ".github/workflows/main-web.yml"
       ],
       "prefixes": [
         "aws-infra/runtime/",

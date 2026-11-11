@@ -1,9 +1,7 @@
 import {useEffect,useRef,useState} from 'react';
-import {api,ApiError,key} from '../../shared/api';
+import {api,key} from '../../shared/api';
+import {createAdReport,transmitAdReport,cancelAdReport,permanentAdResponse,type AdReport} from './adEventTransport';
 type Delivery={ad:null|{ad_id:string;title:string;image_url:string;link_url:string;delivery_id:string;delivery_token:string};evaluated_at:string;valid_until:string};
-type Report={body:{delivery_id:string;event_id:string;event_type:string;occurred_at:string};token:string;attempts:number;next:number;created:number;done:boolean;inflight:boolean};
-// Transport defaults for this draft; B/INF must confirm production retry settings.
-const maxAttempts=3,retryDelayMs=1000;
 function imageSrc(value:string){
   try{
     const url=new URL(value);
@@ -36,17 +34,9 @@ function LiveBanner({placement,blocked,enabled=true,onReady}:{placement:'top'|'b
   const root=useRef<HTMLElement>(null),last=useRef<Delivery|null>(null),deadline=useRef(0),visible=useRef(false),loaded=useRef(false);
   const latestEvaluation=useRef(0),ready=useRef(onReady);ready.current=onReady;
   const blockedRef=useRef(blocked);blockedRef.current=blocked;
-  const reports=useRef(new Map<string,Report>());
-  async function transmit(report:Report){
-    if(report.done||report.inflight||performance.now()<report.next)return;
-    if(performance.now()-report.created>300000||report.attempts>=maxAttempts){report.done=true;return;}
-    report.inflight=true;report.attempts++;
-    try{await api('/api/ad-events','POST',report.body,undefined,undefined,{'X-Ad-Delivery-Token':report.token});report.done=true;}
-    catch(error){
-      if(error instanceof ApiError&&error.status<500)report.done=true;
-      else report.next=performance.now()+retryDelayMs*report.attempts;
-    }finally{report.inflight=false;}
-  }
+  const reports=useRef(new Map<string,AdReport>());
+  const transmit=(report:AdReport)=>transmitAdReport(report,(body,token,signal)=>api('/api/ad-events','POST',body,undefined,signal,{'X-Ad-Delivery-Token':token}));
+  useEffect(()=>()=>{for(const report of reports.current.values())cancelAdReport(report);},[]);
   function report(type:string){
     const current=last.current;
     if(!current?.ad||blockedRef.current||document.hidden||performance.now()>=deadline.current)return;
@@ -54,8 +44,7 @@ function LiveBanner({placement,blocked,enabled=true,onReady}:{placement:'top'|'b
     let record=reports.current.get(identity);
     if(!record){
       if(reports.current.size>=128)reports.current.delete(reports.current.keys().next().value!);
-      record={body:{delivery_id:current.ad.delivery_id,event_id:key(),event_type:type,occurred_at:new Date().toISOString()},
-        token:current.ad.delivery_token,attempts:0,next:0,created:performance.now(),done:false,inflight:false};
+      record=createAdReport({delivery_id:current.ad.delivery_id,event_id:key(),event_type:type,occurred_at:new Date().toISOString()},current.ad.delivery_token,performance.now());
       reports.current.set(identity,record);
     }
     void transmit(record);
@@ -91,7 +80,7 @@ function LiveBanner({placement,blocked,enabled=true,onReady}:{placement:'top'|'b
         last.current=data;
         if(document.hidden||blockedRef.current){hide();return;}
         setDelivery(data);
-      }catch(error){if(!stopped)hide(false,error instanceof ApiError&&error.status>=400&&error.status<500);}finally{inflight=false;}
+      }catch(error){if(!stopped)hide(false,permanentAdResponse(error));}finally{inflight=false;}
     }
     hide();void refresh();
     const poll=setInterval(()=>void refresh(),1000);

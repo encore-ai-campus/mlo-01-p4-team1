@@ -34,6 +34,12 @@ def guest(request, bootstrap=False):
 
 
 def owner(request):
+    user = get_user(raw_request(request))
+    if user.is_authenticated and user.is_active and not user.is_staff:
+        from backend.accounts.models import MemberProfile
+        profile = MemberProfile.objects.filter(user=user).first()
+        require(profile is not None, 'AUTH_REQUIRED', '회원 상태를 확인해 주세요.', 401)
+        return str(profile.owner_id)
     found = guest(request, bootstrap=True)
     require(found is not None, 'GUEST_REQUIRED', '방문자 문맥을 확인해 주세요.', 401)
     return found.pk
@@ -43,6 +49,8 @@ def admin(request, permission=None):
     user = get_user(raw_request(request))
     require(user.is_authenticated and user.is_active, 'AUTH_REQUIRED', '관리자 로그인이 필요합니다.', 401)
     require(user.is_staff, 'FORBIDDEN', '관리자 권한이 없습니다.', 403)
+    from backend.accounts.passkeys import complete
+    require(complete(request), 'PASSKEY_REQUIRED', '관리자 패스키 인증이 필요합니다.', 403)
     if permission:
         require(permitted(user, permission), 'FORBIDDEN', '이 기능의 권한이 없습니다.', 403)
     return user

@@ -24,11 +24,12 @@ from .contracts import (
     validate_runtime_plan,
 )
 
-QUERIES = {
-    "weather-stream": (19000, 19001),
-    "feedback-postgresql": (19002, 19003),
-    "feedback-analytics-batch": (19004, 19005),
-}
+from .queries import QUERIES, EXECUTOR_PORTS
+from .resources import (
+    SPARK_WORKER_CPUS, SPARK_WORKER_CORES, SPARK_WORKER_MEMORY,
+    spark_resource_conf, resource_profile,
+)
+from . import observability, track2
 TIMERS = {
     "control": {
         "feedback-analytics-batch": "*:0/15",
@@ -118,6 +119,7 @@ def adapter(inventory):
             "ansible_aws_ssm_bucket_sse_mode": "AES256",
             "ansible_python_interpreter": "/usr/bin/python3",
             "runtime_node": node,
+            "runtime_execution_target": "native-systemd-v1" if node["role"] in {"kafka", "spark", "elasticsearch"} else "compose",
         }
     return {
         "all": {
@@ -150,6 +152,7 @@ def spark_defaults(inventory, node):
         "spark.hadoop.fs.s3a.path.style.access false\n"
         "spark.sql.extensions io.delta.sql.DeltaSparkSessionExtension\n"
         "spark.sql.catalog.spark_catalog org.apache.spark.sql.delta.catalog.DeltaCatalog\n"
+        + "".join(key + " " + value + "\n" for key, value in spark_resource_conf().items())
     )
 
 
@@ -189,7 +192,7 @@ def systemd_units(node, inventory):
             + root
             + "\nAfter=network-online.target\n"
             "[Service]\nType=oneshot\nUser=root\nUMask=0077\n"
-            "Environment=PYTHONPATH=/opt/mlo/current/src\n"
+            "Environment=PYTHONPATH=/opt/mlo/current/aws-infra/runtime/src\n"
             "ExecStart=/usr/bin/python3 -m mlo_runtime.jobs --job " + job + "\n"
             "TimeoutStartSec=14min\nNoNewPrivileges=true\nProtectSystem=strict\n"
             "ReadWritePaths=/run/mlo " + root + "\nPrivateTmp=true\n"
@@ -207,7 +210,7 @@ def systemd_units(node, inventory):
             "[Unit]\nDescription=MLO shutdown backup gate\nAfter=docker.service network-online.target\n"
             "Requires=docker.service\nRequiresMountsFor=" + root + "\n"
             "[Service]\nType=oneshot\nRemainAfterExit=true\n"
-            "Environment=PYTHONPATH=/opt/mlo/current/src\n"
+            "Environment=PYTHONPATH=/opt/mlo/current/aws-infra/runtime/src\n"
             "ExecStart=/usr/bin/python3 -m mlo_runtime.jobs --validate-only --job "
             + job
             + "\n"
@@ -231,6 +234,11 @@ def service_configs(node, inventory):
         (n for n in inventory["nodes"] if n["role"] == role), key=lambda n: n["name"]
     )
     files = {}
+    if role in {"control", "advertising"}:
+        kind = "web" if role == "control" else "advertising"
+        files["service.json"] = encode({"kind": kind,
+                                         "bind": f"{ip}:{8000 if kind == 'web' else 8001}",
+                                         "secret_env": "/run/mlo/secrets/app-env.json"})
     if role == "kafka":
         voters = ",".join(
             f"{stable_id(n)}@{n['private_ip']}:9094" for n in grouped("kafka")
@@ -280,7 +288,8 @@ def service_configs(node, inventory):
                         "CAFile": "/run/mlo/secrets/ca.crt",
                     },
                 },
-                "security": {"authorization": "enabled"},
+                "replication": {"replSetName": "ads-rs"},
+                "security": {"authorization": "enabled", "keyFile": "/run/mlo/secrets/mongodb-keyfile"},
             }
         )
     elif role == "elasticsearch":
@@ -337,6 +346,15 @@ def service_configs(node, inventory):
             "http_access allow runtime\nhttp_access deny all\ncache deny all\n"
             "access_log stdio:/dev/stdout\ncache_log /dev/stderr\npid_filename /tmp/squid.pid\n"
         )
+    files.update(observability.configs(node, inventory))
+    if role == "control":
+        files["track2-inputs.json"] = encode(track2.proposal(inventory["environment"], inventory["generation"]))
+        files["edge-policy.json"] = encode({"accepted": False, "ready": False,
+            "reason": "controlled origin hostname/certificates/trusted viewer ingress unresolved",
+            "secure_cookies": True, "passkey_ceremony": "not_run", "ready_for_aws": False})
+    if node["name"] == "control-b":
+        files["observation-security.json"] = encode(observability.security_artifacts())
+        files["observations.ndjson"] = observability.dashboard()
     return files
 
 
@@ -474,9 +492,9 @@ def compose(node, inventory):
             if component == "worker":
                 cmd += [
                     "--cores",
-                    "2",
+                    str(SPARK_WORKER_CORES),
                     "--memory",
-                    "3g",
+                    SPARK_WORKER_MEMORY,
                     "--work-dir",
                     "/data/spark",
                     "spark://"
@@ -499,6 +517,8 @@ def compose(node, inventory):
             services["spark-" + component]["entrypoint"] = services[
                 "spark-" + component
             ].pop("command")
+            if component == "worker":
+                services["spark-worker"]["cpus"] = SPARK_WORKER_CPUS
     elif role == "elasticsearch":
         services[role] = svc(
             role,
@@ -520,8 +540,6 @@ def compose(node, inventory):
             "advertising": ["advertising"],
             "gateway": ["forward-proxy", "llm-relay"],
         }[role]
-        if node["name"] == "control-b":
-            keys += ["kibana", "log-ingest"]
         for key in keys:
             services[key] = svc(
                 key.replace("-", "_"),
@@ -530,6 +548,8 @@ def compose(node, inventory):
                 [f"{data}/spool:/data/spool"],
                 "test -x /opt/mlo/bin/readiness && /opt/mlo/bin/readiness",
             )
+            if key in {"web", "advertising"}:
+                services[key]["volumes"].append(f"{config}/service.json:/etc/mlo/service.json:ro")
         if role == "gateway":
             services["forward-proxy"] = svc(
                 "squid",
@@ -546,10 +566,45 @@ def compose(node, inventory):
             services["llm-relay"]["environment"]["PYTHONPATH"] = "/opt/mlo/runtime/aws-infra/runtime/src"
             services["llm-relay"]["environment"]["PYTHONDONTWRITEBYTECODE"] = "1"
             services["llm-relay"]["healthcheck"]["test"] = ["CMD", "python3", "-m", "mlo_runtime.relay", "--binding", "/etc/mlo/relay.json", "--check"]
+    # Only sanitized application observation spool is harvested. No Docker socket,
+    # request log, environment dump or business database is mounted into Filebeat.
+    services["filebeat"] = svc("filebeat", "256m", ["filebeat", "-e", "-c", "/etc/filebeat.yml"],
+        [f"{config}/filebeat.yml:/etc/filebeat.yml:ro",
+         f"{data}/observations/spool:/spool:ro", f"{data}/observations/filebeat:/data/filebeat"],
+        "filebeat test output -c /etc/filebeat.yml")
+    services["filebeat"]["user"] = "0:0"
+    services["filebeat"]["cpus"] = .25
+    services["filebeat"]["volumes"].remove("/run/mlo/secrets:/run/mlo/secrets:ro")
+    services["filebeat"]["volumes"] += [f"/run/mlo/secrets/{name}:/run/mlo/secrets/{name}:ro"
+        for name in ("ca.crt", "client.crt", "client.key")]
+    if node["name"] == "control-b":
+        services["log-ingest"] = svc("logstash", "1536m",
+            ["logstash", "--path.settings", "/usr/share/logstash/config"],
+            [f"{config}/logstash.yml:/usr/share/logstash/config/logstash.yml:ro",
+             f"{config}/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro",
+             f"{data}/observations/logstash:/data/logstash"],
+            "curl --silent --fail http://127.0.0.1:9600/_node/stats/pipelines/main | grep -Eq '\"events_count\":[0-9]+'")
+        services["log-ingest"]["environment"]["LS_JAVA_OPTS"] = "-Xms512m -Xmx512m -XX:MaxDirectMemorySize=256m"
+        services["log-ingest"]["volumes"].remove("/run/mlo/secrets:/run/mlo/secrets:ro")
+        services["log-ingest"]["volumes"] += [f"/run/mlo/secrets/{name}:/run/mlo/secrets/{name}:ro"
+            for name in ("ca.crt", "server.crt", "server-pkcs8.key")]
+        services["log-ingest"]["volumes"] += ["/run/mlo/secrets/logstash.keystore:/usr/share/logstash/config/logstash.keystore:ro"]
+        services["kibana"] = svc("kibana", "1536m", ["kibana"],
+            [f"{config}/kibana.yml:/usr/share/kibana/config/kibana.yml:ro",
+             f"{data}/observations/kibana:/usr/share/kibana/data",
+             "/run/mlo/secrets/kibana.keystore:/usr/share/kibana/config/kibana.keystore:ro"],
+            "curl --fail --cacert /run/mlo/secrets/ca.crt --netrc-file /run/mlo/secrets/kibana-health-netrc https://"
+            + node["private_ip"] + ":5601/api/status")
+        services["kibana"]["environment"]["NODE_OPTIONS"] = "--max-old-space-size=768"
+        services["kibana"]["environment"]["ELASTIC_APM_ACTIVE"] = "false"
+        services["kibana"]["volumes"].remove("/run/mlo/secrets:/run/mlo/secrets:ro")
+        services["kibana"]["volumes"] += [f"/run/mlo/secrets/{name}:/run/mlo/secrets/{name}:ro"
+            for name in ("ca.crt", "server.crt", "server.key", "kibana-health-netrc")]
     return {"name": "mlo-runtime-" + node["name"], "services": services}
 
 
-def build(inventory, specification):
+def build(inventory, specification, foundation_track2=None):
+    bridge = track2.accept_foundation(foundation_track2, inventory) if foundation_track2 is not None else None
     plan = {
         k: inventory[k]
         for k in ["schema_version", "environment", "generation", "example_only"]
@@ -570,6 +625,8 @@ def build(inventory, specification):
             "ES initial cluster bootstrap + MongoDB initial user",
         ],
         "nodes": {},
+        "track2_bridge": bridge,
+        "resource_profile": resource_profile(inventory),
     }
     for node in inventory["nodes"]:
         selected = node_services(node, specification["services"])
@@ -592,7 +649,7 @@ def build(inventory, specification):
             "backup_before_shutdown": node["role"] in {"postgresql", "mongodb"},
             "spark_ports": QUERIES if node["role"] == "control" else {},
             "spark_executor_ports": (
-                {q: 19006 + i for i, q in enumerate(QUERIES)}
+                EXECUTOR_PORTS
                 if node["role"] == "control"
                 else {}
             ),
@@ -622,12 +679,20 @@ def build(inventory, specification):
                 if node["role"] in {"kafka", "spark"} else None
             ),
             "imds": "host networking; IMDSv2 token; bypass proxy; instance profile; no static AWS credentials",
+            "track2": track2.proposal(inventory["environment"], inventory["generation"])
+                if node["role"] == "control" else None,
+            "observations": {"input": "sanitized-envelope-only", "filebeat_disk_queue_bytes": 134217728,
+                "spool_max_bytes": 67108864, "spool_max_files": 16,
+                "persistent_paths": ["observations/spool", "observations/filebeat"] +
+                    (["observations/logstash", "observations/kibana"] if node["name"] == "control-b" else []),
+                "archive": "blocked: S3 binding/retention pending; stop at capacity; no automatic deletion",
+                "collector_single_point_of_failure": "control-b", "ready_for_aws": False},
         }
     validate_runtime_plan(plan, inventory, specification)
     return plan, details
 
 
-def _render_staged(inventory_path, output, bundle=None, expected_generation=None):
+def _render_staged(inventory_path, output, bundle=None, expected_generation=None, foundation_track2=None):
     inventory, specification = load_inventory(inventory_path)
     require(
         expected_generation is None or inventory["generation"] == expected_generation,
@@ -641,7 +706,8 @@ def _render_staged(inventory_path, output, bundle=None, expected_generation=None
             and (bundle is None or ".private" in Path(bundle).parts),
             "real inventory output must be under .private",
         )
-    plan, details = build(inventory, specification)
+    sidecar = json.loads(Path(foundation_track2).read_text()) if foundation_track2 is not None else None
+    plan, details = build(inventory, specification, sidecar)
     if bundle:
         bundle = Path(bundle)
         require(
@@ -667,6 +733,9 @@ def _render_staged(inventory_path, output, bundle=None, expected_generation=None
                 compose(node, inventory), sort_keys=False
             )
             files["details.json"] = encode(details["nodes"][node["name"]])
+            if sidecar is not None:
+                files["foundation-track2.json"] = encode(sidecar)
+                files["track2-bridge.json"] = encode(details["track2_bridge"])
             files.update(systemd_units(node, inventory))
             daemon = {
                 "log-driver": "local",
@@ -703,7 +772,7 @@ def _render_staged(inventory_path, output, bundle=None, expected_generation=None
     return plan
 
 
-def render(inventory_path, output, bundle=None, expected_generation=None):
+def render(inventory_path, output, bundle=None, expected_generation=None, foundation_track2=None):
     """Validate and stage every host before publishing; serialize competing renders.
 
     The bundle is one atomic directory rename. A separate plan path is published last;
@@ -735,7 +804,7 @@ def render(inventory_path, output, bundle=None, expected_generation=None):
         if bundle:
             staged_bundle = Path(tempfile.mkdtemp(prefix=".runtime-bundle-", dir=bundle.parent))
             temporary.append(staged_bundle)
-        plan = _render_staged(inventory_path, staged_plan, staged_bundle, expected_generation)
+        plan = _render_staged(inventory_path, staged_plan, staged_bundle, expected_generation, foundation_track2)
         if bundle:
             (staged_bundle / "runtime-plan.json").write_text(encode(plan))
             (staged_bundle / "runtime-plan.json").chmod(0o600)
@@ -775,9 +844,10 @@ def main():
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--bundle", type=Path)
     p.add_argument("--expected-generation")
+    p.add_argument("--foundation-track2", type=Path)
     args = p.parse_args()
     try:
-        render(args.inventory, args.output, args.bundle, args.expected_generation)
+        render(args.inventory, args.output, args.bundle, args.expected_generation, args.foundation_track2)
     except (ContractError, ValueError, OSError, KeyError) as exc:
         print(
             f"FAIL: {type(exc).__name__}: runtime input/render rejected",

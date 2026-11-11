@@ -113,10 +113,12 @@ class SSOCallback(Endpoint):
             require(settings.ADMIN_SESSION_SECONDS > 0, 'POLICY_NOT_READY', '관리자 세션 설정이 필요합니다.', 503)
             user = sync_identity(claims)
             login(raw_request(request), user, backend='django.contrib.auth.backends.ModelBackend')
+            from backend.accounts.passkeys import begin_primary, complete
+            begin_primary(request)
             raw_request(request).session['admin_sso'] = True
             raw_request(request).session.set_expiry(min(settings.ADMIN_SESSION_SECONDS, int(claims['exp'] - time.time())))
             from .api import account_data_for_user
-            return HttpResponseRedirect(account_data_for_user(user)[0]['path'])
+            return HttpResponseRedirect(account_data_for_user(user)[0]['path'] if complete(request) else '/admin/passkey')
         except DomainError:
             raise
         except Exception:

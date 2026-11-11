@@ -1,0 +1,22 @@
+.account-layout{padding:48px 20px 80px;min-height:80vh;background:#f4f8f6}.account-card{max-width:660px;margin:auto;padding:36px}.account-brand{color:#47745f;font-size:12px;letter-spacing:.18em}.account-card h1{margin:12px 0 28px}.account-card h2{font-size:19px;margin:10px 0 20px}.account-card form,.account-card>section{display:grid;gap:14px;margin:18px 0 30px}.account-card>form+form,.account-card>section,.account-card>section+form{border-top:1px solid #dfe8e1;padding-top:26px}.account-card label{display:grid;gap:8px;font-weight:600}.account-card input:not([type=checkbox]),.account-card select{width:100%;min-height:46px;border:1px solid #c9d7ce;border-radius:9px;padding:10px 12px;background:white;color:#243b30;font:inherit;box-sizing:border-box}.account-card button{min-height:42px;padding:9px 14px;border-radius:9px}.account-card small,.account-help{font-weight:400;color:#526b5d;font-size:13px;line-height:1.7}.account-inline{display:flex;gap:8px}.account-inline input{flex:1;min-width:0}.account-inline button{white-space:nowrap}.account-card .account-check{display:flex;align-items:flex-start;gap:10px;font-size:14px;line-height:1.5}.account-check input{margin-top:4px;flex-shrink:0;width:17px;height:17px;accent-color:#285d45}.account-card .account-text-button{padding:0;min-height:24px;text-align:left;text-decoration:underline;background:none;color:#426451;border:none;font-size:13px}.account-links{display:flex;gap:20px;justify-content:center;margin-top:26px}.account-preview{font-size:13px;background:#fff8dc;padding:12px;border-radius:8px}.account-policy-text{white-space:pre-wrap;line-height:1.8;max-height:55vh;overflow:auto}.account-dialog-backdrop{position:fixed;inset:0;background:#112b2199;z-index:100;display:grid;place-items:center;padding:20px}.account-dialog{background:#fff;border-radius:16px;padding:28px;max-width:620px;width:100%;box-sizing:border-box;display:grid;gap:16px}.account-saved{padding:0;list-style:none;display:grid;gap:12px}.account-saved li{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.account-saved span{flex:1;min-width:150px}.account-snapshot{border:1px solid #dce7df;padding:18px;border-radius:12px}.account-danger{color:#8d2c2c;border:1px solid #c88383;background:#fff}.account-card .password-field{display:flex}.account-card .password-field input{min-width:0}.account-card .password-field button{flex-shrink:0}.account-card a{color:#285d45}@media(max-width:600px){.account-layout{padding:20px 12px}.account-card{padding:24px 18px}.account-links{gap:14px;flex-wrap:wrap}}
+.account-card .password-field button{width:60px;min-width:60px;padding:0;white-space:nowrap;color:#365b48}.account-card .password-field input{padding-right:70px}.playlist-actions{flex-wrap:wrap}
+
+/* Signup palette */
+.account-signup { color: #202124; }
+.account-signup .account-brand { color: var(--muther-primary); }
+.account-signup h1, .account-signup h2, .account-signup label, .account-signup strong, .account-signup .account-preview { color: #202124; }
+.account-signup form > .primary, .account-signup form > .primary:hover:not(:disabled) { background: var(--muther-primary); border-color: var(--muther-primary); color: #202124; }
+
+/* Common login Figma text colors, limited to signup and account recovery. */
+.account-figma-text, .account-figma-text h1, .account-figma-text h2,
+.account-figma-text label, .account-figma-text strong,
+.account-figma-text .account-preview,
+.account-figma-text input:not([type=checkbox]), .account-figma-text select { color: #222222; }
+.account-figma-text small, .account-figma-text .account-help,
+.account-figma-text input::placeholder { color: #666b70; }
+
+/* MUSIC X WEATHER account caption. */
+.account-card .account-brand { color: #5c8294; }
+
+/* Match the login background on signup and account recovery. */
+.account-layout:has(.account-figma-text) { background: radial-gradient(ellipse at 50% 30%, #f5faff 0%, #fff 65%); }

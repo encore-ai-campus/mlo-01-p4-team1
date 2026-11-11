@@ -1,5 +1,8 @@
 mock_provider "aws" {
   override_during = plan
+  mock_resource "aws_cloudfront_distribution" {
+    defaults = { "arn" : "arn:aws:cloudfront::111111111111:distribution/EXAMPLEBASE" }
+  }
   mock_resource "aws_iam_role" {
     defaults = { "arn" : "arn:aws:iam::111111111111:role/p4-mock" }
   }
@@ -162,6 +165,48 @@ override_resource {
   override_during = plan
   target          = module.account.module.transfer[0].aws_s3_bucket.this
   values          = { "id" : "example-only-foundation-transfer", "arn" : "arn:aws:s3:::example-only-foundation-transfer" }
+}
+
+override_resource {
+  override_during = plan
+  target          = module.edge.aws_cloudfront_cache_policy.disabled
+  values          = { "id" : "00000000-0000-0000-0000-000000000001" }
+}
+
+override_resource {
+  override_during = plan
+  target          = module.edge.aws_cloudfront_origin_request_policy.api
+  values          = { "id" : "00000000-0000-0000-0000-000000000002" }
+}
+
+override_resource {
+  override_during = plan
+  target          = module.edge.aws_cloudfront_cache_policy.photos[0]
+  values          = { "id" : "00000000-0000-0000-0000-000000000003" }
+}
+
+override_resource {
+  override_during = plan
+  target          = module.edge.aws_cloudfront_response_headers_policy.photos[0]
+  values          = { "id" : "00000000-0000-0000-0000-000000000004" }
+}
+
+override_resource {
+  override_during = plan
+  target          = module.edge.aws_cloudfront_response_headers_policy.private_api
+  values          = { "id" : "00000000-0000-0000-0000-000000000005" }
+}
+
+override_resource {
+  override_during = plan
+  target          = module.edge.aws_cloudfront_origin_access_control.media[0]
+  values          = { "id" : "EXAMPLEOAC" }
+}
+
+override_resource {
+  override_during = plan
+  target          = module.edge.aws_cloudfront_function.photo_version[0]
+  values          = { "arn" : "arn:aws:cloudfront::111111111111:function/example-photo-version" }
 }
 
 override_resource {

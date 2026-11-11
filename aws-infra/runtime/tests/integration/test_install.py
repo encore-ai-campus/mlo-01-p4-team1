@@ -11,6 +11,7 @@ import uuid
 from mlo_runtime.contracts import RUNTIME
 from mlo_runtime.lab import Lab
 from mlo_runtime.install import ComposeSystemdBackend, InstallError, execute
+from mlo_runtime.render import systemd_units
 
 spec = importlib.util.spec_from_file_location("install_unit_fixtures", RUNTIME / "tests/unit/test_install.py")
 fixtures = importlib.util.module_from_spec(spec)
@@ -66,6 +67,21 @@ class InstallerLinuxIntegration(unittest.TestCase):
         (lab.folder / "binding.json").write_text(json.dumps(binding))
         lab.configure({"image": "mlo-p4-b-host-lab:20261029", "volumes": ["data:" + root + "/srv/mlo", "data:/srv/mlo", f"{lab.folder}:/seed:ro", f"{RUNTIME}:/workspace:ro"], "command": ["sleep", "infinity"]})
         lab.up()
+        # Execute module loading with the actual packaged layout and each unit's
+        # PYTHONPATH. This catches a timer that works only in the source checkout.
+        for role in ("control", "postgresql", "mongodb"):
+            units = systemd_units({"name": role, "role": role}, {"generation": "g1"})
+            for unit in units.values():
+                if "Environment=PYTHONPATH=" not in unit:
+                    continue
+                path = next(line.split("=", 2)[2] for line in unit.splitlines()
+                            if line.startswith("Environment=PYTHONPATH="))
+                path = path.replace("/opt/mlo/current", "/seed/payload-v1")
+                for line in unit.splitlines():
+                    if line.startswith(("ExecStart=", "ExecStop=")) and " -m " in line:
+                        module = line.split(" -m ", 1)[1].split()[0]
+                        lab.exec("env", "PYTHONPATH=" + path, "/usr/bin/python3", "-c",
+                                 "import importlib; importlib.import_module(" + repr(module) + ")")
         lab.exec("/bin/sh", "-ec", "cp /seed/binding.json " + root + "/binding.json; chmod 600 " + root + "/binding.json")
         def command(version, operation):
             return lab.exec("/usr/bin/python3", f"/seed/payload-{version}/bin/runtime-entrypoint.py",

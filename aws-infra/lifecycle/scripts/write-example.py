@@ -13,6 +13,11 @@ from mlo_lifecycle.model import need
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--output", type=Path, required=True)
+parser.add_argument("--track2", action="store_true")
 args = parser.parse_args()
 need(not args.output.exists(), "refusing to replace an existing file")
-atomic(args.output, fixture())
+if args.track2:
+    from track2_support import track2_fixture
+    atomic(args.output, track2_fixture())
+else:
+    atomic(args.output, fixture())

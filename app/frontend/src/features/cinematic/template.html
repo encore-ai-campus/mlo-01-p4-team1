@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#080d18" />
+  <meta name="description" content="봄, 여름, 가을, 겨울. 계절의 흐름을 담은 메인 플랫폼의 3D 브랜드 인트로." />
+  <title>사계 — 메인 플랫폼</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%23dcc7ff' d='M20 2 38 20 20 38 2 20Z'/%3E%3Cpath fill='%23080d18' d='m20 10 10 10-10 10-10-10Z'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="__CINEMATIC_STYLE__" />
+</head>
+<body>
+  <div id="stage" aria-hidden="true"></div>
+  <div class="atmosphere" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="masthead">
+    <a class="wordmark" href="__PLATFORM_DESTINATION__" target="_top" id="home" aria-label="메인 플랫폼으로 바로 이동">
+      <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="m20 3 17 17-17 17L3 20Z" stroke="currentColor" stroke-width="1.2"/><path d="m20 11 9 9-9 9-9-9Z" fill="currentColor"/><path d="M20 3v8m17 9h-8m-9 17v-8M3 20h8" stroke="currentColor" stroke-width="1"/></svg>
+      <span>메인 플랫폼<small>A SEASONAL EXPERIENCE</small></span>
+    </a>
+    <div class="top-right"><span class="edition">FOUR SEASONS <i>01</i></span><button id="skip" class="skip" type="button">SKIP <span aria-hidden="true">↗</span></button></div>
+  </header>
+
+  <main>
+    <section id="story" class="story" aria-label="사계절 이야기">
+      <div class="chapter"><span class="chapter-line"></span><span id="chapter-number">01</span><span class="slash">/</span><span id="chapter-label">THE AWAKENING</span></div>
+      <div class="title-wrap"><h1 id="season-title">Spring<span>.</span></h1></div>
+      <h2 id="season-korean">봄의 결, 새로운 시작.</h2>
+      <p id="season-description">잠들었던 풍경이 깨어나고,<br />당신의 하루에 새로운 리듬이 피어납니다.</p>
+      <div class="story-detail"><span class="breathing-dot"></span><span id="season-detail">BLOSSOM IN MOTION</span></div>
+    </section>
+
+    <div id="scene-label" class="scene-label" aria-hidden="true"><span class="cross">+</span><div>LANDSCAPE NO.<span id="landscape-number">01</span><small id="landscape-caption">A MOMENT OF BLOOM</small></div></div>
+    <div id="orbit-caption" class="orbit-caption" aria-hidden="true"><span>35° N</span><span>ONE WORLD, FOUR SEASONS</span><span>127° E</span></div>
+
+    <section id="brand" class="brand-scene" aria-label="메인 플랫폼으로 이동" hidden>
+      <div class="brand-overline">EVERY SEASON LEADS TO YOU</div>
+      <div class="brand-mark-space" aria-hidden="true"><svg class="fallback-logo" viewBox="0 0 100 100"><path d="M50 4 96 50 50 96 4 50Z M50 26 26 50 50 74 74 50Z" fill-rule="evenodd" fill="currentColor"/></svg></div>
+      <div class="brand-copy"><p class="brand-name">메인 플랫폼 <span>MAIN PLATFORM</span></p><h2>계절을 넘어,<br class="mobile-break" /> 당신의 일상으로.</h2><p class="brand-tagline">다르게 흐르는 계절, 하나로 이어지는 우리의 순간.</p>
+        <a id="enter" class="enter" href="__PLATFORM_DESTINATION__" target="_top"><span>메인플랫폼 바로가기</span><span class="enter-arrows" aria-hidden="true">&gt;&gt;</span></a>
+        <button id="replay" class="replay" type="button"><span aria-hidden="true">↻</span> 사계절 다시 보기</button>
+      </div>
+    </section>
+  </main>
+
+  <footer id="controls" class="controls">
+    <div class="play-controls"><button id="pause" class="icon-button" type="button" aria-label="애니메이션 일시정지"><span id="pause-symbol" aria-hidden="true">Ⅱ</span></button><span id="time-label">00:00 <i>/ 00:32</i></span></div>
+    <nav class="season-navigation" aria-label="계절 선택">
+      <button type="button" class="season-nav active" data-season="0" aria-label="봄 장면으로 이동"><span class="nav-track"><i></i></span><span class="nav-text"><small>01</small> SPRING <em>봄</em></span></button>
+      <button type="button" class="season-nav" data-season="1" aria-label="여름 장면으로 이동"><span class="nav-track"><i></i></span><span class="nav-text"><small>02</small> SUMMER <em>여름</em></span></button>
+      <button type="button" class="season-nav" data-season="2" aria-label="가을 장면으로 이동"><span class="nav-track"><i></i></span><span class="nav-text"><small>03</small> AUTUMN <em>가을</em></span></button>
+      <button type="button" class="season-nav" data-season="3" aria-label="겨울 장면으로 이동"><span class="nav-track"><i></i></span><span class="nav-text"><small>04</small> WINTER <em>겨울</em></span></button>
+    </nav>
+    <button id="sound" class="sound" type="button" aria-pressed="false" aria-label="배경음 켜기"><span class="sound-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span id="sound-label">SOUND OFF</span></button>
+  </footer>
+  <p class="preview-label">봄 · 여름 · 가을 · 겨울 <span>·</span> 하나의 계정, 두 서비스</p>
+  <p id="live" class="sr-only" aria-live="polite"></p>
+  <div id="loader" class="loader"><div class="loader-mark">◈</div><span>계절의 문을 여는 중</span><i></i></div>
+  <div id="error" class="error" hidden>3D 장면을 불러오지 못했습니다. <button id="fallback-enter" type="button">브랜딩 화면 보기 →</button></div>
+  <noscript><div class="no-script">이 인트로는 JavaScript가 필요합니다. <a href="__PLATFORM_DESTINATION__" target="_top">메인 플랫폼으로 이동 →</a></div></noscript>
+  <script type="module" src="__CINEMATIC_SCRIPT__"></script>
+</body>
+</html>

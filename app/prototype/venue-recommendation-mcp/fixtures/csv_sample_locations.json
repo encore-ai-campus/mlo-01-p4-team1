@@ -1,0 +1,267 @@
+{
+  "mapping_version": "2026-07-01",
+  "locations": {
+    "VN_SL_033264": {
+      "region_id": "region:1111051500",
+      "district": "종로구",
+      "admin_dong": "청운효자동",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.578742,
+      "longitude": 126.968788
+    },
+    "VN_MVP_MA0101202502A0074235": {
+      "district": "성동구",
+      "admin_dong": "성수2가3동",
+      "region_id": "region:1120069000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5447283798433,
+      "longitude": 127.058117511196
+    },
+    "VN_MVP_MA010120220812594063": {
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "region_id": "region:1120067000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.54163866784,
+      "longitude": 127.056644130739
+    },
+    "VN_MVP_MA010120220810598548": {
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "region_id": "region:1120067000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5411799548479,
+      "longitude": 127.054957822246
+    },
+    "VN_MVP_MA010120220812374911": {
+      "district": "성동구",
+      "admin_dong": "성수1가2동",
+      "region_id": "region:1120066000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5469429926014,
+      "longitude": 127.041054628691
+    },
+    "VN_MVP_MA0101202507A0036508": {
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "region_id": "region:1120067000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5398280789702,
+      "longitude": 127.055760193107
+    },
+    "VN_MVP_MA0101202305A0080350": {
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "region_id": "region:1120067000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5430642610056,
+      "longitude": 127.052277440785
+    },
+    "VN_MVP_MA0101202602A0034194": {
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "region_id": "region:1120067000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5410621365841,
+      "longitude": 127.056417391383
+    },
+    "VN_MVP_MA0101202308A0047504": {
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "region_id": "region:1120067000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5382516163598,
+      "longitude": 127.055148023493
+    },
+    "VN_MVP_MA010120220803986154": {
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "region_id": "region:1120067000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5383236063643,
+      "longitude": 127.055340427193
+    },
+    "VN_MVP_MA0101202504A0054143": {
+      "district": "성동구",
+      "admin_dong": "성수2가3동",
+      "region_id": "region:1120069000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5441873258679,
+      "longitude": 127.059033657371
+    },
+    "VN_MVP_MA010120220810045634": {
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "region_id": "region:1114060500",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.5675198109677,
+      "longitude": 126.995427058491
+    },
+    "VN_MVP_MA0101202406A0288695": {
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "region_id": "region:1114060500",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.5675198109677,
+      "longitude": 126.995427058491
+    },
+    "VN_MVP_MA0101202308A0023211": {
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "region_id": "region:1114060500",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.5638344344932,
+      "longitude": 126.990390504763
+    },
+    "VN_MVP_MA0101202406A0574179": {
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "region_id": "region:1114060500",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.5675198109677,
+      "longitude": 126.995427058491
+    },
+    "VN_MVP_MA0101202406A0436560": {
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "region_id": "region:1114060500",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.569051584762,
+      "longitude": 127.001324369092
+    },
+    "VN_MVP_MA0101202601A0000133": {
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "region_id": "region:1114060500",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.5672583247445,
+      "longitude": 126.99178231701
+    },
+    "VN_MVP_MA010120220813725653": {
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "region_id": "region:1114060500",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.5654652648108,
+      "longitude": 126.990729860816
+    },
+    "VN_MVP_MA010120220806312398": {
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "region_id": "region:1114060500",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.5656004326489,
+      "longitude": 126.990967540372
+    },
+    "VN_MVP_MA010120220809285496": {
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "region_id": "region:1114060500",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.5675198109677,
+      "longitude": 126.995427058491
+    },
+    "VN_MVP_MA010120220808380978": {
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "region_id": "region:1114060500",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.5651407804695,
+      "longitude": 126.989247137946
+    },
+    "VN_MVP_MA0101202311A0007966": {
+      "district": "성동구",
+      "admin_dong": "성수2가1동",
+      "region_id": "region:1120067000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.537557740536,
+      "longitude": 127.055373805093
+    },
+    "VN_MVP_MA0106202607A2432100": {
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "region_id": "region:1114060500",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.5660689268153,
+      "longitude": 126.990661872355
+    },
+    "VN_MVP_MA0101202308A0100813": {
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "region_id": "region:1114060500",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.5665825971914,
+      "longitude": 126.99206536675
+    },
+    "VN_MVP_MA010120220801533893": {
+      "district": "중구",
+      "admin_dong": "을지로동",
+      "region_id": "region:1114060500",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.5656455046012,
+      "longitude": 126.991261825771
+    },
+    "VN_MVP_MA0101202508A0037997": {
+      "district": "성동구",
+      "admin_dong": "성수2가3동",
+      "region_id": "region:1120069000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5417263100345,
+      "longitude": 127.061555019888
+    },
+    "VN_MVP_MA010120220813167101": {
+      "district": "중구",
+      "admin_dong": "명동",
+      "region_id": "region:1114055000",
+      "nx": 60,
+      "ny": 127,
+      "latitude": 37.5664912382563,
+      "longitude": 126.981018026167
+    },
+    "VN_MVP_MA0106202507A2312203": {
+      "district": "성동구",
+      "admin_dong": "성수2가3동",
+      "region_id": "region:1120069000",
+      "nx": 61,
+      "ny": 126,
+      "latitude": 37.5436569330896,
+      "longitude": 127.056589079948
+    },
+    "VN_MVP_MA010120220800186207": {
+      "district": "마포구",
+      "admin_dong": "서강동",
+      "region_id": "region:1144065500",
+      "nx": 59,
+      "ny": 126,
+      "latitude": 37.5546422349158,
+      "longitude": 126.930523626816,
+      "source": "서울_매장_확장_검증_38곳.csv"
+    }
+  }
+}

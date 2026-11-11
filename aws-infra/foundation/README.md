@@ -39,7 +39,20 @@ SG는 공통 flows를 node /32 방향으로 구현합니다. ALB→Control만 SG
 
 SSM private DNS는 Endpoint 기본 Private DNS 자동 공유 대신 서비스 이름의 private zone 2개와 alias, 명시적 계정 간 zone association으로 구현합니다. 일반 DB·클러스터·S3·SSM·IMDS·모델 경로는 proxy를 우회해야 합니다. SSM 외 EC2·STS·CloudWatch API 경로를 SSM Endpoint가 대신한다고 가정하지 않습니다. AMI에는 SSM Agent와 AWS CLI 2.37.10·Python3가 준비되어야 합니다.
 
-CloudFront viewer는 기본 인증서 HTTPS이고 ALB origin은 HTTP입니다. 전 구간 TLS라고 주장하지 않습니다. ALB ingress는 CloudFront origin prefix list, listener default 403과 비공개 origin header 조건으로 제한합니다. 모든 URL의 cache TTL은 0이고 header/cookie/query 및 7개 HTTP method를 전달합니다. `/ops/`·Kibana 인증, CSRF·Host·Authorization 전달과 실제 cache 동작은 runtime 및 실환경 검수 대상입니다. Origin header는 state에 남는 민감값으로 취급하며 HTTP origin 구간의 한계가 남습니다.
+기본 구성의 CloudFront viewer는 기본 인증서 HTTPS이고 ALB origin은 HTTP입니다. 전 구간 TLS라고 주장하지 않습니다. ALB ingress는 CloudFront origin prefix list, listener default 403과 비공개 origin header 조건으로 제한합니다. 기본 및 명시적인 `/api/*` behavior는 `Cache-Control: no-store, private`를 강제하고 cache TTL은 0이며 header/cookie/query 및 7개 HTTP method를 전달합니다. CloudFront가 생성하는 `CloudFront-Forwarded-Proto`도 전달합니다. B는 제한된 origin 경계에서 이 헤더의 신뢰·덮어쓰기와 Secure cookie/CSRF/redirect 처리를 인수해야 합니다. `/ops/`·Kibana 인증, CSRF·Host·Authorization·광고 proof 전달과 실제 cache 동작은 runtime 및 실환경 검수 대상입니다. Origin header는 state에 남는 민감값으로 취급하며 HTTP origin 구간의 한계가 남습니다. 아래 선택 media 경로만 별도 캐시 정책을 사용합니다.
+
+명시적인 `binding.edge_profile="viewer-https-demo"`는 합성 데이터 시연에서 위 HTTP origin 구간을
+정확히 표시하는 선택값입니다. 기존 sidecar 필드를 유지하면서 edge output의
+`tls_status=VIEWER_HTTPS_ORIGIN_HTTP`로 구분하며 full origin TLS와 함께 켤 수 없습니다.
+CloudFront viewer HTTPS 자체는 장기 운영에 사용할 수 있습니다. 시연 제한은 암호화하지 않는
+origin/Control 구간에 적용합니다. `edge_profile="full-tls"`는 기존 `track2.tls` 인증서·Control TLS 입력을 요구합니다.
+프로필 생략 시 기존 unresolved 동작을 유지합니다. 앱의 Secure cookie·CSRF·제한된 proxy 신뢰 설정은 별도 인수입니다.
+
+## EC2 직접 설치 설계 경계
+
+Kafka·Spark·Elasticsearch는 [native host 계약](../contracts/native-host.v1.json)에 따라 호스트 OS/systemd로 전환합니다. EC2 수·종류, VPC/AZ, 보안그룹 포트, EBS 크기·보존 설정은 이번 재설계에서 유지합니다. EC2의 `DataExecutionTarget` 태그와 `foundation.native_host_design` output은 목표 실행 방식과 Ubuntu 24.04/x86_64 요구사항, `ready_for_aws=false` 및 차단 항목을 전달합니다. 태그가 프로그램을 설치하거나 서비스를 기동하지는 않습니다.
+
+실제 AMI는 native binary/JDK/Python·커넥터 및 systemd 환경의 검증된 버전이 필요합니다. 설치는 Runtime의 불변 artifact/AMI와 Ansible 경계에서 수행하며 Terraform user_data·remote-exec에 인터넷 설치 명령·secret·포맷을 넣지 않습니다. 기존 image digest를 native 배포물 checksum으로 재사용하지 않습니다. 실행 전 새 artifact/저장 plan을 다시 생성해야 하며 기존 Docker 설치 adapter로 native 목표를 충족했다고 간주하지 않습니다.
 
 ## Exporter와 runtime 연결
 
@@ -51,7 +64,42 @@ CloudFront viewer는 기본 인증서 HTTPS이고 ALB origin은 HTTP입니다. �
   --output <.private/inventory.json>
 ```
 
-각 입력은 Terraform `output -json`의 `foundation` output envelope입니다. 선택적 `runtime_artifact_boundary` output은 inventory에 섞지 않으며, B는 private raw output에서 Document name/version/hash/hash_type을 별도로 인수할 수 있습니다. 여섯 component의 schema/environment/generation/example_only/region/AZ를 대조하고 노드 역할·ID·IP·Peering·storage를 공통 검사기에 전달합니다. output 순서에 독립적이며 중복·누락·다른 generation·fixture 혼합·잘못된 JSON을 거부합니다. 실제 inventory는 `.private/` 안에 원자적으로 0600 권한으로 저장합니다. 실패 시 기존 inventory를 덮어쓰지 않습니다. fixture ID는 실제 리소스 증거가 아닙니다.
+각 입력은 Terraform `output -json`의 `foundation` output envelope입니다. 선택적 `runtime_artifact_boundary`와 `foundation_track2` output은 inventory에 섞지 않습니다. B는 private raw output에서 Document name/version/hash/hash_type을 별도로 인수할 수 있습니다. 여섯 component의 schema/environment/generation/example_only/region/AZ를 대조하고 노드 역할·ID·IP·Peering·storage를 공통 검사기에 전달합니다. output 순서에 독립적이며 중복·누락·다른 generation·fixture 혼합·잘못된 JSON을 거부합니다. 실제 inventory는 `.private/` 안에 원자적으로 0600 권한으로 저장합니다. 실패 시 기존 inventory를 덮어쓰지 않습니다. fixture ID는 실제 리소스 증거가 아닙니다.
+
+## Track2 조건부 확장
+
+[Track2 입력 예제](track2.binding.example.json)는 합성 fixture입니다. `binding.track2`가 없으면 새 venues 권한·media/archive bucket·OAC·사진 캐시·HTTPS listener를 만들지 않습니다. 공통 topology/services/inventory-v1을 변경하지 않습니다. 입력 검증과 생성은 [track2.py](scripts/track2.py), 생성된 Terraform JSON은 기존 account/edge module에 있습니다. 생성 파일을 직접 수정하지 말고 `build_config.py`로 재생성합니다.
+
+| 역할 | 새 접근 범위 |
+|---|---|
+| Control A/B | `raw/venues/<dataset>/` 읽기, 명시적 ingest allowlist만 쓰기; `lake/venues/<dataset>/v1/{bronze,silver,gold}/`의 개별 Delta 테이블 I/O |
+| 지정 Control Driver | `aws/<environment>/<generation>/<venues-query>/checkpoint/` I/O와 cleanup |
+| Spark executor | 위 raw 읽기·lake 테이블 I/O; checkpoint/media/archive 없음 |
+| Control A/B 사진 workflow | 선택 media bucket의 `media/venues/approved/`만 I/O |
+| Control-b collector | 선택 archive bucket의 `observability/<environment>/<generation>/` 쓰기·multipart 처리; 읽기/삭제 없음 |
+| Kafka·ES·광고·Mongo·Gateway | 새 venues/media/archive 권한 없음; 기존 backup/weather/artifact/operation 권한 보존 |
+
+identity·중앙 bucket·각 VPC Endpoint는 같은 per-node 권한을 사용하고, 새 권한에는 각 노드의 **자기 계정 Endpoint ID**를 조건으로 넣습니다. 데이터 object의 SourceVpce Deny는 venues와 지정 checkpoint로 한정합니다. 기존 포괄 Endpoint data grant는 역할별 prefix grant로 좁혔고, 기존 Control checkpoint wildcard도 기존 세 job 이름으로 좁혔습니다. Track2를 켜기 전 첫 단계의 다섯 실제 Endpoint 출력을 별도로 검토해 입력해야 합니다. Terraform은 자기 Endpoint ID와 불일치하는 binding을 거부하며, 새로 생성되는 ID의 검증은 apply 시점까지 지연될 수 있습니다. Endpoint를 다른 VPC에서 Peering으로 빌리는 경로는 제공하지 않습니다. 한 instance profile을 공유하는 Control 프로세스 사이의 권한 분리와 active Driver fencing은 IAM만으로 보장하지 않습니다.
+
+선택 bucket은 서로 및 기존 data/state와 다른 이름을 요구하며 SSE-S3·versioning·BucketOwnerEnforced·전체 공개 차단·TLS deny·prevent_destroy를 사용합니다. 자동 TTL/delete/VACUUM 또는 KMS key를 추가하지 않습니다. KMS를 채택하면 identity/key/bucket/endpoint의 별도 검토가 필요합니다. 긴 query registry가 정책 한도를 넘으면 Endpoint/bucket 정책 또는 runtime inline 정책 합계의 생성 검증을 실패시킵니다.
+
+media는 S3 REST origin과 SigV4 `always` OAC를 사용하고, exact distribution `AWS:SourceArn`의 승인 사진 prefix 읽기만 허용합니다. 데이터용 SourceVpce Deny를 복사하지 않습니다. URL은 `/media/venues/approved/<venue-id>/<sha256>/<file>.(jpg|jpeg|png|webp|avif)`이며 CloudFront Function이 버전 없는 경로·경로 탈출·다른 확장자를 거부합니다. 이 prefix에 승인된 공개 사진만 넣는 업무 검증은 앱 팀이 인수합니다. `/api/ad-deliveries/*/image` 등 광고·개인·인증·검색 응답은 기본/API 0TTL을 사용합니다. browser/edge TTL은 정수 입력과 명시적인 `ttl_approved=true`를 요구합니다. fixture의 60/120초는 로컬 시험값이며, 3600/86400초나 정적자산 31536000초를 운영값으로 확정하지 않았습니다. 삭제 시 listing 제거·CDN invalidation 및 이미 내려받은 사본의 한계는 운영 인수 사항입니다.
+
+TLS는 기본적으로 `UNRESOLVED_ORIGIN_NAME_CERTIFICATE`입니다. 기존 HTTP 구성을 새로 승인했다는 뜻이 아닙니다. `tls.enabled=true`는 제어 도메인·encore1/서울 ACM ARN·Control HTTPS:8443 readiness를 모두 요구하며, ALB 기본 `*.amazonaws.com`/CloudFront 기본 이름·누락 인증서·부분 TLS를 거부합니다. 설정 후보는 CloudFront `https-only` → ALB HTTPS:443 → private Control HTTPS:8443과 HTTPS health check/SG를 함께 바꿉니다. 결과는 `CONFIGURED_NOT_VERIFIED`이며 인증서 소유/만료/체인·DNS 매핑·실제 TLS·서버 기동은 검증하지 않았습니다. ALB target HTTPS는 암호화이며 target 인증서 검증을 보장하지 않습니다. 현재 사용자가 선택한 ALB 기본 DNS만으로 full TLS를 활성화할 수 없습니다. B의 HTTPS listener/신뢰 protocol 계약은 공통 인수 대기입니다.
+
+## Foundation 전용 Track2 출력
+
+[export_track2.py](scripts/export_track2.py)는 같은 여섯 Terraform output 파일에서 별도 [Foundation schema](schemas/foundation-track2.schema.json)의 sidecar를 만듭니다. CLI 형식은 `export_inventory.py`와 같은 반복 `--input` 및 `--output`입니다. 실제 출력은 `.private/` 안에만 0600 atomic replace로 기록하며 실패 시 기존 파일을 보존합니다.
+
+sidecar는 `foundation-track2/1`, metadata, 정규화된 inventory JSON의 SHA256, dataset/query/ingest allowlist, 정확한 path, 선택 bucket ref, distribution ARN, TLS 상태와 `ready_for_aws=false`를 제공합니다. `inventory_sha256`는 `json.dumps(inventory, sort_keys=True, separators=(',', ':'))`의 UTF-8 SHA256입니다. 소비자는 같은 inventory와 결합해야 합니다. 누락/중복·component/account/Endpoint 불일치·다른 generation·fixture 혼합·unknown field를 거부합니다. 공통 inventory-v1의 다섯 storage ref는 그대로이며 **B/C가 이 sidecar를 소비하는 공통 계약은 아직 승인/구현되지 않았습니다.** Runtime renderer나 Lifecycle의 새 bucket 인수를 완료했다고 주장하지 않습니다.
+
+## Track2 검증과 자원 영향
+
+기존 `bash .local/agents/run-local.sh unit|integration`에 추가 suite를 필수 연결했습니다. unit은 입력/TLS/TTL 거부와 정책 평가기 오류 처리를, integration은 기존 7개 mock root 및 artifact/controller 권한과 결합한 Track2 5계정 plan을 검사합니다. 실제 평가된 identity/bucket/Endpoint의 prefix·role·account·query·generation 거부, weather 보존, OAC 다른 distribution 거부, API cache/header/cookie/query/method 변형, exporter 실패 원자성, full TLS 설정 후보·미준비 거부와 optional resource 부재를 확인합니다. 로컬 정책 평가기는 사용한 IAM subset만 모델링하며 AWS IAM simulator·실제 CloudFront HTTP/cache나 앱/패스키 수용 시험을 대신하지 않습니다. `.artifacts/runs/<id>/track2-*.jsonl`과 `track2-{inventory,sidecar}.mock.json`이 증거입니다.
+
+확장 시 최대 두 private bucket·하나 OAC·하나 Function·사진 cache/response-header policy와 기존 역할 policy가 추가됩니다. EC2/VPC/Peering/Endpoint 수는 늘리지 않습니다. S3 현재/noncurrent version·요청·전송, CloudFront 사진 전송/요청/Function/invalidation, 관측 archive 증가량이 비용 입력입니다. 자동 삭제가 없어 보존량과 디스크 queue/ES 압력은 별도 용량·보존 결정이 필요합니다. S3 access logging·CloudTrail data events·CloudWatch metrics와 암호화된 로그 목적지는 배포 검토에서 확정할 권고이며 이 구현이 유료 관측 자원을 활성화하지는 않습니다. 실계정 잔액/가격·권한·Endpoint·TLS·앱 인수는 not_run이고 `ready_for_aws=false`입니다.
+
+공식 근거: [OAC와 exact SourceArn](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html), [origin TLS 인증서 요구](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-https-cloudfront-to-custom-origin.html), [CloudFront 생성 header](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/adding-cloudfront-headers.html), [S3 Endpoint bucket 제한과 잠금 주의](https://docs.aws.amazon.com/AmazonS3/latest/userguide/example-bucket-policies-vpc-endpoint.html), [Endpoint 정책 한도/Principal](https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-access.html), [bucket policy 한도](https://docs.aws.amazon.com/AmazonS3/latest/userguide/add-bucket-policy.html).
 
 B는 inventory의 node name/role/account/instance_id/private_ip/az_id/runtime_role_ref와 storage ref를 소비합니다. 실제 IAM ARN/secret은 별도 private binding으로 전달하며 모델에 DB 자격증명을 전달하지 않습니다. `binding.example.json`은 fixture 전용입니다. 실제 값을 공용 파일에 쓰지 않습니다.
 
@@ -81,7 +129,7 @@ stage 순서는 preflight → bootstrap-plan → bootstrap → plan → apply �
 
 ## 검증 근거와 남은 검수
 
-raw 로그는 `.artifacts/runs/<UTC-run-id>/`에 매 실행 새로 보존하고 `.artifacts/latest-run.json`에 최근 경로를 남깁니다. 기록은 세션·최종 인계는 `docs/handoff/infra/agent-a/`에 기록합니다. 로컬 검증은 실제 IAM 평가, 3AZ 물리 배치, SSM Agent 등록·명령, DNS·Peering·S3 실통신, CloudFront 인증·cache·origin 우회, Linux EC2 부팅, 집 PC·GPU·부하 검증을 대체하지 않습니다. S3 access logging/CloudTrail data event/CloudWatch 지표와 암호화된 관측 저장소의 구성·비용은 배포 검토에서 확정합니다. 새로운 유료 서비스를 이 기본 구성에 임의 추가하지 않습니다.
+raw 로그는 `.artifacts/runs/<UTC-run-id>/`에 매 실행 새로 보존하고 `.artifacts/latest-run.json`에 최근 경로를 남깁니다. 내부 세션·상태·최종 인계는 Git 제외 `.local/agents/`에 기록합니다. 로컬 검증은 실제 IAM 평가, 3AZ 물리 배치, SSM Agent 등록·명령, DNS·Peering·S3 실통신, CloudFront 인증·cache·origin 우회, Linux EC2 부팅, 집 PC·GPU·부하 검증을 대체하지 않습니다. S3 access logging/CloudTrail data event/CloudWatch 지표와 암호화된 관측 저장소의 구성·비용은 배포 검토에서 확정합니다. 새로운 유료 서비스를 이 기본 구성에 임의 추가하지 않습니다.
 
 공식 참고: [Terraform mocks](https://developer.hashicorp.com/terraform/language/tests/mocking), [S3 backend lockfile](https://developer.hashicorp.com/terraform/language/backend/s3), [SSM VPC Endpoint](https://docs.aws.amazon.com/systems-manager/latest/userguide/setup-create-vpc.html), [ALB origin 제한](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/restrict-access-to-load-balancer.html), [S3 보안](https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html).
 
@@ -92,3 +140,5 @@ raw 로그는 `.artifacts/runs/<UTC-run-id>/`에 매 실행 새로 보존하고 
 ## 2026-11-01 인증 전 실행 경계 보완
 
 [최신 공통 실행 계약](../contracts/preauthentication.v1.md)을 따릅니다. 기존 wrapper는 저수준 실행 포트이며 운영 진입점은 서명·소스/입력 해시를 검사하는 `scripts/infra_control.py execute`입니다. bootstrap-plan은 plan을 저장하고 bootstrap은 외부에서 승인한 같은 plan만 적용합니다. 최초 bootstrap에는 승인한 단일 controller 계약을, 이후에는 전용 operation controller 역할의 S3 CAS를 사용합니다. 16개 runtime 역할·5개 Endpoint·중앙 bucket에 exact operation 객체 권한을 정의했고, 조건 없는 덮어쓰기·삭제·state key 접근은 모의 검사에서 차단합니다. 실제 IAM·STS 경로는 아직 검수하지 않았습니다.
+
+PassRole CI 입력은 계정별 topology에서 도출한 16개 runtime role ARN의 부분집합만 허용합니다. 접두사가 같은 미등록 역할·다른 계정에 놓인 node 역할·wildcard는 거부합니다. IAM action 대소문자와 관계없이 같은 제한을 적용하며 action의 `*`·`?` wildcard를 차단합니다. 활성화된 mock OIDC plan은 provider URL/audience·Federated principal·역할별 정확한 environment subject·단일 trust statement를 대조하며, provider/principal/action/audience/subject/statement 변형과 plan/apply subject 교환 9건을 거부합니다. 이는 로컬 입력·평가 결과 검증이며 AWS IAM의 실제 허용 판정은 실환경 인수에 남습니다.

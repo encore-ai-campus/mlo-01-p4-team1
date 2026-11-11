@@ -49,21 +49,23 @@ def guard():
 def main():
     guard()
     parser = SafeParser(description=__doc__)
-    parser.add_argument("operation", choices=["inspect", "plan", "lab-init", "execute", "resume", "verify", "observe"])
+    parser.add_argument("operation", choices=["inspect", "plan", "lab-init", "execute", "resume", "verify", "observe",
+                                              "restore-track2", "resume-track2", "observe-track2", "verify-track2"])
     parser.add_argument("--bundle", type=Path, required=True)
     parser.add_argument("--mode", choices=["retain-data", "purge-data"], default="retain-data")
     parser.add_argument("--adapter", choices=["local-simulator"], default="local-simulator")
-    for name in ("plan", "lab", "approval", "evidence", "authority-key", "output", "reconciliation"):
+    for name in ("plan", "lab", "approval", "evidence", "authority-key", "output", "reconciliation", "recovery-approval"):
         parser.add_argument("--" + name, type=Path)
     parser.add_argument("--step")
     parser.add_argument("--fault-step")
     parser.add_argument("--fault", choices=["before", "timeout", "crash"])
+    parser.add_argument("--rollback-release", action="store_true")
     args = parser.parse_args()
     output = OutputReservation(args.output)
     operation_complete = False
     try:
         snapshots = InputSnapshots((args.bundle, args.plan, args.approval, args.evidence,
-                                    args.authority_key, args.reconciliation))
+                                    args.authority_key, args.reconciliation, args.recovery_approval))
         output.reserve()
         bundle = read(args.bundle)
         targets = validate_bundle(bundle)
@@ -80,29 +82,50 @@ def main():
         else:
             need(args.plan is not None and args.lab is not None, "--plan and --lab required")
             reviewed = read(args.plan)
-            if args.operation == "observe":
+            if args.operation in {"observe", "observe-track2"}:
                 validate_plan(reviewed, bundle, reporting=True)
-                step = next((s for s in reviewed["steps"] if s["id"] == args.step), None)
-                need(step is not None, "unknown step")
-                result = Simulator(args.lab, bundle).observe(step)
+                if args.operation == "observe-track2":
+                    from .recovery import observe
+                    need("track2" in bundle, "Track2 bundle required")
+                    result = observe(args.lab, bundle["track2"], args.step, rollback=args.rollback_release)
+                else:
+                    step = next((s for s in reviewed["steps"] if s["id"] == args.step), None)
+                    need(step is not None, "unknown step")
+                    result = Simulator(args.lab, bundle).observe(step)
             else:
                 need(args.authority_key is not None, "--authority-key required")
                 key = authority_key(args.authority_key)
-                if args.operation == "verify":
+                if args.operation == "verify-track2":
+                    from .recovery import verify_recovery
+                    result = verify_recovery(reviewed, bundle, args.lab, key, rollback=args.rollback_release)
+                elif args.operation == "verify":
                     result = verify(reviewed, bundle, args.lab, key)
                 else:
                     need(args.approval is not None and args.evidence is not None, "approval and evidence required")
-                    result = execute(reviewed, bundle, args.lab, read(args.approval), read(args.evidence), key,
-                                     resume=args.operation == "resume",
-                                     reconciliations=read(args.reconciliation) if args.reconciliation else (),
-                                     fault=[args.fault_step, args.fault] if args.fault else None,
-                                     input_guard=snapshots.check)
+                    if args.operation in {"restore-track2", "resume-track2"}:
+                        from .recovery import recover
+                        need(args.recovery_approval is not None, "separate recovery approval required")
+                        result = recover(reviewed, bundle, args.lab, read(args.approval), read(args.evidence), key,
+                                         read(args.recovery_approval), rollback=args.rollback_release,
+                                         resume=args.operation == "resume-track2",
+                                         reconciliations=read(args.reconciliation) if args.reconciliation else (),
+                                         fault=[args.fault_step, args.fault] if args.fault else None,
+                                         input_guard=snapshots.check)
+                    else:
+                        result = execute(reviewed, bundle, args.lab, read(args.approval), read(args.evidence), key,
+                                         resume=args.operation == "resume",
+                                         reconciliations=read(args.reconciliation) if args.reconciliation else (),
+                                         fault=[args.fault_step, args.fault] if args.fault else None,
+                                         input_guard=snapshots.check)
         operation_complete = True
         print(json.dumps(result, sort_keys=True))
         output.publish(result)
         return 3 if result.get("complete") is False else 0
     except Exception as exc:
-        print(json.dumps(safe_error(exc, args.operation, args.lab, reporting=operation_complete),
+        error_lab = (args.lab / "track2-recovery" if args.lab is not None
+                     and args.operation in {"restore-track2", "resume-track2", "observe-track2", "verify-track2"}
+                     else args.lab)
+        print(json.dumps(safe_error(exc, args.operation, error_lab, reporting=operation_complete),
                          ensure_ascii=False, sort_keys=True), file=sys.stderr)
         return 2
     finally:
