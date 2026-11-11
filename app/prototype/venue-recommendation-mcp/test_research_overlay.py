@@ -4,9 +4,10 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from prepare_team_catalog import apply_research, apply_research_update, _reviewed_moods, _reviewed_menu_names, main
+from prepare_team_catalog import apply_research, apply_research_update, _reviewed_moods, _reviewed_menu_names, main, prepare
 from prepare_team_catalog import TAG_FILE
 from verify_tag_weather import read_tags
+from verify_team_catalog import venue, menu
 
 
 class ResearchOverlayTests(unittest.TestCase):
@@ -131,6 +132,49 @@ class ResearchOverlayTests(unittest.TestCase):
         with patch.object(sys, 'argv', argv), patch('prepare_team_catalog.prepare') as prepare:
             with self.assertRaises(SystemExit): main()
             prepare.assert_not_called()
+
+    def test_embedded_research_keeps_existing_menu_and_price(self):
+        raw = venue('a')
+        raw.update({'매장분위기_조사':'아늑한 카페', '매장특징_조사':'차분한 실내',
+                    '대표메뉴_조사':'김치전골, 케이크', '좌석_편의_조사':'실내 테이블',
+                    '출처_URL':'https://example.com/review', '조사확인일':'2026-11-11',
+                    '제한사항':'후기 당시 기준'})
+        raw_menu = menu(raw, 'm1', '김치전골')
+        pair = [('test', Path('test_venues.csv'), Path('test_menus.csv'))]
+        metadata = {'sha256':'abc','file':'test','rows':1}
+        def read(path, required):
+            return ([raw] if path.name == 'test_venues.csv' else [raw_menu], metadata)
+        with patch('prepare_team_catalog.source_pairs', return_value=pair), patch('prepare_team_catalog.read_export', side_effect=read):
+            out = prepare(Path('unused'))
+        v = out['venues'][0]
+        self.assertEqual(v['mood_tag_ids'], ['mood_cozy'])
+        self.assertEqual(v['avg_budget_krw'], 15000)
+        self.assertEqual(v['research']['seating'], '실내 테이블')
+        self.assertEqual(len(out['menus']), 2)
+        self.assertEqual(out['menus'][0]['price_krw'], 8000)
+        self.assertIsNone(out['menus'][1]['price_krw'])
+        self.assertEqual(out['research_audit']['research_menu_duplicate'], 1)
+
+        update = {'venue_id':'a','매장명':raw['매장명'],'도로명주소':raw['도로명주소'],
+                  '매장분위기_조사':'활기찬','매장특징_조사':'덮어쓰면 안됨','대표메뉴_조사':'케이크',
+                  '출처_URL':'https://example.com/other','조사확인일':'2026-11-11','제한사항':''}
+        with patch('prepare_team_catalog.read_export', return_value=([update], {})):
+            apply_research_update(out, Path('update.csv'))
+        self.assertEqual(v['mood_tag_ids'], ['mood_cozy'])
+        self.assertEqual(v['research']['description'], '차분한 실내')
+        self.assertEqual(out['research_audit']['already_enriched'], 1)
+        self.assertEqual(len(out['menus']), 2)
+
+    def test_embedded_without_source_does_not_replace_values(self):
+        raw = venue('a')
+        raw.update({'매장분위기_조사':'아늑한', '매장특징_조사':'추정', '출처_URL':''})
+        pair = [('test', Path('test_venues.csv'), Path('test_menus.csv'))]
+        def read(path, required):
+            return ([raw] if path.name == 'test_venues.csv' else [], {'sha256':'abc','file':'test','rows':1})
+        with patch('prepare_team_catalog.source_pairs', return_value=pair), patch('prepare_team_catalog.read_export', side_effect=read):
+            out = prepare(Path('unused'))
+        self.assertNotIn('research', out['venues'][0])
+        self.assertNotIn('mood_cozy', out['venues'][0]['mood_tag_ids'])
 
 
 if __name__ == '__main__':

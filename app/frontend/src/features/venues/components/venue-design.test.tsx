@@ -5,6 +5,7 @@ import { VenueCard } from './VenueCard';
 import { VenuePhotoGallery, venuePhotoUrls } from './VenuePhotoGallery';
 import { VenueMenuPreviewStrip } from './VenueMenuPreviewStrip';
 import { VenueFilterBar } from './VenueFilterBar';
+import { VenueDetailDrawer } from './VenueDetailDrawer';
 import { nextRegionIndex } from './RegionSelect';
 import type { VenueItem } from '../types/venue.types';
 
@@ -35,4 +36,17 @@ describe('매장 탐색 디자인',()=>{
   expect(html).toContain('role="combobox"'); expect(html).toContain('aria-expanded="false"'); expect(html).toContain('aria-pressed="true">카페'); expect(html).toContain('disabled=""');
  });
  it('방향키와 처음·끝 이동은 목록 범위를 벗어나지 않는다',()=>{ expect(nextRegionIndex('ArrowDown',0,3)).toBe(1); expect(nextRegionIndex('ArrowUp',0,3)).toBe(0); expect(nextRegionIndex('End',0,3)).toBe(2); expect(nextRegionIndex('Home',2,3)).toBe(0); expect(nextRegionIndex('ArrowDown',2,3)).toBe(2); });
+ it('매장 상세에 조사 근거를 표시하고 안전한 링크만 만든다',()=>{
+  const detail={...venue,menu_tabs:[],all_menus_count:0,applied_playlist:null,research:{description:'작은 로스터리',representative_menus:'핸드드립|쿠키',seating:'창가 좌석',sources:['https://example.org/review','javascript:alert(1)'],checked_on:'2026-11-11',limitations:'2025년 후기 기준'}};
+  const html=renderToStaticMarkup(<VenueDetailDrawer venue={detail} isOpen onClose={noop} readOnly/>);
+  expect(html).toContain('방문 후기 기반 매장 정보'); expect(html).toContain('작은 로스터리');
+  expect(html).toContain('핸드드립 · 쿠키'); expect(html).toContain('창가 좌석'); expect(html).toContain('2026-11-11');
+  expect(html).toContain('2025년 후기 기준'); expect(html).toContain('https://example.org/review'); expect(html).not.toContain('javascript:');
+  expect(html).toContain('9,000원');
+ });
+ it('조사 정보가 없거나 링크만 잘못된 경우 해당 구역을 숨긴다',()=>{
+  const detail={...venue,menu_tabs:[],all_menus_count:0,applied_playlist:null};
+  expect(renderToStaticMarkup(<VenueDetailDrawer venue={detail} isOpen onClose={noop} readOnly/>)).not.toContain('방문 후기 기반 매장 정보');
+  expect(renderToStaticMarkup(<VenueDetailDrawer venue={{...detail,research:{sources:['javascript:alert(1)']}}} isOpen onClose={noop} readOnly/>)).not.toContain('방문 후기 기반 매장 정보');
+ });
 });

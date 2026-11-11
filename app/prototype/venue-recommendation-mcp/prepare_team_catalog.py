@@ -131,6 +131,7 @@ def prepare(source_dir, areas=None):
     classify_menu = menu_classifier(labels, ancestors)
     mood_labels = {**labels["MOOD"], **{word: "mood_calm" for word in CALM_WORDS}}
     venues, menus, sources = [], [], []
+    embedded_research = {}
     audit = {}
     all_signatures = set()
     seen_venues, seen_menus = set(), set()
@@ -138,6 +139,22 @@ def prepare(source_dir, areas=None):
     for district, venue_path, menu_path in source_pairs(source_dir, areas):
         raw_venues, source = read_export(venue_path, VENUE_FIELDS)
         sources.append(source)
+        for raw in raw_venues:
+            research_fields = ('매장분위기_조사', '매장특징_조사', '대표메뉴_조사', '좌석_편의_조사')
+            if not raw.get('출처_URL', '').strip() or not any(raw.get(key, '').strip() for key in research_fields):
+                continue
+            vid = raw['venue_id']
+            if not vid or vid in embedded_research:
+                raise ValueError(f'내장 조사 자료에 빈 ID 또는 중복 ID가 있습니다: {vid}')
+            embedded_research[vid] = ({
+                'venue_id': vid, '매장명': raw['매장명'], '도로명주소': raw['도로명주소'],
+                '매장분위기_조사': raw.get('매장분위기_조사', ''),
+                '매장특징_조사': raw.get('매장특징_조사', ''),
+                '대표메뉴_조사': raw.get('대표메뉴_조사', ''),
+                '좌석_편의_조사': raw.get('좌석_편의_조사', ''),
+                '출처_URL': raw['출처_URL'], '조사확인일': raw.get('조사확인일', ''),
+                '제한사항': raw.get('제한사항', ''),
+            }, 'update')
         raw_menus, source = read_export(menu_path, MENU_FIELDS)
         sources.append(source)
         totals = Counter()
@@ -263,7 +280,7 @@ def prepare(source_dir, areas=None):
             **totals, "excluded_venues": dict(excluded_venues), "excluded_menus": dict(excluded_menus),
         }
     fingerprint = hashlib.sha256("".join(row["sha256"] for row in sources).encode()).hexdigest()[:12]
-    return {
+    snapshot = {
         "version": f"drive-preview-{fingerprint}", "preview_only": True,
         "source_basis": "팀 Drive CSV의 매장·메뉴 값. 반복 메뉴의 매장별 메뉴판 출처 미확인.",
         "visibility_basis": "원본 상태 코드 OPEN 또는 1인 검증 적합 행의 로컬 노출. 점주 공개 설정과 현재 영업은 미확인.",
@@ -273,6 +290,9 @@ def prepare(source_dir, areas=None):
         "distinct_source_menu_sets_across_all_files": len(all_signatures), "independently_verified_menus": 0,
         "venues": venues, "menus": menus,
     }
+    if embedded_research:
+        _apply_research_records(snapshot, embedded_research, {})
+    return snapshot
 
 
 def _research_key(value):
@@ -415,6 +435,9 @@ def _apply_research_records(snapshot, records, source_by_id):
         if pair is None:
             audit['no_research'] += 1
             continue
+        if venue.get('research'):
+            audit['already_enriched'] += 1
+            continue
         row, home = pair
         update = home == 'update'
         name, address = row['매장명'], row['주소' if home is True else '도로명주소']
@@ -453,7 +476,8 @@ def _apply_research_records(snapshot, records, source_by_id):
             venue['mood_tag_ids'] = verified_moods
             audit['moods_replaced'] += 1
         description = row['매장특징_조사' if update else ('매장 특징' if home else '매장소개_후기')]
-        venue['research'] = {'description': description, 'sources': urls,
+        seating = row.get('좌석_편의_조사' if update else ('좌석·편의정보' if home else '좌석_및_편의정보'), '')
+        venue['research'] = {'description': description, 'sources': urls, 'seating': seating,
                              'limitations': row['제한사항'], 'checked_on': row['조사확인일' if update else '확인일']}
         menu_text = row['대표메뉴_조사' if update else ('확인된 메뉴' if home else '대표메뉴_후기')]
         seen_names = set()

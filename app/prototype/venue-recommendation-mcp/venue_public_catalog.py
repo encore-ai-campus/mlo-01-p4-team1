@@ -30,6 +30,7 @@ class VenueResearch(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid")
 
     description: str = ""
+    seating: str = ""
     sources: list[Text] = Field(default_factory=list)
     limitations: str = ""
     checked_on: str = ""

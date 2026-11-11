@@ -637,7 +637,7 @@ class CsvLazyRepository:
         phone_match = re.search(r'전화:([0-9\-]+)', seat_info)
         phone = phone_match.group(1) if phone_match else '02-555-0199'
 
-        return {
+        venue = {
             'venue_id': venue_id,
             'venue_name': venue_name,
             'gu_name': gu_name,
@@ -672,6 +672,22 @@ class CsvLazyRepository:
             'thumbnail_url': (row.get('매장대표_사진_URL') or '').strip(),
             'interior_photos': [u.strip() for u in (row.get('매장내부_사진_URL_목록') or '').split('|') if u.strip()],
         }
+        research_fields = {
+            'description': '매장특징_조사',
+            'representative_menus': '대표메뉴_조사',
+            'seating': '좌석_편의_조사',
+            'sources': '출처_URL',
+            'checked_on': '조사확인일',
+            'limitations': '제한사항',
+        }
+        research = {key: (row.get(column) or '').strip() for key, column in research_fields.items()}
+        if any(research.values()):
+            research['sources'] = [url.strip() for url in research['sources'].split('|') if url.strip()]
+            venue['research'] = research
+        checked_moods = (row.get('매장분위기_조사') or '').strip()
+        if checked_moods and research.get('sources'):
+            venue['mood_tags'] = [tag.strip() for tag in re.split(r'[|;,]', checked_moods) if tag.strip()]
+        return venue
 
     def _cast_menu_row(self, row: Dict[str, str]) -> Dict[str, Any]:
         """한글 13컬럼 메뉴 CSV 및 영문 메뉴 CSV 통합 변환"""

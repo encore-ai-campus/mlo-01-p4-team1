@@ -42,6 +42,15 @@ export interface MusicBanner {
   badge_text: string;
 }
 
+export interface VenueResearch {
+  description?: string;
+  representative_menus?: string;
+  seating?: string;
+  sources?: string[];
+  checked_on?: string;
+  limitations?: string;
+}
+
 export interface VenueItem {
   venue_id: string;
   venue_name: string;
@@ -72,6 +81,7 @@ export interface VenueItem {
   matched_menus_preview: MenuItem[];
   match_score: number;
   dl_similarity?: number;
+  research?: VenueResearch | null;
 }
 
 export interface ConciergeBriefing {
@@ -116,6 +126,7 @@ interface RegisteredVenueDetail extends VenueItem {
 }
 
 interface CuratedVenueDetail extends Pick<VenueItem, 'venue_id' | 'venue_name' | 'category' | 'sub_category' | 'road_address' | 'dong_name'> {
+  research?: VenueResearch | null;
   curated_listing: {
     moods: string[];
     representative_menus: string[];
