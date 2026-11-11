@@ -1,0 +1,10 @@
+{
+  "services": {
+    "web": {
+      "environment": {
+        "ADMIN_PASSKEY_RP_ID": "dktu9581en6nc.cloudfront.net",
+        "ADMIN_PASSKEY_ORIGIN": "https://dktu9581en6nc.cloudfront.net"
+      }
+    }
+  }
+}
