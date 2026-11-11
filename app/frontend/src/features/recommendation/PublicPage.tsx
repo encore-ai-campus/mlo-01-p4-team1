@@ -35,7 +35,7 @@ export function PublicPage(){
     return()=>window.removeEventListener('popstate',update);
   },[]);
   function navigate(next:'home'|'playlist'){
-    const target=next==='home'?'/':'/playlist';
+    const target=next==='home'?'/muther':'/playlist';
     if(window.location.pathname!==target)window.history.pushState(null,'',target+window.location.search);
     setPage(next);window.scrollTo({top:0,behavior:'instant'});
   }

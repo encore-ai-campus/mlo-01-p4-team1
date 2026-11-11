@@ -19,7 +19,9 @@ CLOSED_STATUSES = {"CLOSED", "CLOSED_HIDDEN"}
 def csv_category(row):
     category = normalize(row["업종구분"])
     subtype = normalize(row["세부카테고리"])
-    if category == "카페" and subtype == "카페":
+    # The authoritative category may have a more specific subtype such as
+    # bakery or waffle cafe; requiring the literal subtype silently drops it.
+    if category == "카페":
         return "CAFE"
     if category in {"술집", "주점"} and subtype in CONFIRMED_PUB_SUBTYPES:
         return "PUB"

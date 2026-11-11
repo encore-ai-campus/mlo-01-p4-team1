@@ -19,7 +19,7 @@ LLM을 사용하지 않는 방문 조건 검색도 같은 MCP를 사용합니다
 | `--public-catalog` | 매장·메뉴 ID와 공개 상태를 가진 JSON 스냅샷 |
 | 팀 CSV 변환본 | 원문 값을 공통 태그에 매핑한 로컬 시연 자료. 항상 `preview_only=true` |
 
-공개 스냅샷은 `version`, `venues`, `menus`를 가집니다. 각 레코드는 `is_public=true`인 경우만 조회하며, 메뉴는 `venue_id`로 매장에 연결합니다. 등록되지 않은 태그, 중복 ID, 잘못된 지역 매핑은 거부합니다. 상세 필드는 `venue_public_catalog.py`에 정의돼 있습니다. 스냅샷 갱신은 완성된 파일 단위로 교체합니다.
+공개 스냅샷은 `version`, `venues`, `menus`를 가집니다. 비시연 환경에서는 `preview_only=false`도 명시해야 하며, 누락되거나 `true`인 파일은 거부합니다. 이 표시는 형식 검사이며 매장 공개 승인이나 원본의 정확성을 검증하지 않습니다. 각 레코드는 `is_public=true`인 경우만 조회하며, 메뉴는 `venue_id`로 매장에 연결합니다. 등록되지 않은 태그, 중복 ID, 잘못된 지역 매핑은 거부합니다. 상세 필드는 `venue_public_catalog.py`에 정의돼 있습니다. 스냅샷 갱신은 완성된 파일 단위로 교체합니다.
 
 팀 CSV에는 점주 공개 승인과 실제 메뉴판 확인 여부가 없을 수 있습니다. 변환본의 공개 플래그는 로컬 화면 노출용이며 점주 승인으로 간주하지 않습니다. 기본 MCP 실행은 시연용 스냅샷을 거부하고, `--allow-preview-catalog`를 명시한 실행에서만 읽습니다. Django 로컬 시연 실행기는 해당 옵션을 설정합니다.
 
@@ -34,6 +34,14 @@ LLM을 사용하지 않는 방문 조건 검색도 같은 MCP를 사용합니다
 ```powershell
 & ./.local/venue-mcp/Scripts/python.exe -B -X utf8 prototype/venue-recommendation-mcp/prepare_team_catalog.py --source-dir ./analysis/team-venues --output .local/venue-mcp/team-preview.json
 ```
+
+서울·경기·인천처럼 원본이 여러 폴더로 나뉘어 있으면 `--source-dir`을 폴더마다 반복해 하나의 시연 카탈로그로 변환합니다. 각 폴더에 해당 지역의 매장·메뉴 CSV 쌍이 있어야 합니다.
+
+```powershell
+& ./.local/venue-mcp/Scripts/python.exe -B -X utf8 prototype/venue-recommendation-mcp/prepare_team_catalog.py --source-dir ./analysis/seoul_venues_20261106/by_gu --source-dir ./analysis/incheon_venues_20261110/by_gu --source-dir ./analysis/gyeonggi_4cities_20261109/by_city --output .local/venue-mcp/team-preview.json
+```
+
+위 명령은 세 폴더의 예시이며, 추가 경기 폴더도 같은 방식으로 지정합니다. 이름이 같은 지역 파일은 각 폴더에서 따로 읽고, 중복 매장·메뉴 ID와 누락된 파일 쌍이 있으면 전체 변환을 중단합니다. `--areas`를 사용하면 모든 지정 폴더에서 해당 이름을 찾으므로 같은 이름이 여러 곳에 있으면 모두 포함합니다. 파일명 중복은 결과의 검사 내역에서 `중구#1`, `중구#2`처럼 구분합니다.
 
 폴더 일부만 선택하려면 `--areas 마포구 연수구 수원시`를 추가합니다. 기존 변환본을 갱신할 때만 `--replace`를 추가합니다. 변환이 실패하면 기존 출력 파일은 유지됩니다. 원문 CSV·변환 JSON·로컬 DB·API 키는 Git에 포함하지 않습니다.
 
@@ -71,6 +79,8 @@ py -3.14 -m venv .local/venue-mcp
 ```
 
 팀 CSV 변환본과 Codex CLI를 사용하는 로컬 검증 예시입니다. Codex CLI의 기존 ChatGPT 로그인이 필요합니다. 실행 파일을 찾지 못하면 `--codex-cli-executable`에 설치된 실행 파일 경로를 지정합니다.
+
+조사 스냅샷이 이 노트북의 `fixtures/research_preview.json`에 이미 있을 때만 로컬 실행기에 `--research-preview`를 지정해 사용할 수 있습니다. 파일이 없으면 누락 안내 후 실행을 중단합니다. 이 파일은 팀 공유 또는 Git에 포함할 자료가 아닙니다. 다른 환경에서는 인가된 팀 CSV로 별도 변환한 파일을 아래의 `--public-catalog`로 지정합니다. 시연 데이터베이스는 기본 시연과 별도로 보관합니다.
 
 ```powershell
 & ./.local/venue-api/Scripts/python.exe -B prototype/venue-recommendation-mcp/run_local_demo.py --mcp-python .local/venue-mcp/Scripts/python.exe --port 18752 --public-catalog .local/venue-mcp/team-preview.json --state-dir .local/team-venue-demo --llm-provider codex_cli
@@ -111,7 +121,7 @@ py -3.14 -m venv .local/venue-mcp
 - `catalog_metadata.preview_only`, `source_basis`, `budget_basis` 등은 시연 자료 여부와 근거를 나타냅니다.
 - 웹 AI 질문은 `POST /api/venues/ai-concierge/chat`에 JSON `{ "message": "질문", "region": "선택 지역" }`를 보냅니다. 같은 출처와 CSRF 검사를 적용하며 `{success, mcp, llm}`을 반환합니다.
 
-Django의 내장 MCP 실행 연결은 현재 `C_LOCAL_DEMO=1`인 로컬 시연용입니다. 실제 운영 호스트의 인증·프로세스 관리·LLM API 연결과 운영 매장 공개 승인은 별도 통합 확인 대상입니다. 독립 MCP 서버는 `venue_recommendation_mcp.py --public-catalog <스냅샷>`으로 실행하며 stdio로 연결합니다.
+Django의 내장 MCP 연결은 기본적으로 `C_LOCAL_DEMO=1`인 로컬 시연에서 활성화됩니다. 비시연 환경에서는 `VENUE_MCP_SERVICE_ENABLED=1`과 공개 카탈로그 경로를 명시해야 하며, 시연 전용 카탈로그는 허용하지 않습니다. 이 설정은 MCP 호스트만 켜며 실제 운영의 인증·플랫폼 접근 정책·프로세스 관리·LLM API 연결과 매장 공개 승인을 완료했다는 뜻은 아닙니다. 독립 MCP 서버는 `venue_recommendation_mcp.py --public-catalog <스냅샷>`으로 실행하며 stdio로 연결합니다.
 
 ## 검증
 

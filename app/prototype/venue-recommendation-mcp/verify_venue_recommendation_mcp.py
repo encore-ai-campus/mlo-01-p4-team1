@@ -283,8 +283,10 @@ async def verify_concierge_ranking():
         assert "VN_SL_000153" not in {row["venue_id"] for row in pubs["ranked"]}, pubs
         cafes = await call(client, "recommend_venues", {**arguments, "query": "1만원 미만 카공하기 좋은 카페"})
         assert len(cafes["ranked"]) == 5 and all(
-            row["venue_category"] == "CAFE" and row["avg_budget_krw"] == 8000 for row in cafes["ranked"]
+            row["venue_category"] == "CAFE" and row["avg_budget_krw"] < 10000 for row in cafes["ranked"]
         ), cafes
+        waffle = next(row for row in cafes["ranked"] if row["venue_id"] == "VN_SL_000005")
+        assert waffle["sub_category"] == "와플/벨기에디저트카페" and waffle["avg_budget_krw"] == 9500, waffle
         assert cafes["request"]["budget"] == {"min_krw": None, "max_krw": 9999}, cafes
         print("PASS 원본 강남구 CSV · 잔잔한 술집 근거 없음 · 샤브리스 제외")
         print("PASS 원본 강남구 CSV · 1만원 미만 카공 카페 5곳")
@@ -441,7 +443,7 @@ async def verify_seoul_place_index():
     async with session_for("--catalog", str(catalog), "--locations", str(locations), "--venues-csv", str(sample)) as client:
         for name, district, expected_name in (
             ("신림역", "관악구", "시즈"),
-            ("불광역", "은평구", "카페인중독 은평점"),
+            ("불광역", "은평구", "이디야커피"),
             ("천호역", "송파구", "힐링타로카페"),
         ):
             result = await call(client, "recommend_venues", {"region": "강남구", "query": f"{name} 근처 카페"})
@@ -449,6 +451,7 @@ async def verify_seoul_place_index():
             assert area["label"] == name and area["kind"] == "STATION", result
             assert result["ranked"][0]["name"] == expected_name and result["ranked"][0]["district"] == district, result
             assert all(row["distance_m"] <= 1000 for row in result["ranked"]), result
+            assert [row["distance_m"] for row in result["ranked"]] == sorted(row["distance_m"] for row in result["ranked"]), result
         print("PASS 신림·불광·천호역 · 동일 위치 처리로 서로 다른 매장 · 구 경계 통과")
 
         landmark = await call(client, "recommend_venues", {"query": "서촌 커피랑 쿠키 있는 카페"})
@@ -750,9 +753,10 @@ async def verify_public_catalog_refresh():
     with TemporaryDirectory() as directory, project_fixture(locations) as (url, first, calls):
         path = Path(directory) / "public_catalog.json"
 
-        def publish(version, **metadata):
+        def publish(version, *, omit_preview=False, **metadata):
             pending = path.with_suffix(".next")
-            pending.write_text(json.dumps({"version": version, "venues": venues, "menus": menus, **metadata},
+            fields = {} if omit_preview else {"preview_only": False}
+            pending.write_text(json.dumps({"version": version, "venues": venues, "menus": menus, **fields, **metadata},
                                           ensure_ascii=False), encoding="utf-8")
             pending.replace(path)
 
@@ -858,6 +862,14 @@ async def verify_public_catalog_refresh():
             assert recovered["catalog_version"] == "public-4" and recovered["ranked"], recovered
             print("PASS 공개 해제 즉시 반영 · 읽기 실패 후 같은 연결에서 새 스냅샷으로 복구")
 
+            publish("missing-preview-flag", omit_preview=True)
+            before = len(calls)
+            missing_flag = await client.call_tool("recommend_venues", arguments={"query": songdo_query})
+            assert missing_flag.isError and len(calls) == before, missing_flag
+            publish("public-after-missing")
+            assert (await search(songdo_query))["catalog_version"] == "public-after-missing"
+            print("PASS 운영 모드에서 preview_only 누락 차단 · 명시적 false로 복구")
+
             preview = {
                 "preview_only": True, "independently_verified_menus": 0,
                 "source_basis": "로컬 팀 CSV", "budget_basis": "원본 평균예산 참고",
@@ -872,6 +884,9 @@ async def verify_public_catalog_refresh():
             preview_result = await call(client, "recommend_venues", {"query": songdo_query})
             assert options["catalog_metadata"] == preview_result["catalog_metadata"] == preview, preview_result
             assert preview_result["catalog_version"] == "preview-5" and preview_result["ranked"], preview_result
+            publish("legacy-local-preview", omit_preview=True)
+            legacy = await call(client, "recommend_venues", {"query": songdo_query})
+            assert legacy["catalog_version"] == "legacy-local-preview" and legacy["ranked"], legacy
             print("PASS 시연 스냅샷 기본 차단 · 로컬 허용 시 출처·예산 근거와 검증 상태 보존")
 
 

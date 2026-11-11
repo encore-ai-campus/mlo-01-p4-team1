@@ -20,6 +20,14 @@ WORKDIR /workspace/app
 COPY backend/requirements.lock /tmp/mlo-requirements.lock
 RUN python -m pip install --no-cache-dir -r /tmp/mlo-requirements.lock
 
+# MCP uses its own Pydantic version. Keep its runtime isolated from Django and
+# lock all Python packages; no venue snapshots or secrets are baked in.
+COPY prototype/venue-recommendation-mcp/requirements.lock /tmp/mlo-venue-mcp-requirements.lock
+RUN python -m venv /opt/mlo/venue-mcp \
+    && /opt/mlo/venue-mcp/bin/python -m pip install --no-cache-dir -r /tmp/mlo-venue-mcp-requirements.lock \
+    && /opt/mlo/venue-mcp/bin/python -m pip check
+ENV VENUE_MCP_PYTHON=/opt/mlo/venue-mcp/bin/python
+
 RUN groupadd --gid 10001 mlo && useradd --uid 10001 --gid mlo --create-home mlo
 COPY --chown=mlo:mlo . /workspace/app/
 RUN mkdir -p /workspace/app/.local /workspace/app/.local-preview-logs \

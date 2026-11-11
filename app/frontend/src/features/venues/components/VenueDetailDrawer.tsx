@@ -122,6 +122,7 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isO
             <div><dt>주소</dt><dd>{venue.road_address || '주소 정보가 없습니다.'}</dd></div>
             <div><dt>영업</dt><dd>{details.open_hours || '영업시간 정보가 없습니다.'}</dd></div>
             {details.phone && <div><dt>전화</dt><dd>{details.phone}</dd></div>}
+            {'applied_playlist' in venue && venue.applied_playlist && <div><dt>점주 적용 선곡표</dt><dd>{venue.applied_playlist.name}</dd></div>}
             {!venue.curated_listing && venue.music_banner?.playlist_title && <div><dt>음악</dt><dd>{venue.music_banner.playlist_title}</dd></div>}
           </dl>
           {!readOnly && !venue.curated_listing && <button type="button" className="fitplace-detail-report-link" onClick={() => setShowReport(true)}>폐업·정보 오류 제보</button>}
@@ -136,7 +137,10 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isO
           {researchUrls.length > 0 && <p>출처 · {researchUrls.map((url, index) => <React.Fragment key={url}>{index > 0 && ' · '}<a href={url} target="_blank" rel="noopener noreferrer">후기 {index + 1}</a></React.Fragment>)}</p>}
         </section>}
         {!venue.curated_listing && <LiveMusicBanner banner={venue.music_banner} />}
-        {venue.curated_listing && <section className="fitplace-detail-section" aria-label="공개 자료로 확인한 매장 정보">
+        {venue.curated_listing?.preview_only && <section className="fitplace-detail-section" aria-label="시연 매장 정보">
+          <h3>시연 매장 정보</h3><p>매장 이름과 주소는 시연 자료 기준입니다. 영업 여부와 메뉴·가격은 확인되지 않았습니다.</p>
+        </section>}
+        {venue.curated_listing && !venue.curated_listing.preview_only && <section className="fitplace-detail-section" aria-label="공개 자료로 확인한 매장 정보">
           <h3>확인한 매장 정보</h3><p>{venue.curated_listing.moods.join(' · ')}</p>
           <h4>대표 메뉴</h4><p>{venue.curated_listing.representative_menus.join(' · ')}</p>
           {venue.curated_listing.budget_example ? <div><h4>1인 주문 예시 {venue.curated_listing.budget_example.amount_krw.toLocaleString('ko-KR')}원</h4>

@@ -130,6 +130,7 @@ interface RegisteredVenueDetail extends VenueItem {
 interface CuratedVenueDetail extends Pick<VenueItem, 'venue_id' | 'venue_name' | 'category' | 'sub_category' | 'road_address' | 'dong_name'> {
   research?: VenueResearch | null;
   curated_listing: {
+    preview_only?: boolean;
     moods: string[];
     representative_menus: string[];
     seat_summary: string;

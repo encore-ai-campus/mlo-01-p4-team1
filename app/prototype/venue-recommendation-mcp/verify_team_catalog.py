@@ -61,6 +61,41 @@ class TeamCatalogTests(unittest.TestCase):
             self.assertEqual(row["menu_type_tag_ids"], ["menu_jeongol"])
             self.assertIn("메뉴판 미확인", row["name"])
 
+    def test_multiple_folders_preserve_regions_when_district_names_collide(self):
+        seoul_dir = self.directory / 'seoul'
+        incheon_dir = self.directory / 'incheon'
+        seoul_dir.mkdir()
+        incheon_dir.mkdir()
+        seoul = venue('seoul')
+        incheon = venue('incheon', region='2818582000', district='연수구', dong='송도1동',
+                        address='인천광역시 연수구 검증로 1')
+        pair(seoul_dir, '중구', [seoul], [menu(seoul, 'seoul-menu')])
+        pair(incheon_dir, '중구', [incheon], [menu(incheon, 'incheon-menu')])
+        before = {path: path.read_bytes() for directory in (seoul_dir, incheon_dir)
+                  for path in directory.glob('*.csv')}
+        data = prepare([seoul_dir, incheon_dir])
+        self.assertEqual({row['venue_id'] for row in data['venues']}, {'seoul', 'incheon'})
+        self.assertEqual({row['menu_id'] for row in data['menus']}, {'seoul-menu', 'incheon-menu'})
+        self.assertEqual(set(data['audit']), {'중구#1', '중구#2'})
+        self.assertEqual({source['area'] for source in data['sources']}, {'중구#1', '중구#2'})
+        self.assertEqual({path: path.read_bytes() for path in before}, before)
+        self.assertTrue(data['preview_only'])
+        self.assertEqual([item[0] for item in source_pairs([seoul_dir, incheon_dir], ['중구'])],
+                         ['중구#1', '중구#2'])
+
+    def test_repeated_folder_and_missing_pair_never_produce_partial_snapshot(self):
+        first, second = self.directory / 'first', self.directory / 'second'
+        first.mkdir()
+        second.mkdir()
+        row = venue('v1')
+        pair(first, '마포구', [row], [menu(row, 'm1')])
+        pair(second, '연수구', [venue('v2')], [menu(venue('v2'), 'm2')])
+        with self.assertRaisesRegex(ValueError, '중복'):
+            prepare([first, first])
+        (second / '연수구_menus.csv').unlink()
+        with self.assertRaisesRegex(ValueError, '파일 쌍'):
+            prepare([first, second])
+
     def test_closed_conflicting_region_and_wrong_menu_parent_are_excluded(self):
         good = venue("good")
         closed = {**venue("closed"), "영업상태_코드": "CLOSED"}

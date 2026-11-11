@@ -79,8 +79,11 @@ def read_public_catalog(path, weather_regions, tags, *, allow_preview=False):
         snapshot = CatalogSnapshot.model_validate_json(path.read_bytes())
     except (OSError, ValidationError):
         raise ValueError("공개 매장·메뉴 스냅샷을 읽을 수 없습니다.") from None
-    if snapshot.preview_only and not allow_preview:
-        raise ValueError("로컬 시연용 스냅샷은 --allow-preview-catalog를 명시해야 읽을 수 있습니다.")
+    if not allow_preview:
+        if 'preview_only' not in snapshot.model_fields_set:
+            raise ValueError("운영 스냅샷은 preview_only=false를 명시해야 합니다.")
+        if snapshot.preview_only:
+            raise ValueError("로컬 시연용 스냅샷은 --allow-preview-catalog를 명시해야 읽을 수 있습니다.")
 
     require_unique_ids(snapshot.venues, "venue_id")
     require_unique_ids(snapshot.menus, "menu_id")

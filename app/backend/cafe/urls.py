@@ -68,7 +68,7 @@ urlpatterns = [
     path('api/playlists/<str:pk>/rating',api.PlaylistRating.as_view()),
     path('api/playlist-families/<str:pk>/exclusions',api.Exclusions.as_view()),
     *[path(route, frontend.index) for route in ('','playlist','venues','admin/venues/closures','login','signup','mypage','account/recovery',
-        'admin/passkey','admin/ads','admin/music','admin/music/youtube','admin/feedback/exclusions')],
+        'admin/passkey','admin/ads','admin/music','admin/music/youtube','admin/feedback/exclusions','muther')],
     path('platform', frontend.index),
     path('platform/<path:route>', lambda request,route: frontend.index(request)),
     path('assets/<path:name>', frontend.asset, {'prefix':'assets'}),

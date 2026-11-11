@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../../../shared/api';
 import { postVenueChat, type VenueChatResponse, type VenueRecommendationConnection, type VenueTag } from '../api/visitRecommendation.api';
-import { formatVenueVisitTime, venueCatalogNotice, VisitCards } from './VisitRecommendationSection';
+import { canOpenVenueDetail, formatVenueVisitTime, venueCatalogNotice, VisitCards } from './VisitRecommendationSection';
 import { withMinimumRecommendationDelay, RecommendationLoading } from './RecommendationLoading';
 
 const quickQueries = [
@@ -175,7 +175,7 @@ export function VenueConciergeSection({ defaultRegion, connection, onReconnect, 
         {mcp.catalog_source === 'PUBLIC_SNAPSHOT' && !catalogNotice && <p>매장 자료에 포함된 메뉴와 예산을 표시합니다. 매장별 실제 메뉴판은 확인이 필요합니다.</p>}
         {location?.source_url && <p>위치 자료 · <a href={location.source_url} target="_blank" rel="noreferrer">{location.source_label}</a></p>}
         <VisitCards venues={mcp.ranked}
-          onOpenVenue={mcp.catalog_source === 'PUBLIC_SNAPSHOT' ? undefined : onSelectVenue}
+          onOpenVenue={canOpenVenueDetail(mcp.catalog_source, mcp.catalog_metadata) ? onSelectVenue : undefined}
           previewCatalog={previewCatalog}
           distanceFrom={location?.label} />
       </>}

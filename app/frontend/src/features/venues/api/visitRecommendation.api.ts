@@ -174,9 +174,10 @@ export async function postVenueChat(message: string, region: string | undefined,
 }
 
 export async function postVisitRecommendation(conditions: VisitConditions): Promise<VisitRecommendation> {
-  const response = await fetch(endpoint, {
+  const response = await fetch('/api/venues/concierge/visit', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
     body: JSON.stringify({ mcp: conditions }),
   });
   if (response.status === 422) {

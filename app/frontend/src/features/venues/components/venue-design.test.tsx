@@ -7,6 +7,7 @@ import { VenueMenuPreviewStrip } from './VenueMenuPreviewStrip';
 import { MenuCategoryTabs } from './MenuCategoryTabs';
 import { VenueFilterBar } from './VenueFilterBar';
 import { VenueDetailDrawer } from './VenueDetailDrawer';
+import { canOpenVenueDetail, VisitCards } from './VisitRecommendationSection';
 import { nextRegionIndex } from './RegionSelect';
 import type { VenueItem } from '../types/venue.types';
 
@@ -60,5 +61,25 @@ describe('매장 탐색 디자인',()=>{
   expect(emptyTabsHtml).toContain('확인된 실제 메뉴 정보가 아직 등록되지 않았습니다.');
   const cardHtml=renderToStaticMarkup(<VenueCard venue={{...venue,matched_menus_preview:[]}}/>);
   expect(cardHtml).toContain('실제 메뉴 확인 중');
+ });
+ it('점주가 적용한 선곡표가 있을 때만 이름을 보여준다',()=>{
+  const detail={...venue,menu_tabs:[],all_menus_count:0,applied_playlist:null};
+  expect(renderToStaticMarkup(<VenueDetailDrawer venue={detail} isOpen onClose={noop} readOnly/>)).not.toContain('점주 적용 선곡표');
+  const html=renderToStaticMarkup(<VenueDetailDrawer venue={{...detail,applied_playlist:{id:'playlist-1',name:'비 오는 날 선곡'}}} isOpen onClose={noop} readOnly/>);
+  expect(html).toContain('점주 적용 선곡표'); expect(html).toContain('비 오는 날 선곡');
+ });
+ it('시연 카탈로그 상세는 확인되지 않은 가격·영업 상태를 표시하지 않는다',()=>{
+  const detail={venue_id:'VN_IC_000038',venue_name:'검증 매장',category:'PUB' as const,sub_category:'주점',road_address:'인천 연수구',dong_name:'송도2동',research:{description:'방문 후기',sources:['https://example.org/review']},curated_listing:{preview_only:true,moods:[],representative_menus:[],seat_summary:'',checked_on:'',registry_url:'',budget_example:null}};
+  const html=renderToStaticMarkup(<VenueDetailDrawer venue={detail} isOpen onClose={noop} readOnly/>);
+  expect(html).toContain('시연 매장 정보'); expect(html).toContain('검증 매장'); expect(html).toContain('방문 후기');
+  expect(html).toContain('영업 여부와 메뉴·가격은 확인되지 않았습니다'); expect(html).not.toContain('영업 중'); expect(html).not.toContain('상가정보 출처');
+ });
+ it('시연 스냅샷 추천만 상세 버튼을 제공하고 운영 스냅샷은 차단한다',()=>{
+  const recommendation={venue_id:'VN_IC_000038',name:'검증 매장',address:'인천 연수구',sub_category:null,avg_budget_krw:null,matched_moods:[],matched_orders:[],forecast:{provider:'project_weather',state:'NO_FORECAST' as const,condition:null,start_at:null,end_at:null}};
+  const renderCard=(previewOnly?:boolean)=>renderToStaticMarkup(<VisitCards venues={[recommendation]} onOpenVenue={canOpenVenueDetail('PUBLIC_SNAPSHOT',previewOnly===undefined?undefined:{preview_only:previewOnly})?noop:undefined}/>);
+  expect(renderCard(true)).toContain('aria-label="검증 매장 매장 상세 보기"');
+  expect(renderCard(false)).not.toContain('매장 상세 보기');
+  expect(renderCard()).not.toContain('매장 상세 보기');
+  expect(canOpenVenueDetail('PUBLIC_SOURCE_PILOT')).toBe(true);
  });
 });

@@ -95,6 +95,20 @@ def _mcp_recommendation(request, arguments):
     return JsonResponse({"success": True, "mcp": result})
 
 
+@require_POST
+def visit_recommendation_api(request):
+    """Run structured MCP searches with normal session and CSRF checks."""
+    if request.content_type != 'application/json':
+        return JsonResponse({'success': False, 'code': 'JSON_REQUIRED'}, status=415)
+    try:
+        body = json.loads(request.body)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        body = None
+    if not isinstance(body, dict) or set(body) != {'mcp'}:
+        return JsonResponse({'success': False, 'code': 'INVALID_MCP_REQUEST'}, status=400)
+    return _mcp_recommendation(request, body['mcp'])
+
+
 @csrf_exempt
 @require_POST
 def ai_concierge_api(request):

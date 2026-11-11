@@ -11,10 +11,31 @@ import sys
 
 MCP = Path(__file__).resolve().parent
 APP = MCP.parents[1]
+RESEARCH_CATALOG = MCP / "fixtures" / "research_preview.json"
 
 
 def key():
     return base64.b64encode(secrets.token_bytes(32)).decode("ascii")
+
+
+def demo_catalog(public_catalog, use_research, state_dir):
+    """Select a local snapshot without mixing the demo databases."""
+    if public_catalog is not None and use_research:
+        raise ValueError("Choose either --public-catalog or --research-preview, not both.")
+    if use_research:
+        public_catalog = RESEARCH_CATALOG
+        state_dir = state_dir or APP / ".local" / "venue-research-demo"
+    if public_catalog is None:
+        return None, (state_dir or APP / ".local" / "venue-mcp").resolve()
+    if state_dir is None:
+        raise ValueError("A public catalog requires a separate --state-dir.")
+    catalog = Path(public_catalog).resolve()
+    if not catalog.is_file():
+        raise ValueError("The requested local catalog is missing.")
+    state = Path(state_dir).resolve()
+    if state == (APP / ".local" / "venue-mcp").resolve():
+        raise ValueError("Choose a state directory separate from the standard demo.")
+    return catalog, state
 
 
 def main():
@@ -23,6 +44,7 @@ def main():
     parser.add_argument("--port", type=int, default=18748)
     parser.add_argument("--kma-cache", type=Path, help="Optional existing KMA forecast cache")
     parser.add_argument("--public-catalog", type=Path, help="Published venue/menu snapshot for this local demo")
+    parser.add_argument("--research-preview", action="store_true", help="Use the existing local-only research snapshot")
     parser.add_argument("--state-dir", type=Path, help="Directory for the local demo SQLite database")
     parser.add_argument("--frontend-dist", type=Path, default=APP / "frontend/dist", help="Built frontend directory")
     parser.add_argument("--llm-provider", choices=("codex_cli", "gemini"), help="Explicitly enable the local chat provider")
@@ -38,13 +60,10 @@ def main():
     frontend_dist = args.frontend_dist.resolve()
     if not (frontend_dist / "index.html").is_file():
         parser.error("Build app/frontend before starting the demo.")
-    public_catalog = args.public_catalog.resolve(strict=True) if args.public_catalog else None
-    if public_catalog is not None and (not public_catalog.is_file() or args.state_dir is None):
-        parser.error("A public catalog requires a snapshot file and a separate --state-dir.")
-
-    demo_dir = (args.state_dir or APP / ".local" / "venue-mcp").resolve()
-    if public_catalog is not None and demo_dir == (APP / ".local" / "venue-mcp").resolve():
-        parser.error("Choose a state directory separate from the standard demo.")
+    try:
+        public_catalog, demo_dir = demo_catalog(args.public_catalog, args.research_preview, args.state_dir)
+    except ValueError as exc:
+        parser.error(str(exc))
     demo_dir.mkdir(parents=True, exist_ok=True)
     database = (demo_dir / "preview.sqlite3").resolve()
     base = f"http://127.0.0.1:{args.port}"
