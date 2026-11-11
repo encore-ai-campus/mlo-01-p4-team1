@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
+from unittest.mock import patch
 
 from backend.accounts.models import MemberProfile
 from backend.workspaces.models import ServiceMembership, Workspace
@@ -63,6 +64,23 @@ class ConsumerVenueTests(TestCase):
             ("get", "/api/venues/notifications"),
         ):
             self.assertEqual(getattr(self.client, method)(path).status_code, 404)
+
+    def test_mcp_chat_requires_consumer_session_and_csrf(self):
+        client = Client(enforce_csrf_checks=True)
+        options = '/api/venues/ai-concierge/options'
+        chat = '/api/venues/ai-concierge/chat'
+        self.assertEqual(client.get(options).status_code, 401)
+        client.force_login(self.business)
+        self.assertEqual(client.get(options).status_code, 403)
+        client.force_login(self.consumer)
+        self.assertEqual(client.get(options).status_code, 200)
+        with patch('backend.venues.views.concierge_view.run_venue_llm_concierge') as run:
+            self.assertEqual(client.post(chat, {'message': '카페'}, content_type='application/json', HTTP_ORIGIN='http://testserver').status_code, 403)
+            run.return_value = {'success': True, 'mcp': {'status': 'NO_MATCH'}, 'llm': {'status': 'OK'}}
+            token = client.cookies['csrftoken'].value
+            response = client.post(chat, {'message': '카페'}, content_type='application/json', HTTP_ORIGIN='http://testserver', HTTP_X_CSRFTOKEN=token)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(run.call_count, 1)
 
     def test_empty_list_and_missing_detail_have_distinct_results(self):
         self.client.force_login(self.consumer)

@@ -1843,7 +1843,7 @@
         ]
       }
     },
-    "s3_grants": "${{for name,n in local.topology:name=>flatten([for purpose,prefixes in lookup(local.storage_grants,n.role,{}) : [{Effect=\"Allow\",Action=[\"s3:ListBucket\",\"s3:ListBucketMultipartUploads\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names[purpose]}\"],Condition={StringLike={\"s3:prefix\"=prefixes}}},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:GetObjectVersion\",\"s3:PutObject\",\"s3:AbortMultipartUpload\",\"s3:ListMultipartUploadParts\"],Resource=[for p in prefixes:\"arn:aws:s3:::${var.binding.bucket_names[purpose]}/${p}\"]}]] )}}",
+    "s3_grants": "${{for name,n in local.topology:name=>flatten([for purpose,prefixes in lookup(local.storage_grants,n.role,{}) : [{Effect=\"Allow\",Action=[\"s3:ListBucket\"],Resource=[\"arn:aws:s3:::${var.binding.bucket_names[purpose]}\"],Condition={StringLike={\"s3:prefix\"=prefixes}}},{Effect=\"Allow\",Action=[\"s3:GetObject\",\"s3:GetObjectVersion\",\"s3:PutObject\",\"s3:AbortMultipartUpload\",\"s3:ListMultipartUploadParts\"],Resource=[for p in prefixes:\"arn:aws:s3:::${var.binding.bucket_names[purpose]}/${p}\"]}]] )}}",
     "lake_cleanup": "${{for name,n in local.topology:name=>(contains([\"control\",\"spark\"],n.role) ? [{Effect=\"Allow\",Action=[\"s3:DeleteObject\"],Resource=concat([\"arn:aws:s3:::${var.binding.bucket_names.lake}/lake/feedback/*\"],n.role==\"control\" ? [for q in [\"weather-stream\",\"feedback-postgresql\",\"feedback-analytics-batch\"]:\"arn:aws:s3:::${var.binding.bucket_names.lake}/aws/${var.binding.environment}/${var.binding.generation}/${q}/checkpoint/*\"] : [])}] : [])}}",
     "artifact_enabled": "${length(var.binding.artifact)>0}",
     "artifact_key": "${try(var.binding.artifact.key,\"UNBOUND\")}",
@@ -1952,15 +1952,11 @@
       "host": {
         "for_each": "${local.nodes}",
         "name": "${\"p4-${each.key}\"}",
-        "vpc_id": "${aws_vpc.this.id}",
-        "ingress": [],
-        "egress": []
+        "vpc_id": "${aws_vpc.this.id}"
       },
       "ssm": {
         "count": "${var.account==\"encore1\" ? 1 : 0}",
-        "vpc_id": "${aws_vpc.this.id}",
-        "ingress": [],
-        "egress": []
+        "vpc_id": "${aws_vpc.this.id}"
       }
     },
     "aws_security_group_rule": {
@@ -2133,7 +2129,8 @@
         "tags": {
           "Name": "${each.key}",
           "Generation": "${var.binding.generation}",
-          "Project": "mlo-p4"
+          "Project": "mlo-p4",
+          "DataExecutionTarget": "${contains([\"kafka\",\"spark\",\"elasticsearch\"],each.value.role) ? \"native-systemd-v1\" : (each.value.role==\"control\" ? \"native-drivers-compose-web\" : \"compose-v1\")}"
         },
         "lifecycle": {
           "precondition": [
@@ -2281,7 +2278,28 @@
         "nodes": "${[for name,n in local.nodes:merge(n,{instance_id=aws_instance.host[name].id,private_ip=local.addresses[name],az_id=var.binding.az_ids[n.az_slot],runtime_role_ref=\"role-ref:${name}\"})]}",
         "route_tables": "${{for k,r in aws_route_table.this:k=>r.id}}",
         "zones": "${{for k,z in aws_route53_zone.ssm:k=>z.zone_id}}",
-        "storage": "${merge({for k,v in var.binding.bucket_names:\"${k}_bucket_ref\"=>v},{state_bucket_ref=var.binding.state_bucket})}"
+        "storage": "${merge({for k,v in var.binding.bucket_names:\"${k}_bucket_ref\"=>v},{state_bucket_ref=var.binding.state_bucket})}",
+        "native_host_design": {
+          "profile": "native-data-systemd-v1",
+          "ready_for_aws": false,
+          "role_targets": "${{for name,n in local.nodes:name=>(contains([\"kafka\",\"spark\",\"elasticsearch\"],n.role) ? \"native-systemd\" : (n.role==\"control\" ? \"native-drivers-compose-web\" : \"compose\"))}}",
+          "os": {
+            "distribution": "Ubuntu",
+            "version": "24.04",
+            "architecture": "x86_64",
+            "service_manager": "systemd"
+          },
+          "installation": "accepted immutable AMI or offline artifact; Runtime owns installation",
+          "deployment_blockers": [
+            "detached signatures and complete offline OS/Python/connector closure",
+            "accepted AMI and real mount UUIDs/inventory/PKI/secrets",
+            "real native installer/start/protocol-health/config-rollback acceptance",
+            "remote native driver/lease fencing and signed cgroup stop evidence",
+            "actual PID1 systemd restart/data preservation and backup/restore acceptance",
+            "auxiliary observation/proxy transport and reboot secret delivery acceptance",
+            "48h capacity and growth measurements"
+          ]
+        }
       }
     },
     "runtime_artifact_boundary": {

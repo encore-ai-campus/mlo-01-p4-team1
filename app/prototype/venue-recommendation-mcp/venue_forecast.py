@@ -37,10 +37,6 @@ class Forecast:
     precipitation_mm: float | None = None
     queried_region_id: str | None = None
 
-    @property
-    def seating_weather(self):
-        return "CLEAR" if self.state == "DRY" else self.state
-
 
 def missing(provider, reason):
     return Forecast("NO_FORECAST", provider, reason)

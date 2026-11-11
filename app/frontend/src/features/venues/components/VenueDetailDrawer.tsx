@@ -16,6 +16,12 @@ interface VenueDetailDrawerProps {
 }
 
 type Section = 'info' | 'menu' | 'reviews' | 'events';
+function validResearchUrl(value: string): string | null {
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : null;
+  } catch { return null; }
+}
 const sections: { id: Section; label: string }[] = [
   { id: 'info', label: '정보' }, { id: 'menu', label: '메뉴' },
   { id: 'reviews', label: '리뷰' }, { id: 'events', label: '이벤트' },
@@ -88,6 +94,9 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isO
   };
   const event = venue.curated_listing ? null : (venue.active_events?.find(item => !item.is_ended) || venue.active_event);
   const details = venue as VenueDetail & { open_hours?: string; phone?: string };
+  const research = venue.research;
+  const researchUrls = [...new Set((research?.sources || []).map(validResearchUrl).filter((url): url is string => url !== null))];
+  const hasResearch = Boolean(research && (research.description?.trim() || research.representative_menus?.trim() || research.seating?.trim() || research.checked_on?.trim() || research.limitations?.trim() || researchUrls.length));
   const showOnMap = () => { onClose(); document.querySelector('.fitplace-map-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
 
   return <div className="fitplace-detail-overlay" onClick={onClose}>
@@ -117,9 +126,18 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isO
           </dl>
           {!readOnly && !venue.curated_listing && <button type="button" className="fitplace-detail-report-link" onClick={() => setShowReport(true)}>폐업·정보 오류 제보</button>}
         </section>
+        {hasResearch && research && <section className="fitplace-detail-section" aria-label="방문 후기 기반 매장 정보">
+          <h3>방문 후기 기반 매장 정보</h3>
+          {research.description?.trim() && <p>{research.description}</p>}
+          {research.representative_menus?.trim() && <p><strong>확인된 메뉴</strong> · {research.representative_menus.split('|').map(value => value.trim()).filter(Boolean).join(' · ')}</p>}
+          {research.seating?.trim() && <p><strong>좌석·편의</strong> · {research.seating}</p>}
+          {research.checked_on?.trim() && <p>확인일 · {research.checked_on}</p>}
+          {research.limitations?.trim() && <p>{research.limitations}</p>}
+          {researchUrls.length > 0 && <p>출처 · {researchUrls.map((url, index) => <React.Fragment key={url}>{index > 0 && ' · '}<a href={url} target="_blank" rel="noopener noreferrer">후기 {index + 1}</a></React.Fragment>)}</p>}
+        </section>}
         {!venue.curated_listing && <LiveMusicBanner banner={venue.music_banner} />}
         {venue.curated_listing && <section className="fitplace-detail-section" aria-label="공개 자료로 확인한 매장 정보">
-          <h3>확인한 매장 정보</h3><p>{venue.curated_listing.moods.join(' · ')}</p><p>{venue.curated_listing.seat_summary}</p>
+          <h3>확인한 매장 정보</h3><p>{venue.curated_listing.moods.join(' · ')}</p>
           <h4>대표 메뉴</h4><p>{venue.curated_listing.representative_menus.join(' · ')}</p>
           {venue.curated_listing.budget_example ? <div><h4>1인 주문 예시 {venue.curated_listing.budget_example.amount_krw.toLocaleString('ko-KR')}원</h4>
             <ul>{venue.curated_listing.budget_example.items.map(item => <li key={item.name}>{item.name} · {item.price_krw.toLocaleString('ko-KR')}원</li>)}</ul>

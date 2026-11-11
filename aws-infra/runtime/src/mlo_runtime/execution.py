@@ -55,7 +55,8 @@ class FixedCommandExecution:
             "--epoch",
             str(token["epoch"]),
         ]
-        response = subprocess.run(argv, check=True, capture_output=True, timeout=20)
+        timeout = {"stop": 180, "observe": 45, "start": 12}.get(operation, 20) if self.binding.get("execution_backend") == "native-systemd-v1" else 20
+        response = subprocess.run(argv, check=True, capture_output=True, timeout=timeout)
         if len(response.stdout) > 1024 * 1024:
             raise UnsafeTransition("fencing receipt too large")
         receipt = json.loads(response.stdout)
@@ -70,6 +71,11 @@ class FixedCommandExecution:
             raise UnsafeTransition("remote receipt identity mismatch")
         if receipt.get("accepted") is not True:
             raise UnsafeTransition("remote operation rejected")
+        if self.binding.get("execution_backend") == "native-systemd-v1":
+            if receipt.get("execution_backend") != "native-systemd-v1":
+                raise UnsafeTransition("legacy receipt cannot prove native execution")
+            if operation in {"stop", "observe"} and not isinstance(receipt.get("native_units"), list):
+                raise UnsafeTransition("native unit observation receipt required")
         return receipt
 
     def stop_group(self, token):
@@ -202,6 +208,11 @@ class DockerSparkExecution:
             and item["State"]["Status"] in {"exited", "created", "dead"}
             for item in observed
         )
+        return self.cluster_proof(token, containers_stopped)
+
+    def cluster_proof(self, token, containers_stopped):
+        # The boolean is the legacy common wire field for execution stopped.
+        # Native callers provide independently observed unit/cgroup evidence.
         masters, workers = [self._json(url) for url in self.masters], [
             self._json(url) for url in self.workers
         ]

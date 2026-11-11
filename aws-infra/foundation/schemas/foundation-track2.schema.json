@@ -78,7 +78,8 @@
     "tls_status": {
       "enum": [
         "CONFIGURED_NOT_VERIFIED",
-        "UNRESOLVED_ORIGIN_NAME_CERTIFICATE"
+        "UNRESOLVED_ORIGIN_NAME_CERTIFICATE",
+        "VIEWER_HTTPS_ORIGIN_HTTP"
       ]
     },
     "ready_for_aws": {

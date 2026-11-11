@@ -7,6 +7,7 @@
         "AGENTS.md",
         "README.md",
         ".gitignore",
+        ".gitattributes",
         "Makefile",
         "requirements-common.lock.txt",
         "aws-infra/AGENTS.md",

@@ -1,10 +1,57 @@
-# 손님용 매장 추천 MCP
+# 매장 추천 MCP
 
-서울의 역·동·주요 장소를 위치 자료에서 찾고 방문 시각 예보, 분위기, 메뉴와 예산을 반영합니다. 시연 자료는 기존 250곳과 검증 CSV의 성수 13곳·을지로 14곳을 사용합니다.
+서울·인천·경기의 매장 자료에서 지역, 업종, 분위기, 메뉴와 예산에 맞는 후보를 찾습니다. 방문 시각의 유효한 예보가 있으면 날씨에 어울리는 분위기와 메뉴를 순위에 반영합니다.
 
-## 로컬 시연
+## 추천 처리
 
-백엔드 Python 3.14와 MCP Python 3.12를 각각 준비합니다. 프런트엔드는 저장소의 pnpm 잠금 파일을 사용합니다. 저장소 루트에서 실행하는 PowerShell 예시입니다.
+1. LLM이 질문을 `recommend_venues`의 검색 조건으로 변환합니다.
+2. MCP가 원문에 명시된 지역·필수 메뉴·예산 등을 대조하고 해당 조건에 맞는 매장을 찾습니다.
+3. 후보 안에서 날씨·분위기·메뉴 적합도를 비교합니다. 화면의 매장명·메뉴·가격은 MCP 결과를 사용합니다.
+4. 지원하지 않는 조건이나 불명확한 장소는 확인 안내를 반환합니다. LLM 실패나 검색 결과 없음 상태에서 임의의 매장으로 대체하지 않습니다.
+
+LLM을 사용하지 않는 방문 조건 검색도 같은 MCP를 사용합니다. 메뉴 조합과 점수 규칙은 코드에 정의돼 있으며 모델 학습 기능은 포함하지 않습니다.
+
+## 매장 자료
+
+| 입력 | 용도 |
+|---|---|
+| 기본 CSV·fixtures | 성수·을지로 등 기존 시연 자료 |
+| `--public-catalog` | 매장·메뉴 ID와 공개 상태를 가진 JSON 스냅샷 |
+| 팀 CSV 변환본 | 원문 값을 공통 태그에 매핑한 로컬 시연 자료. 항상 `preview_only=true` |
+
+공개 스냅샷은 `version`, `venues`, `menus`를 가집니다. 각 레코드는 `is_public=true`인 경우만 조회하며, 메뉴는 `venue_id`로 매장에 연결합니다. 등록되지 않은 태그, 중복 ID, 잘못된 지역 매핑은 거부합니다. 상세 필드는 `venue_public_catalog.py`에 정의돼 있습니다. 스냅샷 갱신은 완성된 파일 단위로 교체합니다.
+
+팀 CSV에는 점주 공개 승인과 실제 메뉴판 확인 여부가 없을 수 있습니다. 변환본의 공개 플래그는 로컬 화면 노출용이며 점주 승인으로 간주하지 않습니다. 기본 MCP 실행은 시연용 스냅샷을 거부하고, `--allow-preview-catalog`를 명시한 실행에서만 읽습니다. Django 로컬 시연 실행기는 해당 옵션을 설정합니다.
+
+예산은 팀 CSV의 **1인 평균예산**을 기준으로 비교합니다. 주문합계·최소 주문·추가 요금까지 확인한 결제 예상액이 아닙니다. 메뉴와 가격의 근거를 `catalog_metadata`로 전달하며, 원문 메뉴판이 미확인인 항목에는 해당 표시를 유지합니다.
+
+### 팀 CSV 준비
+
+같은 폴더에 `이름_venues.csv`, `이름_menus.csv`를 둡니다. 이름은 고정돼 있지 않으며 파일 쌍을 추가해 같은 변환기를 사용할 수 있습니다. 행정동 코드와 주소의 시도·자치구가 충돌하거나 폐업 상태인 매장은 제외하고, 매장과 맞지 않는 메뉴 연결도 제외합니다. 알 수 없는 메뉴에 임의 태그를 붙이지 않습니다.
+
+아래 명령은 `app` 디렉터리 기준입니다. `--source-dir`에 팀 자료 폴더를 지정합니다.
+
+```powershell
+& ./.local/venue-mcp/Scripts/python.exe -B -X utf8 prototype/venue-recommendation-mcp/prepare_team_catalog.py --source-dir ./analysis/team-venues --output .local/venue-mcp/team-preview.json
+```
+
+폴더 일부만 선택하려면 `--areas 마포구 연수구 수원시`를 추가합니다. 기존 변환본을 갱신할 때만 `--replace`를 추가합니다. 변환이 실패하면 기존 출력 파일은 유지됩니다. 원문 CSV·변환 JSON·로컬 DB·API 키는 Git에 포함하지 않습니다.
+
+팀 드라이브의 매장 CSV에 조사 컬럼이 있으면 변환할 때 자동으로 반영합니다. 출처가 있는 행만 조사 분위기·특징·좌석과 후기 메뉴를 사용하고, 기존 매장·메뉴·가격·예산은 보존합니다. 후기에서만 확인한 메뉴의 가격은 미확인으로 두며 현재 판매 여부는 보장하지 않습니다. 조사 CSV를 별도로 `--research-update`에 지정할 수도 있지만, 원본에 이미 조사 내용이 있는 매장은 중복 적용하지 않습니다.
+
+조사 결과를 함께 적용하려면 팀 드라이브의 `매장조사_보완_최신_20261111.csv`를 내려받아 변환 명령에 `--research-update <조사_CSV_경로>`를 추가합니다. 같은 ID·상호·주소와 출처가 있는 매장에만 조사 내용을 연결하며, 기존 매장·메뉴·가격·예산은 유지합니다. 후기에서만 확인된 메뉴를 추가하는 경우 가격은 미확인으로 둡니다. 조사는 과거 방문 후기 기준이므로 현재 운영 및 메뉴를 보증하지 않습니다. 이 변환은 드라이브 원본을 수정하지 않고 별도의 로컬 시연 JSON을 생성합니다.
+
+### 방문 후기 조사 자료 반영
+
+로컬 시연에서 조사 결과를 적용하려면 위 명령에 `--research-local <노트북_매장보완.csv> --research-sources <노트북_출처.csv> --research-home <집PC_연결후보.csv>`를 함께 지정합니다. 세 파일은 별도로 준비해야 하며 저장소에 포함되지 않습니다. 집 PC 파일은 원본 ID·상호·주소, 방문 후기 출처 및 보류·제외 상태를 사전 대조한 후보여야 합니다.
+
+조사 자료 옵션을 사용하면 기존 시연용 분위기·메뉴·예산을 지우고, 출처가 있는 방문 후기의 분위기와 메뉴명만 다시 연결합니다. 후기 기반 메뉴의 현재 판매 여부와 가격은 확인되지 않았으므로 가격과 1인 예산은 미확인입니다. 결과의 `research`에는 방문 후기 출처와 확인일·한계가 포함됩니다. 조사에 없는 매장은 분위기·메뉴가 비어 검색 결과에서 제외될 수 있습니다. 전체 스냅샷은 계속 로컬 시연용이며 운영 공개 승인으로 간주하지 않습니다.
+
+## 로컬 실행
+
+백엔드와 MCP 모두 **Python 3.14**를 사용합니다. 현재 두 의존성 파일의 Pydantic 고정 버전이 달라 가상환경은 분리합니다. 프런트엔드는 기존 pnpm 잠금 파일을 사용합니다.
+
+최초 준비는 저장소 루트에서 실행합니다.
 
 ```powershell
 Set-Location app/frontend
@@ -12,43 +59,68 @@ pnpm install --frozen-lockfile
 pnpm build
 Set-Location ..
 py -3.14 -m venv .local/venue-api
-py -3.12 -m venv .local/venue-mcp
+py -3.14 -m venv .local/venue-mcp
 & ./.local/venue-api/Scripts/python.exe -m pip install -r backend/requirements.lock
 & ./.local/venue-mcp/Scripts/python.exe -m pip install -r prototype/venue-recommendation-mcp/requirements.txt
-& ./.local/venue-api/Scripts/python.exe -B prototype/venue-recommendation-mcp/run_local_demo.py --mcp-python .local/venue-mcp/Scripts/python.exe
 ```
 
-[시연 화면](http://127.0.0.1:18748/venues)에서 ‘성수카페거리 2만원 이하 아늑한 술집’ 또는 ‘을지로 1만원 이하 술집’을 검색합니다. 성수오뎅과 토리키조쿠에서 주문 예시와 공개 메뉴 출처를 확인할 수 있습니다.
+기본 자료로 실행합니다. 이 명령은 LLM을 켜지 않으며 방문 조건 검색을 확인할 수 있습니다.
 
-이 실행 명령은 독립 시연용입니다. 공통 계정으로 손님 탐색을 이용하는 통합 모드는 손님 이용 유형과 로그인을 확인합니다.
+```powershell
+& ./.local/venue-api/Scripts/python.exe -B prototype/venue-recommendation-mcp/run_local_demo.py --mcp-python .local/venue-mcp/Scripts/python.exe --port 18752
+```
 
-### 기상청 실예보로 시연
+팀 CSV 변환본과 Codex CLI를 사용하는 로컬 검증 예시입니다. Codex CLI의 기존 ChatGPT 로그인이 필요합니다. 실행 파일을 찾지 못하면 `--codex-cli-executable`에 설치된 실행 파일 경로를 지정합니다.
 
-팀에서 사용하는 기상청 API허브 키를 수집기 환경에 설정합니다. `app`에서 시연 전 캐시를 갱신합니다.
+```powershell
+& ./.local/venue-api/Scripts/python.exe -B prototype/venue-recommendation-mcp/run_local_demo.py --mcp-python .local/venue-mcp/Scripts/python.exe --port 18752 --public-catalog .local/venue-mcp/team-preview.json --state-dir .local/team-venue-demo --llm-provider codex_cli
+```
+
+[매장 탐색 화면](http://127.0.0.1:18752/venues)의 **AI 매장 질문**에 입력합니다. Codex CLI는 로컬 검증 전용으로, 운영 모드에서는 사용하지 않습니다. 실행기는 기존 운영 DB를 사용하지 않고 지정된 로컬 SQLite DB를 사용합니다.
+
+### 실제 날씨 반영
+
+기존 기상청 키를 비공개 환경 설정으로 준비한 뒤 실행합니다. 키를 명령 인수나 저장소에 넣지 않습니다.
 
 ```powershell
 & ./.local/venue-api/Scripts/python.exe -B -m pipeline.weather.live_cache --once --path .local/venue-mcp/weather-live.json
-& ./.local/venue-api/Scripts/python.exe -B prototype/venue-recommendation-mcp/run_local_demo.py --mcp-python .local/venue-mcp/Scripts/python.exe --kma-cache .local/venue-mcp/weather-live.json
 ```
 
-방문 시각에 유효한 예보가 없으면 날씨 가점을 적용하지 않습니다.
+로컬 실행 명령에 `--kma-cache .local/venue-mcp/weather-live.json`을 추가합니다. 예보는 발표 시각과 방문 시각 범위를 검사합니다. 없거나 만료된 예보는 맑음으로 대체하지 않으며, 해당 후보에 날씨 가점을 주지 않습니다. 시연 전 캐시를 갱신합니다.
 
-## MCP 연결
+### Gemini API 연결
 
-- `list_venue_tags`는 사용할 태그와 검색 지역을 조회합니다.
-- `recommend_venues`는 `query` 한 개로 호출하거나 `region`, `venue_category`, `required_moods`, `orders`, `budget`을 직접 전달할 수 있습니다. `visit_at`을 생략하면 서울 현재 시각을 사용합니다.
-- 예산이 필수 조건이면 `budget_mode`를 `REQUIRE`로 전달합니다. `budget_example`에 공개 메뉴로 확인한 1인 주문 금액·구성·출처가 들어갑니다. 최소 주문·추가요금·당일 가격은 별도 확인이 필요합니다.
-- `ranked`, `pending`, `excluded`와 `forecast_status`는 추천·확인 필요·제외 및 예보 상태를 구분합니다. 위치가 모호하면 `location_candidates`를 돌려줍니다.
+준비된 API 어댑터는 아래 설정을 읽습니다. 실제 API 호출에는 별도 계정의 유효한 키와 지원 모델이 필요합니다.
+
+| 설정 | 값 |
+|---|---|
+| `GEMINI_ENABLED` | `1` |
+| `GEMINI_API_KEY` | 비공개 환경에서 설정 |
+| `VENUE_LLM_MODEL` | 연결 계정에서 지원하는 모델명 |
+| `GEMINI_TIMEOUT_MS` | 요청 제한 시간. 매장 어댑터의 상한은 30,000ms |
+
+로컬 실행기의 `--llm-provider codex_cli`를 `--llm-provider gemini`로 바꿉니다. API 어댑터의 인증·시간초과·잘못된 도구 응답은 별도로 처리합니다. Codex 로컬 연결 검증은 Gemini 유료 API의 실제 호출 검증을 대신하지 않습니다.
+
+## 연결 규격
+
+- `list_venue_tags`: 공통 태그, 검색 지역, 카탈로그 정보를 반환합니다.
+- `recommend_venues`: `region`, `venue_category`, `required_moods`, `preferred_moods`, `orders`, `budget`, `budget_mode`, `visit_at` 등의 구조화된 조건을 받습니다. 간단한 직접 검색에는 `query`도 지원합니다.
+- `request_text`는 호스트가 원문을 전달하는 필드입니다. 모델이 원문을 다시 작성하는 용도로 사용하지 않습니다.
+- `unverified_conditions`는 자료로 확인할 수 없는 필수 요구를 보존합니다. 헌팅·소개팅·식이 제한 등을 근거 없이 일반 업종이나 분위기로 바꾸지 않습니다.
+- 응답의 `status`는 `OK`, `NO_MATCH`, `NEEDS_CHECK`입니다. `ranked`는 표시 후보, `counts.ranked`는 전체 일치 후보 수입니다. 예보는 별도의 `forecast_status`로 구분합니다.
+- `catalog_metadata.preview_only`, `source_basis`, `budget_basis` 등은 시연 자료 여부와 근거를 나타냅니다.
+- 웹 AI 질문은 `POST /api/venues/ai-concierge/chat`에 JSON `{ "message": "질문", "region": "선택 지역" }`를 보냅니다. 같은 출처와 CSRF 검사를 적용하며 `{success, mcp, llm}`을 반환합니다.
+
+Django의 내장 MCP 실행 연결은 현재 `C_LOCAL_DEMO=1`인 로컬 시연용입니다. 실제 운영 호스트의 인증·프로세스 관리·LLM API 연결과 운영 매장 공개 승인은 별도 통합 확인 대상입니다. 독립 MCP 서버는 `venue_recommendation_mcp.py --public-catalog <스냅샷>`으로 실행하며 stdio로 연결합니다.
 
 ## 검증
 
-`app`에서 실행합니다.
+`app`에서 실행합니다. 실제 API 키가 필요 없는 검사입니다.
 
 ```powershell
-& ./.local/venue-mcp/Scripts/python.exe -B prototype/venue-recommendation-mcp/verify_tag_weather.py
-& ./.local/venue-mcp/Scripts/python.exe -B prototype/venue-recommendation-mcp/verify_venue_recommendation_mcp.py
+& ./.local/venue-mcp/Scripts/python.exe -B -X utf8 prototype/venue-recommendation-mcp/verify_tag_weather.py
+& ./.local/venue-mcp/Scripts/python.exe -B -X utf8 prototype/venue-recommendation-mcp/verify_venue_recommendation_mcp.py
+& ./.local/venue-mcp/Scripts/python.exe -B -X utf8 prototype/venue-recommendation-mcp/verify_team_catalog.py
 ```
 
-공식 SDK로 도구를 호출해 성수·을지로 맑음·비 순위, 필수 분위기, 예산 포함·제외 경계, 예보 누락을 확인합니다. 예보 비교는 통제된 로컬 시험 자료를 사용합니다.
-
-위치 자료와 출처는 `seoul_location_index.json`, 매장·좌석·메뉴 근거는 `fixtures/csv_sample_catalog.json`에 기록했습니다.
+실제 SDK로 도구 목록·호출, 지역 격리, 필수 메뉴·예산, 맑음·비의 순위, 예보 누락, 스냅샷 품질을 검사합니다. LLM 어댑터와 웹 API의 회귀 검사는 `backend.venues.tests`에 있습니다. 모의 제공자 검사, 실제 LLM 호출, 운영 환경 검증은 결과를 구분해 기록합니다.

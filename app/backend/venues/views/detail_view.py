@@ -42,8 +42,12 @@ def venue_detail_api(request, venue_id: str, *, consumer):
     # 2. 지금 영업 중 판정
     is_open = is_venue_open_now(venue)
 
-    # 3. 16종 전체 메뉴판 조회 및 5개 탭 분류 (배민 스타일)
-    all_menus = repo.get_menus_by_venue(canonical_id if consumer else venue_id)
+    # 3. 실제 확인된(수집·조사·브랜드) 메뉴판 조회 및 5개 탭 분류 (배민 스타일, 공통 가짜 템플릿 비노출)
+    lookup_id = canonical_id if consumer else venue_id
+    if hasattr(repo, 'get_verified_menus_by_venue'):
+        all_menus = repo.get_verified_menus_by_venue(lookup_id)
+    else:
+        all_menus = repo.get_menus_by_venue(lookup_id)
     cat = venue.get('category', 'CAFE').upper()
 
     tabs_dict: Dict[str, List[Dict[str, Any]]] = {}
@@ -67,7 +71,7 @@ def venue_detail_api(request, venue_id: str, *, consumer):
     menu_tabs = [{'tab_name': k, 'items': v} for k, v in tabs_dict.items()]
 
     # 4. 파트너 음악 배너
-    current_weather = request.GET.get('weather', 'CLEAR')
+    current_weather = request.GET.get('weather') or 'UNKNOWN'
     music_banner = get_venue_music_banner(venue, current_weather=current_weather)
 
     # 5. 실시간 진행 중(또는 5분 이내 종료) 이벤트 목록
@@ -100,6 +104,7 @@ def venue_detail_api(request, venue_id: str, *, consumer):
             'active_events': visible_events,
             'menu_tabs': menu_tabs,
             'all_menus_count': len(all_menus),
+            'has_verified_menus': len(all_menus) > 0,
             'recent_reviews': recent_reviews,
         }
     })

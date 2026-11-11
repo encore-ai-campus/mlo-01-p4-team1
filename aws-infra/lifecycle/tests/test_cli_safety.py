@@ -43,7 +43,7 @@ raise SystemExit(main())
                 runner = folder / "scripts/run-tests.py"
                 runner.write_bytes((BASE / "scripts/run-tests.py").read_bytes())
                 good = 'import unittest\nclass T(unittest.TestCase):\n def test_case(self): self.assertTrue(True)\n'
-                for name in ("test_unit", "test_safety", "test_contracts", "test_track2"):
+                for name in ("test_unit", "test_safety", "test_contracts", "test_track2", "test_native"):
                     (folder / "tests" / (name + ".py")).write_text(good)
                 target = folder / "tests/test_safety.py"
                 if mode == "missing":

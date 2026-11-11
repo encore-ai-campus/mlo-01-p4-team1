@@ -25,13 +25,15 @@ def get_venue_music_banner(
             'banner_type': 'APPROVED_PLAYLIST',
             'playlist_id': bridge.track1_partner_music_id,
             'playlist_title': f"{venue_name} 공식 추천 플레이리스트",
-            'curator_note': f"매장 점주가 오늘 날씨({current_weather})에 맞춰 직접 승인한 공식 선곡표입니다.",
+            'curator_note': "매장 점주가 승인한 공식 선곡표입니다.",
             'music_mood': music_mood,
             'badge_text': '🎵 매장 공식 선곡표',
         }
 
     # 2순위: 매장 분위기·업종 기반 추천음악 스타일 & 동네 날씨 맞춤 선곡 큐레이션 배너
     weather_upper = current_weather.upper()
+    if weather_upper in ('', 'UNKNOWN', 'MISSING', 'NONE'):
+        return None
     if 'RAIN' in weather_upper or '비' in weather_upper:
         theme_title = rec_style or f"{gu_name} 비 오는 날의 감성 재즈 & 로파이"
         note = "창밖의 빗소리와 매장 분위기에 가장 잘 어울리는 추천 BGM 플레이리스트입니다."

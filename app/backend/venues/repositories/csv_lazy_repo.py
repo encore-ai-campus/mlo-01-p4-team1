@@ -1,12 +1,15 @@
 import csv
 import hashlib
+import json
 import logging
 import re
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlsplit
 
 from backend.common.data_paths import discover_analysis_dirs
+from backend.venues.dl_engine.feature_encoder_18d import CHAIN_FLAG_VALUES, LOCAL_BRAND_DEFAULTS
 
 logger = logging.getLogger(__name__)
 
@@ -338,11 +341,94 @@ def _compute_menu_based_avg_price(venue: Dict[str, Any], menus: List[Dict[str, A
         return computed, guide
 
 
+# 65개 지역 *_menus.csv 에 공통 폴백으로 들어간 단일 템플릿 시그니처 (미수집 매장의 가짜 메뉴 비노출 필터용)
+GENERIC_TEMPLATE_SIGNATURES = {
+    ('아메리카노 (고소한 블렌드)', '카페 라떼', '바닐라빈 라떼'),
+    ('얼큰 해물 짬뽕 나베', '수제 모듬 꼬치구이 (6종)', '바삭 먹태구이 & 청양마요 소스'),
+}
+GENERIC_TEMPLATE_FIRST_NAMES = {sig[0] for sig in GENERIC_TEMPLATE_SIGNATURES}
+_RESEARCH_MENU_NOISE_RE = re.compile(r'\d[\d,]*\s*원|미확인|확인\s*필요|불명|없음')
+
+
+def _split_reviewed_menu_names(text: str) -> List[str]:
+    """조사 대표메뉴 문자열(`|` 또는 괄호·숫자 콤마 밖 `,`)을 개별 메뉴명으로 안전하게 분리"""
+    names: List[str] = []
+    current: List[str] = []
+    depth = 0
+    for index, char in enumerate(text):
+        if char in '([（':
+            depth += 1
+        elif char in ')]）':
+            depth = max(0, depth - 1)
+        comma_between_digits = (
+            char == ','
+            and index > 0
+            and index + 1 < len(text)
+            and text[index - 1].isdigit()
+            and text[index + 1].isdigit()
+        )
+        if depth == 0 and (char == '|' or (char == ',' and not comma_between_digits)):
+            names.append(''.join(current).strip())
+            current = []
+        else:
+            current.append(char)
+    names.append(''.join(current).strip())
+    return names
+
+
+def _extract_verified_research_menus(
+    vid: str,
+    menu_text: str,
+    price_tier: int = 2,
+) -> List[Dict[str, Any]]:
+    """공개 자료·방문 후기 조사 컬럼(대표메뉴_조사)을 검증된 메뉴 아이템 리스트로 변환"""
+    if not menu_text or not menu_text.strip():
+        return []
+    seen_names: set[str] = set()
+    items: List[Dict[str, Any]] = []
+    for part in _split_reviewed_menu_names(menu_text):
+        name = part.strip()
+        if (
+            not name
+            or len(name) > 40
+            or name in seen_names
+            or '\n' in name
+            or _RESEARCH_MENU_NOISE_RE.search(name)
+        ):
+            continue
+        seen_names.add(name)
+        items.append({
+            'menu_id': f'RM_{vid}_{len(items) + 1}',
+            'venue_id': vid,
+            'menu_name': name,
+            'price': 0,
+            'price_confirmed': False,
+            'price_tier': price_tier or 2,
+            'is_signature': True,
+            'weather_match': 'ALL',
+            'description': '방문 후기 및 공개 자료로 확인된 대표 메뉴',
+            'portion': '1인',
+            'category': '확인된 대표 메뉴',
+            'image_url': '',
+            'menu_source': 'RESEARCH',
+        })
+    return items
+
+
+def is_generic_template_menus(menus: List[Dict[str, Any]]) -> bool:
+    """실수집/조사/브랜드 메뉴가 아닌 공통 폴백 템플릿 메뉴판인지 판별"""
+    if not menus:
+        return False
+    if any(m.get('menu_source') in ('LIVE', 'RESEARCH') for m in menus):
+        return False
+    top3 = tuple((m.get('menu_name') or '').strip() for m in menus[:3])
+    return top3 in GENERIC_TEMPLATE_SIGNATURES
+
+
 class CsvLazyRepository:
     """
-    수도권(서울 25개 구 + 경기도 31개 시·군) 실존 매장 및 메뉴판 지연 로딩(Lazy Loading) 저장소.
-    - venue_id PK를 기준으로 매장 CSV(*_venues.csv)와 메뉴 CSV(*_menus.csv + 실시간 수집 메뉴 CSV)를 조인.
-    - 각 매장의 실제 메뉴 구성 및 가격을 기반으로 1인 평균 예산(avg_price)과 예산 구간(price_tier)을 동적 산출.
+    수도권(서울 25개 구 + 경기도 30개 시·군 + 인천 10개 구·군) 실존 매장 및 메뉴판 지연 로딩(Lazy Loading) 저장소.
+    - venue_id PK를 기준으로 매장 CSV(*_venues.csv), 메뉴 CSV(*_menus.csv), 실시간 수집 메뉴, 방문후기 조사(대표메뉴_조사)를 조인.
     """
 
     def __init__(self):
@@ -358,17 +444,23 @@ class CsvLazyRepository:
         # 디스크 원본 재사용 버퍼 (clear_cache 시에도 파일 재파싱 방지)
         self._disk_venues_buffer: Dict[str, List[Dict[str, Any]]] = {}
         self._disk_menus_buffer: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
+        self._enriched_gu_ready: set[str] = set()
         # 네이버 플레이스 실시간 수집 메뉴 오버레이 캐시 (venue_id 및 (자치구, 매장명) 키 지원)
         self._live_menus_by_vid: Dict[str, List[Dict[str, Any]]] = {}
         self._live_menus_by_name: Dict[tuple[str, str], List[Dict[str, Any]]] = {}
         self._live_menus_loaded = False
+        # 수도권 전 지역 보완 매장 조사(매장조사_보완_최신_20261111.csv) 캐시
+        self._research_overlay_by_vid: Dict[str, Dict[str, Any]] = {}
+        self._research_overlay_loaded = False
         # 폴백 데이터셋 전체 로드 여부
         self._fallback_venues_loaded = False
         self._fallback_menus_loaded = False
 
-        # 1. 실시간 수집된 메뉴 데이터(seoul_venue_menus_demo_sample.csv) 사전 로드
+        # 1. 실시간 수집된 메뉴 데이터(seoul_venue_menus_demo_sample.csv + live_harvested_sample.json) 사전 로드
         self._load_live_harvested_menus()
-        # 2. 기동 시 핵심 상권(강남구) 메뉴 및 매장 프리워밍 (PK 연결 및 메뉴 기반 예산 산출 완료)
+        # 2. 수도권 방문후기·공개자료 보완 조사 데이터(4,357개 매장) 사전 로드
+        self._load_research_supplement()
+        # 3. 기동 시 핵심 상권(강남구) 메뉴 및 매장 프리워밍 (PK 연결 및 메뉴 기반 예산 산출 완료)
         self._load_gu_menus_from_disk('강남구')
         self._load_gu_venues_from_disk('강남구')
 
@@ -438,8 +530,9 @@ class CsvLazyRepository:
                         temp_meta[vid] = (gu, vname)
 
                 for vid, mlist in temp_by_vid.items():
-                    # 실제 수집된 고유 메뉴가 포함된 매장인지 확인
-                    has_live = any(
+                    first_name = (mlist[0].get('menu_name') or '').strip() if mlist else ''
+                    # 실제 수집된 고유 메뉴가 포함된 매장인지 확인 (공통 폴백 템플릿 제외)
+                    has_live = first_name not in GENERIC_TEMPLATE_FIRST_NAMES and any(
                         m.get('category') in ('커피·음료', '대표안주·요리')
                         or 'pstatic.net' in m.get('image_url', '')
                         for m in mlist
@@ -447,6 +540,7 @@ class CsvLazyRepository:
                     if has_live:
                         # 상위 4개는 대표메뉴(is_signature=True)로 보장하여 카드 프리뷰에 즉시 노출
                         for idx, item in enumerate(mlist):
+                            item['menu_source'] = 'LIVE'
                             if idx < 4:
                                 item['is_signature'] = True
                         self._live_menus_by_vid[vid] = mlist
@@ -455,13 +549,116 @@ class CsvLazyRepository:
         except Exception as e:
             logger.warning(f"[LazyRepo] Failed to load live harvested menus: {e}")
 
+        # 추가 실시간 수집 샘플 JSON(live_harvested_sample.json) 연결
+        live_json = next(
+            (d / 'live_harvested_sample.json' for d in _ANALYSIS_CANDIDATES if (d / 'live_harvested_sample.json').exists()),
+            None,
+        )
+        if live_json:
+            try:
+                raw_json = json.loads(live_json.read_text(encoding='utf-8'))
+                if isinstance(raw_json, dict):
+                    for key, items in raw_json.items():
+                        if '_' not in key or not isinstance(items, list) or not items:
+                            continue
+                        gu, vname = key.split('_', 1)
+                        parsed_items: List[Dict[str, Any]] = []
+                        for idx, entry in enumerate(items, start=1):
+                            m_name = str(entry.get('name') or '').strip()
+                            if not m_name:
+                                continue
+                            digits = re.sub(r'[^0-9]', '', str(entry.get('price') or ''))
+                            price = int(digits) if digits else 0
+                            parsed_items.append({
+                                'menu_id': f'MN_JSON_{hashlib.md5(key.encode("utf-8")).hexdigest()[:6]}_{idx}',
+                                'venue_id': '',
+                                'menu_name': m_name,
+                                'price': price,
+                                'price_confirmed': price > 0,
+                                'price_tier': _compute_pa_price_tier(price),
+                                'is_signature': idx <= 4,
+                                'weather_match': 'ALL',
+                                'description': str(entry.get('desc') or '').strip(),
+                                'portion': '1인',
+                                'category': '확인된 대표 메뉴',
+                                'image_url': '',
+                                'menu_source': 'LIVE',
+                            })
+                        if parsed_items:
+                            self._live_menus_by_name.setdefault((gu.strip(), vname.strip()), parsed_items)
+            except Exception as e:
+                logger.warning(f"[LazyRepo] Failed to load live_harvested_sample.json: {e}")
+
+    def _load_research_supplement(self) -> None:
+        """수도권 보완 조사 CSV(매장조사_보완_최신_20261111.csv)를 venue_id PK로 로드"""
+        if self._research_overlay_loaded:
+            return
+        self._research_overlay_loaded = True
+        csv_path = next(
+            (d / '매장조사_보완_최신_20261111.csv' for d in _ANALYSIS_CANDIDATES if (d / '매장조사_보완_최신_20261111.csv').exists()),
+            None,
+        )
+        if not csv_path:
+            return
+        try:
+            with open(csv_path, 'r', encoding='utf-8-sig') as f:
+                for row in csv.DictReader(f):
+                    vid = (row.get('venue_id') or '').strip()
+                    if not vid:
+                        continue
+                    urls = []
+                    for raw_url in (row.get('출처_URL') or '').split('|'):
+                        u = raw_url.strip()
+                        parsed = urlsplit(u)
+                        if parsed.scheme in ('http', 'https') and parsed.netloc and u not in urls:
+                            urls.append(u)
+                    rep_menus = (row.get('대표메뉴_조사') or '').strip()
+                    if not urls and not rep_menus:
+                        continue
+                    checked_moods = [t.strip() for t in re.split(r'[|;,]', (row.get('매장분위기_조사') or '').strip()) if t.strip()]
+                    self._research_overlay_by_vid[vid] = {
+                        'research': {
+                            'description': (row.get('매장특징_조사') or '').strip(),
+                            'representative_menus': rep_menus,
+                            'seating': (row.get('좌석_편의_조사') or '').strip(),
+                            'sources': urls,
+                            'checked_on': (row.get('조사확인일') or '').strip(),
+                            'limitations': (row.get('제한사항') or '').strip(),
+                        },
+                        'mood_tags': checked_moods if (checked_moods and urls) else [],
+                    }
+            logger.info(f"[LazyRepo] Loaded {len(self._research_overlay_by_vid)} research supplement entries")
+        except Exception as e:
+            logger.warning(f"[LazyRepo] Failed to load research supplement CSV: {e}")
+
+    def _apply_research_overlay(self, venue: Dict[str, Any]) -> None:
+        """인천·경기·서울 보완 조사 CSV 정보를 매장 객체에 병합 (단위 테스트 순수성 유지 위해 로드 시점에만 호출)"""
+        overlay_map = getattr(self, '_research_overlay_by_vid', None)
+        if not overlay_map:
+            return
+        overlay = overlay_map.get(venue.get('venue_id', ''))
+        if not overlay:
+            return
+        existing_research = venue.get('research')
+        supp_research = overlay['research']
+        if not existing_research:
+            venue['research'] = {**supp_research, 'sources': list(supp_research['sources'])}
+        else:
+            for key in ('description', 'representative_menus', 'seating', 'checked_on', 'limitations'):
+                if not existing_research.get(key) and supp_research.get(key):
+                    existing_research[key] = supp_research[key]
+            if not existing_research.get('sources') and supp_research.get('sources'):
+                existing_research['sources'] = list(supp_research['sources'])
+        if overlay.get('mood_tags'):
+            venue['mood_tags'] = list(overlay['mood_tags'])
+
     def _enrich_venue_menus_and_budget(self, venue: Dict[str, Any]) -> None:
         """
         PK(venue_id)로 연결된 메뉴판을 점검하여:
         1) 실시간 수집 메뉴(Live Naver Menu)가 있으면 최우선 연결
-        2) 모든 로컬 매장이 동일한 기본 16종 메뉴(`얼큰 해물 짬뽕 나베` 등)만 가지고 있는 경우,
-           매장명·세부카테고리 맞춤 메뉴 풀과 결합하여 매장마다 고유한 메뉴 구성을 갖도록 보강
-        3) 최종 연결된 메뉴 구성을 바탕으로 `avg_price`(1인 평균예산)와 `price_tier`(5단계 가격 티어)를 동적 산출
+        2) 방문 후기·공개 자료 조사 대표메뉴(대표메뉴_조사)가 있으면 검증 메뉴로 연결
+        3) 둘 다 없으면 원본 메뉴 보존 (공통 템플릿 여부는 조회 시점에서 필터링)
+        4) 메뉴 구성을 바탕으로 예산 구간 산출
         """
         vid = venue['venue_id']
         gu = venue.get('gu_name', '')
@@ -474,66 +671,17 @@ class CsvLazyRepository:
         # 1. 실시간 네이버 플레이스 수집 메뉴 확인
         live_menus = self._live_menus_by_vid.get(vid) or self._live_menus_by_name.get((gu, vname))
         current_menus = self._venue_menus_cache.get(vid, [])
+        rep_menu_text = ((venue.get('research') or {}).get('representative_menus') or '').strip()
+        research_menus = _extract_verified_research_menus(vid, rep_menu_text, venue.get('price_tier', 2)) if rep_menu_text else []
 
         if live_menus:
-            # 실시간 메뉴를 최상단에 배치하고 부족하면 기존 메뉴로 16종 채움
-            seen_names = {m['menu_name'] for m in live_menus}
-            merged = [dict(m, venue_id=vid) for m in live_menus]
-            for cm in current_menus:
-                if cm['menu_name'] not in seen_names and len(merged) < 16:
-                    merged.append(cm)
-                    seen_names.add(cm['menu_name'])
-            current_menus = merged
+            # 확인된 수집 메뉴만 사용하고, 기존 템플릿으로 빈 항목을 채우지 않는다.
+            current_menus = [dict(m, venue_id=vid, menu_source=m.get('menu_source') or 'LIVE') for m in live_menus]
             self._venue_menus_cache[vid] = current_menus
-        elif current_menus:
-            # 2. 기본 단일 템플릿('얼큰 해물 짬뽕 나베' 또는 '아메리카노 (고소한 블렌드)')인지 확인
-            first_name = current_menus[0].get('menu_name', '')
-            if first_name in ('얼큰 해물 짬뽕 나베', '아메리카노 (고소한 블렌드)'):
-                theme_pool = _select_theme_pool_for_venue(venue)
-                if theme_pool:
-                    h = int(hashlib.md5(vid.encode('utf-8')).hexdigest()[:8], 16)
-                    # 매장마다 대표 메뉴 순서도 해시 오프셋으로 다양화하여 인접 매장 간 카드 프리뷰 중복 방지
-                    sig_items = [t for t in theme_pool if t[3] == 'Y']
-                    other_items = [t for t in theme_pool if t[3] != 'Y']
-                    if len(sig_items) > 1:
-                        rot = h % len(sig_items)
-                        sig_items = sig_items[rot:] + sig_items[:rot]
-                    ordered_pool = sig_items + other_items
-
-                    # 매장별 소폭 가격 현실화 변주 (-500, 0, +500, +1000)
-                    price_delta = ((h % 4) - 1) * 500 if venue.get('category') == 'PUB' else ((h % 3) - 1) * 200
-
-                    themed_menus: List[Dict[str, Any]] = []
-                    seen_names = set()
-                    for idx, t in enumerate(ordered_pool, start=1):
-                        raw_p = max(1500, int(t[2]) + price_delta)
-                        m_dict = {
-                            'menu_id': f"{vid}_TM_{idx:02d}",
-                            'venue_id': vid,
-                            'menu_name': t[1],
-                            'price': raw_p,
-                            'price_tier': _compute_pa_price_tier(raw_p),
-                            'is_signature': (t[3] == 'Y'),
-                            'weather_match': t[6],
-                            'description': t[5],
-                            'portion': t[4],
-                            'category': t[0],
-                            'image_url': current_menus[idx % len(current_menus)].get('image_url', ''),
-                        }
-                        themed_menus.append(m_dict)
-                        seen_names.add(t[1])
-
-                    # 16종을 채우기 위해 기존 메뉴 중 겹치지 않는 주류/음료/사이드 추가
-                    for cm in current_menus:
-                        if cm['menu_name'] not in seen_names and len(themed_menus) < 16:
-                            cm_copy = dict(cm)
-                            if len(themed_menus) >= 5:
-                                cm_copy['is_signature'] = False
-                            themed_menus.append(cm_copy)
-                            seen_names.add(cm['menu_name'])
-
-                    current_menus = themed_menus
-                    self._venue_menus_cache[vid] = current_menus
+        elif research_menus:
+            current_menus = research_menus
+            self._venue_menus_cache[vid] = current_menus
+        # 수집/조사 메뉴가 없으면 원본 메뉴를 그대로 보존한다. 상호·해시로 메뉴나 가격을 만들지 않는다.
 
         # 별칭(venue_seoul_xxxx) 캐시도 동일하게 동기화
         if vid.startswith('VN_SL_'):
@@ -570,7 +718,10 @@ class CsvLazyRepository:
 
         sub_category = (row.get('세부카테고리') or row.get('sub_category') or '').strip()
         franchise_raw = (row.get('프랜차이즈여부') or '').strip()
-        store_type = 'CHAIN' if franchise_raw == '체인점' else 'LOCAL'
+        brand_raw = (row.get('브랜드명') or row.get('brand_name') or '개인매장').strip()
+        brand_name = '개인매장' if brand_raw in LOCAL_BRAND_DEFAULTS else brand_raw
+        is_chain = franchise_raw.upper() in CHAIN_FLAG_VALUES or brand_name not in LOCAL_BRAND_DEFAULTS
+        store_type = 'CHAIN' if is_chain else 'LOCAL'
 
         avg_price_raw = row.get('1인_평균예산(원)') or row.get('avg_price') or '10000'
         try:
@@ -637,7 +788,7 @@ class CsvLazyRepository:
         phone_match = re.search(r'전화:([0-9\-]+)', seat_info)
         phone = phone_match.group(1) if phone_match else '02-555-0199'
 
-        return {
+        venue = {
             'venue_id': venue_id,
             'venue_name': venue_name,
             'gu_name': gu_name,
@@ -646,7 +797,9 @@ class CsvLazyRepository:
             'category': category,
             'sub_category': sub_category,
             'store_type': store_type,
-            '프랜차이즈여부': franchise_raw or ('체인점' if store_type == 'CHAIN' else '개인/로컬매장'),
+            'brand_name': brand_name,
+            '브랜드명': brand_name,
+            '프랜차이즈여부': '체인점' if store_type == 'CHAIN' else '개인/로컬매장',
             'price_tier': price_tier,
             'avg_price': avg_price,
             'primary_weather_affinity': primary_weather_affinity,
@@ -672,6 +825,22 @@ class CsvLazyRepository:
             'thumbnail_url': (row.get('매장대표_사진_URL') or '').strip(),
             'interior_photos': [u.strip() for u in (row.get('매장내부_사진_URL_목록') or '').split('|') if u.strip()],
         }
+        research_fields = {
+            'description': '매장특징_조사',
+            'representative_menus': '대표메뉴_조사',
+            'seating': '좌석_편의_조사',
+            'sources': '출처_URL',
+            'checked_on': '조사확인일',
+            'limitations': '제한사항',
+        }
+        research = {key: (row.get(column) or '').strip() for key, column in research_fields.items()}
+        if any(research.values()):
+            research['sources'] = [url.strip() for url in research['sources'].split('|') if url.strip()]
+            venue['research'] = research
+        checked_moods = (row.get('매장분위기_조사') or '').strip()
+        if checked_moods and research.get('sources'):
+            venue['mood_tags'] = [tag.strip() for tag in re.split(r'[|;,]', checked_moods) if tag.strip()]
+        return venue
 
     def _cast_menu_row(self, row: Dict[str, str]) -> Dict[str, Any]:
         """한글 13컬럼 메뉴 CSV 및 영문 메뉴 CSV 통합 변환"""
@@ -727,8 +896,9 @@ class CsvLazyRepository:
             # 메뉴 캐시가 비워진 경우(clear_cache 후) 다시 로드 및 연결
             if not self._gu_menus_loaded.get(gu_name):
                 self._load_gu_menus_from_disk(gu_name)
-                for v in venues_list:
-                    self._enrich_venue_menus_and_budget(v)
+                if gu_name not in self._enriched_gu_ready:
+                    for v in venues_list:
+                        self._enrich_venue_menus_and_budget(v)
             for idx, v in enumerate(venues_list, start=1):
                 self._register_alias_ids(idx, v)
             return list(venues_list)
@@ -744,10 +914,24 @@ class CsvLazyRepository:
                     reader = csv.DictReader(f)
                     for idx, row in enumerate(reader, start=1):
                         v = self._cast_venue_row(row)
+                        self._apply_research_overlay(v)
                         self._enrich_venue_menus_and_budget(v)
                         venues_list.append(v)
                         self._register_alias_ids(idx, v)
                 self._disk_venues_buffer[gu_name] = list(venues_list)
+                enriched_menus: Dict[str, List[Dict[str, Any]]] = {}
+                for v in venues_list:
+                    vid = v['venue_id']
+                    if vid in self._venue_menus_cache:
+                        enriched_menus[vid] = list(self._venue_menus_cache[vid])
+                    if vid.startswith('VN_SL_'):
+                        num_part = vid.replace('VN_SL_', '')
+                        if num_part.isdigit():
+                            alias = f"venue_seoul_{int(num_part):04d}"
+                            if alias in self._venue_menus_cache:
+                                enriched_menus[alias] = list(self._venue_menus_cache[alias])
+                self._disk_menus_buffer[gu_name] = enriched_menus
+                self._enriched_gu_ready.add(gu_name)
                 logger.info(f"[LazyRepo] Loaded {len(venues_list)} venues for {gu_name} with PK-linked menus")
                 return venues_list
             except Exception as e:
@@ -765,6 +949,7 @@ class CsvLazyRepository:
                     reader = csv.DictReader(f)
                     for idx, row in enumerate(reader, start=1):
                         v = self._cast_venue_row(row)
+                        self._apply_research_overlay(v)
                         self._enrich_venue_menus_and_budget(v)
                         self._register_alias_ids(idx, v)
                         self._gu_venues_cache.setdefault(v['gu_name'], []).append(v)
@@ -920,15 +1105,22 @@ class CsvLazyRepository:
             self._load_fallback_menus()
             return self._venue_menus_cache.get(venue_id, [])
 
+    def get_verified_menus_by_venue(self, venue_id: str) -> List[Dict[str, Any]]:
+        """공통 폴백 템플릿을 제외하고 실제 수집·조사·브랜드 확인 메뉴만 반환"""
+        menus = self.get_menus_by_venue(venue_id)
+        if is_generic_template_menus(menus):
+            return []
+        return menus
+
     def get_preview_menus_by_venue(
         self,
         venue: Dict[str, Any],
         target_tier: Optional[int] = None,
         limit: int = 6,
     ) -> List[Dict[str, Any]]:
-        """추천 카드 하단 가로 슬라이드용 대표 메뉴 프리뷰 조회"""
+        """추천 카드 하단 가로 슬라이드용 대표 메뉴 프리뷰 조회 (공통 템플릿 비노출)"""
         vid = venue.get('venue_id', '')
-        all_menus = self.get_menus_by_venue(vid)
+        all_menus = self.get_verified_menus_by_venue(vid)
         matched: List[Dict[str, Any]] = []
         # 대표메뉴(is_signature) 우선 노출
         for m in all_menus:

@@ -112,6 +112,59 @@ class ExportTests(unittest.TestCase):
         with self.assertRaises(ContractError):export(self.paths)
 
 class SourceSafetyTests(unittest.TestCase):
+    def test_standalone_rules_have_exclusive_security_group_ownership(self):
+        account=account_module();edge=edge_module()
+        for module in [account,edge]:
+            for group in module['resource']['aws_security_group'].values():
+                self.assertNotIn('ingress',group)
+                self.assertNotIn('egress',group)
+        default=account['resource']['aws_default_security_group']['closed']
+        self.assertEqual(default['ingress'],[]);self.assertEqual(default['egress'],[])
+        rule=edge['resource']['aws_security_group_rule']['viewer_in']
+        self.assertEqual((rule['type'],rule['protocol'],rule['from_port'],rule['to_port']),('ingress','tcp',80,80))
+        self.assertEqual(rule['prefix_list_ids'],'${[data.aws_ec2_managed_prefix_list.cloudfront.id]}')
+        self.assertNotIn('cidr_blocks',rule)
+        root=read_json(FOUNDATION/'terraform/environments/dev/encore1/main.tf.json')
+        self.assertEqual(root['import'][0]['to'],'module.edge.aws_security_group_rule.viewer_in')
+        self.assertIn('existing_edge_viewer_rule_import_id',root['import'][0]['for_each'])
+
+    def test_existing_viewer_adoption_is_exact_and_optional(self):
+        b=fixture_binding();validate_binding(b)
+        for value in ['', 'sg-'+'a'*17+'_ingress_tcp_80_80_pl-'+'b'*8]:
+            b['existing_edge_viewer_rule_import_id']=value;validate_binding(b)
+        for value in [True,{},'sg-'+'a'*17+'_egress_tcp_80_80_pl-'+'b'*8,'sg-'+'a'*17+'_ingress_tcp_443_443_pl-'+'b'*8]:
+            b['existing_edge_viewer_rule_import_id']=value
+            with self.subTest(value=value),self.assertRaises(ContractError):validate_binding(b)
+
+    def test_s3_prefix_rejects_multipart_listing_without_widening(self):
+        from security import audit_s3_prefix_actions
+        statement={'Effect':'Allow','Action':['s3:ListBucket'],
+                   'Resource':['arn:aws:s3:::example-only-bucket'],
+                   'Condition':{'StringLike':{'s3:prefix':['raw/weather/*']}}}
+        audit_s3_prefix_actions(statement)
+        versions=copy.deepcopy(statement);versions['Action']=['S3:ListBucketVersions']
+        audit_s3_prefix_actions(versions)
+        for action in ['s3:ListBucketMultipartUploads','s3:GetBucketLocation','s3:GetObject','s3:List*']:
+            with self.subTest(action=action):
+                bad=copy.deepcopy(statement);bad['Action'].append(action)
+                with self.assertRaises(ContractError):audit_s3_prefix_actions(bad)
+        # The generated grant keeps prefix isolation and scoped object-part APIs.
+        grant=account_module()['locals']['s3_grants']
+        self.assertIn('s3:prefix',grant)
+        self.assertIn('s3:ListMultipartUploadParts',grant)
+        self.assertNotIn('s3:ListBucketMultipartUploads',grant)
+
+    def test_native_target_is_review_metadata_not_bootstrap_execution(self):
+        configuration=account_module()
+        host=configuration['resource']['aws_instance']['host']
+        self.assertIn('native-systemd-v1',host['tags']['DataExecutionTarget'])
+        self.assertNotIn('user_data',host)
+        design=configuration['output']['foundation']['value']['native_host_design']
+        self.assertEqual(design['profile'],'native-data-systemd-v1')
+        self.assertFalse(design['ready_for_aws'])
+        self.assertIn('real native installer/start/protocol-health/config-rollback acceptance',design['deployment_blockers'])
+        self.assertEqual(design['os']['version'],'24.04')
+
     def test_destroy_protection_and_no_formatting(self):
         a=account_module()['resource'];b=bucket_module()['resource']
         for kind in ['aws_vpc','aws_network_interface','aws_ebs_volume']:

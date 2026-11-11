@@ -25,6 +25,26 @@ def demo_only(view):
     return checked
 
 
+def consumer_mcp(view):
+    """Allow the isolated preview and authenticated consumer platform preview."""
+    @never_cache
+    @wraps(view)
+    def checked(request, *args, **kwargs):
+        if standalone_demo():
+            return view(request, *args, **kwargs)
+        if not settings.MEMBER_LOCAL_PREVIEW or not settings.PLATFORM_ENABLED:
+            return JsonResponse({"success": False, "code": "NOT_FOUND"}, status=404)
+        try:
+            authorization.enabled()
+            user = authorization.account(request)
+            require(ServiceMembership.objects.filter(user=user, kind="CONSUMER", status="ACTIVE").exists(),
+                    "CONSUMER_MEMBERSHIP_REQUIRED", "사용자 이용 유형을 먼저 추가해 주세요.", 403)
+        except DomainError as error:
+            return JsonResponse({"success": False, "code": error.code, "message": error.message}, status=error.status)
+        return view(request, *args, **kwargs)
+    return checked
+
+
 def consumer_get(view):
     @never_cache
     @require_GET
