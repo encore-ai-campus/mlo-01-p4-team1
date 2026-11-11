@@ -15,8 +15,7 @@ LLM을 사용하지 않는 방문 조건 검색도 같은 MCP를 사용합니다
 
 | 입력 | 용도 |
 |---|---|
-| 기본 시연 스냅샷 | 조사 결과가 있는 매장 4,357곳. 이전 후기 기준이며 메뉴 가격·현재 영업 상태는 미확인 |
-| 기본 CSV·fixtures | `--sample-catalog`로 선택하는 기존 소량 시연 자료 |
+| 기본 CSV·fixtures | 성수·을지로 등 기존 시연 자료 |
 | `--public-catalog` | 매장·메뉴 ID와 공개 상태를 가진 JSON 스냅샷 |
 | 팀 CSV 변환본 | 원문 값을 공통 태그에 매핑한 로컬 시연 자료. 항상 `preview_only=true` |
 
@@ -36,7 +35,7 @@ LLM을 사용하지 않는 방문 조건 검색도 같은 MCP를 사용합니다
 & ./.local/venue-mcp/Scripts/python.exe -B -X utf8 prototype/venue-recommendation-mcp/prepare_team_catalog.py --source-dir ./analysis/team-venues --output .local/venue-mcp/team-preview.json
 ```
 
-폴더 일부만 선택하려면 `--areas 마포구 연수구 수원시`를 추가합니다. 기존 변환본을 갱신할 때만 `--replace`를 추가합니다. 변환이 실패하면 기존 출력 파일은 유지됩니다. 원문 CSV·개별 변환 JSON·로컬 DB·API 키는 Git에 포함하지 않습니다. 저장소에는 조사 결과가 있는 매장만 추린 시연 스냅샷을 포함합니다.
+폴더 일부만 선택하려면 `--areas 마포구 연수구 수원시`를 추가합니다. 기존 변환본을 갱신할 때만 `--replace`를 추가합니다. 변환이 실패하면 기존 출력 파일은 유지됩니다. 원문 CSV·변환 JSON·로컬 DB·API 키는 Git에 포함하지 않습니다.
 
 ### 방문 후기 조사 자료 반영
 
@@ -61,13 +60,11 @@ py -3.14 -m venv .local/venue-mcp
 & ./.local/venue-mcp/Scripts/python.exe -m pip install -r prototype/venue-recommendation-mcp/requirements.txt
 ```
 
-조사된 매장 자료로 실행합니다. 이 명령은 LLM을 켜지 않으며 방문 조건 검색을 확인할 수 있습니다. 실제 LLM과 날씨 API는 별도 설정해야 합니다.
+기본 자료로 실행합니다. 이 명령은 LLM을 켜지 않으며 방문 조건 검색을 확인할 수 있습니다.
 
 ```powershell
 & ./.local/venue-api/Scripts/python.exe -B prototype/venue-recommendation-mcp/run_local_demo.py --mcp-python .local/venue-mcp/Scripts/python.exe --port 18752
 ```
-
-기존 소량 샘플만 사용하려면 같은 명령 끝에 `--sample-catalog`를 추가합니다. 포함된 스냅샷은 공개 후기 조사 시점의 시연 자료이며 점주 공개 동의나 현재 영업·메뉴를 보증하지 않습니다.
 
 팀 CSV 변환본과 Codex CLI를 사용하는 로컬 검증 예시입니다. Codex CLI의 기존 ChatGPT 로그인이 필요합니다. 실행 파일을 찾지 못하면 `--codex-cli-executable`에 설치된 실행 파일 경로를 지정합니다.
 
