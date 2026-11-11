@@ -5,6 +5,7 @@ from django.contrib.auth import get_user
 
 from backend.common.identity import admin
 from backend.recommendation.errors import DomainError
+from backend.workspaces import private_demo
 from backend.workspaces.models import ServiceMembership, WorkspaceMembership
 
 from .errors import OperationError, require
@@ -18,9 +19,15 @@ class Principal:
 
 def owner_workspaces(account_id):
     business = ServiceMembership.objects.filter(user_id=account_id, kind='BUSINESS', status='ACTIVE')
-    return WorkspaceMembership.objects.filter(
+    owned = WorkspaceMembership.objects.filter(
         user_id__in=business.values('user_id'), user__is_active=True,
         role='OWNER', status='ACTIVE', workspace__status='ACTIVE',
+    )
+    if private_demo.song_portal_available():
+        return owned
+    return owned.exclude(
+        user__username=private_demo.DEMO_USERNAME, workspace__mode='DEMO',
+        workspace__workspaceclaim__fixture_id=private_demo.FIXTURE_ID,
     )
 
 

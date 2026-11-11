@@ -44,7 +44,7 @@ ENV APP_REVISION=$APP_REVISION APP_KIND=web DJANGO_SETTINGS_MODULE=backend.cafe.
 COPY --from=frontend --chown=mlo:mlo /frontend/dist /workspace/app/frontend/dist
 COPY --chmod=0555 docker/runtime/serve.py /opt/mlo/bin/serve
 COPY --chmod=0555 docker/runtime/readiness.py /opt/mlo/bin/readiness
-COPY docker/runtime/app_runtime.py /opt/mlo/bin/app_runtime.py
+COPY --chmod=0444 docker/runtime/app_runtime.py /opt/mlo/bin/app_runtime.py
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s CMD ["/opt/mlo/bin/readiness"]
 CMD ["/opt/mlo/bin/serve", "--config", "/etc/mlo/service.json"]

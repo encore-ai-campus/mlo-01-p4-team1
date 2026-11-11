@@ -107,6 +107,9 @@ ADMIN_PASSKEY_RP_ID = os.environ.get('ADMIN_PASSKEY_RP_ID', 'localhost' if LOCAL
 ADMIN_PASSKEY_ORIGIN = os.environ.get('ADMIN_PASSKEY_ORIGIN', 'http://localhost:5173' if LOCAL_DEMO else '')
 PLATFORM_ENABLED = os.environ.get('PLATFORM_LOCAL_MVP') == '1'
 PHASE4_OWNER_PORTAL_ENABLED = os.environ.get('PHASE4_OWNER_PORTAL_ENABLED') == '1'
+PHASE4_PRIVATE_DEMO_ENABLED = os.environ.get('PHASE4_PRIVATE_DEMO_ENABLED') == '1'
+PHASE4_PRIVATE_DEMO_POLICY_VERSION = os.environ.get('PHASE4_PRIVATE_DEMO_POLICY_VERSION', '')
+PHASE4_PRIVATE_DEMO_POLICY_DOCUMENTS = json.loads(os.environ.get('PHASE4_PRIVATE_DEMO_POLICY_DOCUMENTS', '{}'))
 PHASE4_SONG_POLICY = {
     'version': 'owner-song-requests-v1', 'allow_general_users': False, 'require_approved_venue': True,
     'quota_scope': 'account', 'window_days': None, 'period_limit': None, 'count_all_submitted': True,

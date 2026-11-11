@@ -13,10 +13,15 @@ from .admin_dashboards import access_for, target_for
 
 
 def account_data_for_user(user):
+    from backend.workspaces import private_demo
+
     active = user.is_authenticated and user.is_active and user.is_staff
     menus = []
     if active:
-        if getattr(settings, 'PLATFORM_ENABLED', False) and user.has_perm('workspaces.review_workspace'):
+        if (
+            getattr(settings, 'PLATFORM_ENABLED', False) and user.has_perm('workspaces.review_workspace')
+            or private_demo.available() and private_demo.reviewer_allowed(user)
+        ):
             menus.append({'path':'/platform/review','label':'매장 권한 심사'})
         for permission, path, label in [('manage_ads','/admin/ads','광고 관리'),
                 ('manage_music','/admin/music','음악 관리'),
@@ -33,6 +38,7 @@ def account_data(request):
     user = get_user(raw_request(request))
     from backend.accounts.passkeys import complete
     from backend.accounts.models import MemberProfile, AdminPasskey
+    from backend.workspaces import private_demo
     primary = user.is_authenticated and user.is_active and user.is_staff
     active = primary and complete(request)
     profile = MemberProfile.objects.filter(user=user).first() if user.is_authenticated and not user.is_staff else None
@@ -46,6 +52,7 @@ def account_data(request):
             'passkey_enrolled':bool(primary and AdminPasskey.objects.filter(user=user).exists()),
             'member_login_enabled':True,
             'allowed_menus':account_data_for_user(user) if active else [], 'csrf_token':get_token(raw_request(request)),
+            'private_demo_review_allowed':bool(active and private_demo.review_available_to(user)),
             'admin_role':role_for(user),
             'sso_enabled':settings.ADMIN_SSO_ENABLED,
             'local_login_enabled':settings.ADMIN_LOCAL_LOGIN_ENABLED,
