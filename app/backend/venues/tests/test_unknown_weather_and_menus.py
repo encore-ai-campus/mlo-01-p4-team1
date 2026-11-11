@@ -67,6 +67,7 @@ class UnknownWeatherAndMenusTests(SimpleTestCase):
              patch('backend.venues.services.ranking_service.VenueStatusOverlay') as overlays, \
              patch('backend.venues.services.ranking_service.is_venue_open_now', return_value=True), \
              patch('backend.venues.services.ranking_service.get_visible_events_for_venue', return_value=[]), \
+             patch('backend.venues.services.ranking_service._prefetch_venue_side_data', return_value=({}, {})), \
              patch('backend.venues.services.ranking_service.get_venue_music_banner', return_value=None):
             overlays.objects.filter.return_value = []
             unknown = filter_and_rank_venues('구', weather='UNKNOWN')[0]['match_score']
@@ -140,6 +141,7 @@ class UnknownWeatherAndMenusTests(SimpleTestCase):
              patch('backend.venues.services.ranking_service.VenueStatusOverlay') as overlays, \
              patch('backend.venues.services.ranking_service.is_venue_open_now', return_value=True), \
              patch('backend.venues.services.ranking_service.get_visible_events_for_venue', return_value=[]), \
+             patch('backend.venues.services.ranking_service._prefetch_venue_side_data', return_value=({}, {})), \
              patch('backend.venues.services.ranking_service.get_venue_music_banner', return_value=None):
             overlays.objects.filter.return_value = []
             ranked = filter_and_rank_venues('강남구', weather='CLEAR')

@@ -1,10 +1,26 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from backend.venues.models.bridge import VenueOwnerBridge
+
+# bridge 인자를 생략했음(=직접 조회)과 "브릿지 없음(None)"을 구분하기 위한 표식
+_LOOKUP = object()
+
+
+def get_owner_bridges(venue_ids: List[str]) -> Dict[str, Any]:
+    """여러 매장의 점주 브릿지를 일괄 조회 (매장별 .first() 와 동일하게 가장 먼저 등록된 1건)"""
+    bridges: Dict[str, Any] = {}
+    unique_ids = list(dict.fromkeys(venue_ids))
+    # SQLite 바인딩 변수 한도를 넘지 않도록 분할 조회
+    for start in range(0, len(unique_ids), 500):
+        chunk = unique_ids[start:start + 500]
+        for bridge in VenueOwnerBridge.objects.filter(venue_id__in=chunk).order_by('pk'):
+            bridges.setdefault(bridge.venue_id, bridge)
+    return bridges
 
 
 def get_venue_music_banner(
     venue: Dict[str, Any],
     current_weather: str = 'CLEAR',
+    bridge: Any = _LOOKUP,
 ) -> Optional[Dict[str, Any]]:
     """
     방문객 대상 매장 분위기 및 오늘 날씨 맞춤 추천 음악(BGM 플레이리스트 큐레이션) 배너 데이터를 바인딩.
@@ -18,7 +34,8 @@ def get_venue_music_banner(
     rec_style = venue.get('recommendation_style') or venue.get('추천음악_스타일') or ''
 
     # 1순위: 점주 등록 브릿지 테이블 조회
-    bridge = VenueOwnerBridge.objects.filter(venue_id=venue_id).first()
+    if bridge is _LOOKUP:
+        bridge = VenueOwnerBridge.objects.filter(venue_id=venue_id).first()
     if bridge and bridge.track1_partner_music_id:
         return {
             'has_music_banner': True,

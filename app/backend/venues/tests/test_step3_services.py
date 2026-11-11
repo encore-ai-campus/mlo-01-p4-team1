@@ -8,6 +8,7 @@ from backend.venues.services.event_service import (
     register_event_intent,
     verify_onsite_qr_and_deduct_stock,
     get_visible_events_for_venue,
+    get_visible_events_for_venues,
 )
 from backend.venues.models.event import VenueEvent, VenueEventParticipation
 
@@ -116,3 +117,26 @@ class TestStep3DomainServices(TestCase):
         self.assertEqual(len(visible_6min), 0, "종료 후 6분 시점에는 보드에서 자동 제외되어야 합니다.")
 
         print("[Step 3 검증 3] 종료 후 4분 시점 노출('이벤트가 종료되었어요') & 6분 시점 자동 숨김: PASS")
+
+
+    def test_bulk_event_lookup_matches_single_lookup_with_few_queries(self):
+        """목록 랭킹용 일괄 조회가 매장별 조회와 같은 결과를 내고 쿼리는 매장 수와 무관해야 함"""
+        now = timezone.now()
+        for venue_id, delta in (('bulk_a', datetime.timedelta(hours=2)), ('bulk_b', datetime.timedelta(minutes=-2)),
+                                ('bulk_c', datetime.timedelta(minutes=-30))):
+            VenueEvent.objects.create(
+                venue_id=venue_id, owner_id='owner_bulk', title=f'{venue_id} 이벤트', badge_text='배지',
+                discount_info='혜택', total_quantity=5, remaining_quantity=5,
+                start_at=now - datetime.timedelta(hours=1), end_at=now + delta, is_active=True,
+            )
+        venue_ids = ['bulk_a', 'bulk_b', 'bulk_c', 'bulk_none']
+        with self.assertNumQueries(1):
+            bulk = get_visible_events_for_venues(venue_ids, as_of=now)
+        for venue_id in venue_ids:
+            single = get_visible_events_for_venue(venue_id, as_of=now)
+            self.assertEqual(bulk.get(venue_id, []), single, venue_id)
+        # 종료 후 5분 초과(bulk_c)와 이벤트 없음(bulk_none)은 노출되지 않아야 함
+        self.assertEqual(sorted(bulk), ['bulk_a', 'bulk_b'])
+        self.assertTrue(bulk['bulk_b'][0]['is_ended_grace_period'])
+        self.assertEqual(get_visible_events_for_venue('bulk_a', prefetched=bulk), bulk['bulk_a'])
+        self.assertEqual(get_visible_events_for_venue('bulk_none', prefetched=bulk), [])

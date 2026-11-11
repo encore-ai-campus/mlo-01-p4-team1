@@ -4,11 +4,16 @@ from typing import Any, Dict, List, Optional, Union
 from backend.venues.repositories.csv_lazy_repo import get_venue_repo
 from backend.venues.models.status_overlay import VenueStatusOverlay
 from backend.venues.services.open_hours_service import is_venue_open_now
-from backend.venues.services.music_banner_service import get_venue_music_banner
-from backend.venues.services.event_service import get_visible_events_for_venue
+from backend.venues.services.music_banner_service import get_owner_bridges, get_venue_music_banner
+from backend.venues.services.event_service import get_visible_events_for_venue, get_visible_events_for_venues
 from backend.venues.dl_engine.feature_encoder_18d import get_feature_encoder, is_chain_venue
 from backend.venues.dl_engine.micro_two_tower import get_micro_two_tower
 from backend.venues.dl_engine.realtime_user_memory import get_user_memory
+
+
+def _prefetch_venue_side_data(venue_ids: List[str]) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    """매장별 이벤트·점주 선곡 브릿지를 일괄 조회 (매장당 쿼리 2건씩 나가던 N+1 제거)"""
+    return get_visible_events_for_venues(venue_ids), get_owner_bridges(venue_ids)
 
 
 def filter_and_rank_venues(
@@ -83,6 +88,14 @@ def filter_and_rank_venues(
     # 4. 필터링 및 점수 계산 루프
     candidates = []
 
+    # 카테고리 조건을 통과하는 매장만 이벤트·선곡 브릿지를 일괄 조회
+    category_upper = (category or 'ALL').upper()
+    side_data_ids = [
+        v['venue_id'] for v in raw_venues
+        if category_upper == 'ALL' or v.get('category', '').upper() == category_upper
+    ]
+    events_by_vid, bridges_by_vid = _prefetch_venue_side_data(side_data_ids)
+
     for v in raw_venues:
         v_id = v['venue_id']
 
@@ -115,7 +128,7 @@ def filter_and_rank_venues(
             continue
 
         # [필터 6] 이벤트 진행 매장만 필터
-        events = get_visible_events_for_venue(v_id)
+        events = get_visible_events_for_venue(v_id, prefetched=events_by_vid)
         has_active_event = any(not e.get('is_ended', False) for e in events)
         if only_with_events and not has_active_event:
             continue
@@ -158,7 +171,9 @@ def filter_and_rank_venues(
             status_label = ov.get_status_display()
 
         # 파트너 음악 배너
-        music_banner = get_venue_music_banner(v, current_weather=weather)
+        music_banner = get_venue_music_banner(
+            v, current_weather=weather, bridge=bridges_by_vid.get(v_id)
+        )
 
         candidate = {
             'venue_id': v_id,
