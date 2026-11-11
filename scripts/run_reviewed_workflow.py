@@ -6,6 +6,7 @@ import hashlib
 from pathlib import Path
 import platform
 import re
+import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,6 +46,25 @@ def authority_key(path, expected):
         "approval authority key mismatch",
     )
     return path
+
+
+def web_release(review, purpose):
+    if os.environ.get("MLO_WEB_DEPLOY") != "true":
+        return None
+    require(
+        purpose == "runtime" and os.environ.get("GITHUB_EVENT_NAME") == "push",
+        "main web deployment requires a push event",
+    )
+    commit = os.environ.get("GITHUB_SHA", "")
+    image = os.environ.get("MLO_WEB_IMAGE", "")
+    repository = review["account_ids"]["encore1"] + ".dkr.ecr.ap-northeast-2.amazonaws.com/mlo-p4/api"
+    require(
+        re.fullmatch(r"[a-f0-9]{40}", commit)
+        and subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip() == commit
+        and re.fullmatch(re.escape(repository) + r"@sha256:[a-f0-9]{64}", image),
+        "exact main checkout and published web digest required",
+    )
+    return "main-" + commit, image
 
 
 def main():
@@ -93,6 +113,7 @@ def main():
         review = gate.check()
         require(sha(review) == review_id, "review directory/digest mismatch")
         target(review, purpose)
+        expected_web_release = web_release(review, purpose)
         # Config holds commands only; web identity and session keys remain in
         # credential_process memory. GitHub Environment approval is separate.
         credential_purpose = "apply" if purpose == "destroy" else purpose
@@ -114,7 +135,7 @@ def main():
             AWS_CLI_AUTO_PROMPT="off",
             AWS_STS_REGIONAL_ENDPOINTS="regional",
         )
-        execute(gate, folder / "execution-receipt.json")
+        execute(gate, folder / "execution-receipt.json", web_release=expected_web_release)
         print("PASS: reviewed manual operation completed; inspect private receipt")
         return 0
     except Exception:

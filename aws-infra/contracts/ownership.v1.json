@@ -63,7 +63,8 @@
       "files": [
         ".github/workflows/runtime-check.yml",
         ".github/workflows/image-build.yml",
-        ".github/workflows/app-deploy.yml"
+        ".github/workflows/app-deploy.yml",
+        ".github/workflows/main-web.yml"
       ],
       "prefixes": [
         "aws-infra/runtime/",
