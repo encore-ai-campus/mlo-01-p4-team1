@@ -159,7 +159,12 @@ jobs:
 
   deploy:
     name: Deploy the signed web release
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.WEB_SSM_DEPLOY_ENABLED == 'true'
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      vars.WEB_SSM_DEPLOY_ENABLED == 'true' &&
+      vars.WEB_DEPLOY_REVIEW_SHA256 != '' &&
+      vars.INFRA_APPROVAL_PUBLIC_KEY_SHA256 != '' &&
+      vars.INFRA_PRIVATE_REVIEW_ROOT != ''
     needs: [verify, publish]
     runs-on: [self-hosted, Linux, X64, mlo-runtime-locked]
     timeout-minutes: 60

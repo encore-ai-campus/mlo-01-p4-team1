@@ -7,6 +7,8 @@ import {ReviewPanel} from './ReviewPanel';
 import {PlatformAdminHome,PlatformRecovery,PlatformLegal,type PlatformAdmin} from './PlatformSupport';
 import {AccountSecurity,PersonalRecords} from './AccountSecurity';
 import './platform.css';
+import {PlatformHomeDesign} from './PlatformHomeDesign';
+import {PlatformPublicDesign,isPublicDesignPath} from './PlatformPublicDesign';
 import {CinematicNavLink} from '../cinematic/CinematicNavLink';
 import {VenueExplorePage} from '../venues/pages/VenueExplorePage';
 import {OwnerSongRequestsPortal} from '../song-requests/SongRequests';
@@ -14,7 +16,7 @@ import {OwnerSongRequestsPortal} from '../song-requests/SongRequests';
 type Boot={account?:Account;session?:{csrf_token:string};csrf_token?:string;song_requests_only?:boolean;can_request_songs?:boolean};
 type Admin=PlatformAdmin;
 export function Platform(){
-  const path=location.pathname;
+  const path=location.pathname==='/'?'/platform':location.pathname;
   const [account,setAccount]=useState<Account|null>(null),[policy,setPolicy]=useState<Policy|null>(null),[admin,setAdmin]=useState<Admin|null>(null);
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
   const [nickname,setNickname]=useState(''),[terms,setTerms]=useState(false);
@@ -57,6 +59,8 @@ export function Platform(){
       songPortal.canRequest?<OwnerSongRequestsPortal/>:<section className="p-card"><h1>곡 신청 권한이 없습니다</h1><p>승인된 매장의 점주 계정으로 이용해 주세요.</p></section>}
     </main>
   </div>;
+  if (path==='/platform'||path==='/platform/') return <PlatformHomeDesign account={account} admin={admin} loading={loading}/>;
+  if (isPublicDesignPath(path)) return <PlatformPublicDesign path={path} account={account} admin={admin} policy={policy} loading={loading} error={error}/>;
   if (path==='/platform/consumer' && account && types.includes('CONSUMER')) return <VenueExplorePage readOnly showServiceHeader enableAi showVisitRecommendations/>;
   return <div className="platform-page"><header className="p-header">
     <a className="p-logo" href="/platform"><b>◈</b> 메인 플랫폼 <small>이름 미정</small></a>

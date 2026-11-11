@@ -72,6 +72,7 @@ feat/42-weather-feedback
 fix/43-gateway-request-dedup
 chore/44-infra-lifecycle
 docs/45-infra-runbook
+ci/46-main-web-pipeline
 ```
 
 이 문서의 Issue 번호는 예시다. 실제 발급된 번호로 바꿔 사용한다.
