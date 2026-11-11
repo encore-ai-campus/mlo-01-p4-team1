@@ -21,15 +21,23 @@ import { api } from '../../../shared/api';
 import { weatherLabel, type Weather } from '../../region-weather/WeatherPanel';
 import type { RegionOption } from '../../region-weather/RegionPicker';
 
-export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommendations?: boolean; enableAi?: boolean }> = ({
+export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommendations?: boolean; showServiceHeader?: boolean; enableAi?: boolean }> = ({
   readOnly = false,
   showVisitRecommendations = false,
+  showServiceHeader = false,
   enableAi = false,
 }) => {
   const currentUserId = 'demo_user_final';
   const [liveWeather, setLiveWeather] = useState<{label:string; area:string; temperature:number | null} | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [serviceAccount, setServiceAccount] = useState<{role?: string; nickname?: string} | null>(null);
+  useEffect(() => {
+    if (!showServiceHeader) return;
+    let active = true;
+    void api<{role?: string; nickname?: string}>('/api/auth/me').then(account => { if (active) setServiceAccount(account); }).catch(() => {});
+    return () => { active = false; };
+  }, [showServiceHeader]);
   useEffect(() => {
     if (!headerMenuOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setHeaderMenuOpen(false); };
@@ -144,6 +152,23 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       color: '#0f172a',
     }}>
+      {showServiceHeader && readOnly && <div className="fitplace-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap'}}>
+        <a className="fitplace-logo" href="/venues">핏플레이스</a>
+        <div><span className="fitplace-header-title">나에게 딱 맞는 하루</span></div>
+        <div className="fp-header-actions">
+          <a href={serviceAccount?.role === 'USER' ? '/platform/account' : '/platform/login'}>{serviceAccount?.role === 'USER' ? `${serviceAccount.nickname || '회원'} · 마이페이지` : '로그인'}</a>
+          <div className="fp-header-menu-wrap">
+            <button type="button" className="fp-header-menu-trigger" aria-label="전체 메뉴" aria-expanded={headerMenuOpen} aria-controls="fp-platform-header-menu" onClick={() => setHeaderMenuOpen(open => !open)}><span aria-hidden="true">☰</span></button>
+            {headerMenuOpen && <>
+              <div className="fp-header-menu-backdrop" aria-hidden="true" onClick={() => setHeaderMenuOpen(false)} />
+              <nav id="fp-platform-header-menu" className="fp-header-menu" aria-label="전체 메뉴">
+                <div className="fp-header-menu-title"><strong>전체 메뉴</strong><button type="button" aria-label="메뉴 닫기" onClick={() => setHeaderMenuOpen(false)}>×</button></div>
+                <a href="/">음악 큐레이션 <span aria-hidden="true">›</span></a>
+              </nav>
+            </>}
+          </div>
+        </div>
+      </div>}
       {!readOnly && (
         <>
           <div className="fitplace-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
@@ -188,6 +213,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
       )}
 
       <div className="fitplace-explore-layout">
+        <aside className="fitplace-ad-placeholder" aria-label="광고 배너 영역">광고 배너 영역</aside>
         <div className="fitplace-explore-content">
           <div className="fitplace-intro"><p>내 주변의 새로운 발견</p><h1>{gu}의 카페와 주점</h1><span>오늘의 취향에 맞는 장소를 찾아보세요.</span></div>
       {/* 4. PA 5단계 가격 & 필터 바 */}

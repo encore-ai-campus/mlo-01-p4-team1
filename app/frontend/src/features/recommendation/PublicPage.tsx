@@ -227,7 +227,7 @@ export function PublicPage(){
     result?.approved_playlist_id===result?.playlist_id&&result?result.preview_only?'CSV 검증용 선곡표를 승인했어요.':'승인한 선곡표예요.':
     result?.preview_only?'실제 CSV 곡을 보여주는 검증용 선곡표예요.':result?'선곡표를 확인해 주세요.':effectiveMode==='OFF'?'지역 없이 취향으로 선곡표를 받아 보세요.':'지역을 선택하고 선곡표를 받아 보세요.';
   return <>
-    <div className="muther-app" inert={guide}>
+    <div className={`muther-app${page === 'home' ? ' muther-home-font-preview' : ''}`} inert={guide}>
       <Header showGuide={()=>setGuide(true)} isDemo={isDemo} musicSource={musicSource} weatherIsTest={weather?.is_test}
         currentPage={page} onNavigate={navigate}/>
       <Banner placement="top" blocked={guide} onReady={()=>setAdContextReady(true)}/>

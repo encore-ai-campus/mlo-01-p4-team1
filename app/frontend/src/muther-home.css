@@ -1,7 +1,7 @@
 /* Muther public web visual refresh. All overrides are scoped to the public app. */
 body:has(.muther-app){background:radial-gradient(ellipse at 48% 8%,#dceeff 0%,#eff7ff 58%,#e7f0fb 100%)}
 .muther-app{
-  width:min(1580px,calc(100% - 32px));margin:14px auto 24px;min-height:calc(100vh - 28px);
+  width:min(1580px,calc(100% - 32px));margin:0 auto 24px;min-height:calc(100vh - 28px);
   background:#fff;border-radius:22px;box-shadow:0 18px 68px #3377af20;overflow:hidden;
   color:#112147;font-family:Inter,Pretendard,"Noto Sans KR",system-ui,sans-serif;
 }
@@ -80,6 +80,7 @@ body:has(.muther-app){background:radial-gradient(ellipse at 48% 8%,#dceeff 0%,#e
 .muther-app .region-selectors{display:grid;grid-template-columns:1.06fr 1fr 1fr auto;gap:7px;align-items:end}
 .muther-app .region-select-label{display:flex;flex-direction:column;min-width:0;gap:5px;color:#6d86a9;font-size:11px;font-weight:600}
 .muther-app .region-select-label select{
+  color-scheme:light;
   width:100%;min-width:0;height:43px;padding:0 28px 0 9px;border:1px solid #bfd8f5;border-radius:9px;
   background:#fff;color:#233e71;font-weight:700;font-size:12px;box-shadow:0 4px 14px #c4e0fb30;text-overflow:ellipsis;outline-offset:3px
 }
@@ -193,7 +194,7 @@ body:has(.muther-app){background:radial-gradient(ellipse at 48% 8%,#dceeff 0%,#e
   .muther-deco-disc{width:198px;height:198px}
 }
 @media(max-width:700px){
-  .muther-app{width:calc(100% - 12px);margin:6px auto;border-radius:15px}
+  .muther-app{width:calc(100% - 12px);margin:0 auto 6px;border-radius:15px}
   .muther-app .header{height:auto;min-height:0;padding:18px 18px 12px;gap:14px;display:block}
   .muther-app .muther-wordmark{font-size:39px}
   .muther-app .muther-description{font-size:12px}
@@ -250,3 +251,57 @@ body:has(.muther-app){background:radial-gradient(ellipse at 48% 8%,#dceeff 0%,#e
   .muther-hero-brand{min-height:190px}
 }
 @media(prefers-reduced-motion:reduce){.muther-app *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+/* Muther primary color on the home and playlist screens. */
+.muther-app { --blue: var(--muther-primary); }
+.muther-app .muther-hero-cta,
+.muther-app .muther-hero-cta:hover,
+.muther-app .muther-home-next button,
+.muther-app .muther-app .region-apply,
+.muther-app .muther-title-icon,
+.muther-app .muther-mood-tabs button[aria-pressed=true],
+.muther-app .music-grid .primary,
+.muther-app .music-grid .primary:hover:not(:disabled) {
+  background: var(--muther-primary); border-color: var(--muther-primary); color: #202124;
+}
+.muther-app .region-apply { background: var(--muther-primary); border-color: var(--muther-primary); color: #202124; }
+.muther-app .muther-header-nav [aria-current=page],
+.muther-app .muther-header-nav a:hover,
+.muther-app .muther-header-nav button:hover,
+.muther-app .muther-hero-eyebrow,
+.muther-app .muther-section-eyebrow,
+.muther-app .muther-clock-icon,
+.muther-app .muther-playlist-intro h1 span { color: var(--muther-primary); }
+.muther-app .muther-header-nav [aria-current=page]::after { background: var(--muther-primary); }
+.muther-app .music-grid .playlist-actions .primary { color: #202124; border-color: var(--muther-primary); }
+
+/* Restore the original playlist radio selection color. */
+.muther-app .music-grid .radio-options input[type=radio] { accent-color: #087bf1; }
+
+/* Pretendard preview is limited to the Muther home screen. */
+@font-face { font-family: "Muther Home Pretendard"; src: url('/fonts/Pretendard-Regular.otf') format('opentype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Muther Home Pretendard"; src: url('/fonts/Pretendard-SemiBold.otf') format('opentype'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Muther Home Pretendard"; src: url('/fonts/Pretendard-Bold.otf') format('opentype'); font-weight: 700; font-style: normal; font-display: swap; }
+.muther-app.muther-home-font-preview,
+.muther-app.muther-home-font-preview .muther-wordmark,
+.muther-app.muther-home-font-preview .muther-header-logo-type,
+.muther-app.muther-home-font-preview .muther-hero-logotype,
+.muther-app.muther-home-font-preview .muther-deco-words { font-family: "Muther Home Pretendard", sans-serif; }
+
+/* Text colors from the common login Figma design. */
+.muther-app { color: #222222; }
+.muther-app h1, .muther-app h2, .muther-app h3, .muther-app h4,
+.muther-app .selection legend, .muther-app .music-grid .selection h2,
+.muther-app .music-grid .cover-heading h2, .muther-app .music-grid .list-heading h2 { color: #222222; }
+.muther-app .muther-description, .muther-app .muther-hero p,
+.muther-app .muther-moods-header p, .muther-app .muther-create-heading p,
+.muther-app .muther-home-next p, .muther-app .region-select-label,
+.muther-app .muted, .muther-app small { color: #666b70; }
+
+/* Selected Muther section captions. */
+.muther-app .muther-hero-eyebrow,
+.muther-app .muther-moods-header .muther-section-eyebrow,
+.muther-app .muther-home-next .muther-section-eyebrow { color: #5c8294; }
+
+/* Keep both lines of the playlist title the same color. */
+.muther-app .muther-playlist-intro h1 span { color: inherit; }
