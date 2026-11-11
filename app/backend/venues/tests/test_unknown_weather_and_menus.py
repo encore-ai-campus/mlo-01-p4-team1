@@ -1,4 +1,8 @@
+import os
+import tempfile
 import threading
+import time
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from django.test import Client, SimpleTestCase, override_settings
@@ -142,3 +146,64 @@ class UnknownWeatherAndMenusTests(SimpleTestCase):
         self.assertEqual([item['venue_id'] for item in ranked], ['v2', 'v1', 'v0'])
         self.assertTrue(ranked[0]['has_verified_menus'])
         self.assertFalse(ranked[2]['has_verified_menus'])
+
+    def test_mn_api_csv_menus_override_unpriced_research_and_hot_reload_on_update(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            venues_csv = root / '테스트구_venues.csv'
+            menus_csv = root / '테스트구_menus.csv'
+            venues_csv.write_text(
+                'venue_id,매장명,자치구,행정동,업종구분,1인_평균예산(원),대표메뉴_조사,출처_URL\n'
+                'VN_TEST_1,테스트카페,테스트구,역삼동,카페,8000,아메리카노,https://example.com/1\n',
+                encoding='utf-8-sig',
+            )
+            menus_csv.write_text(
+                'menu_id,venue_id,매장명,자치구,행정동,메뉴판_카테고리,메뉴명,가격(원),대표메뉴여부,추천인원_및_양,메뉴설명_및_특징,날씨_및_꿀조합팁,메뉴사진_URL\n'
+                'MN_OLD_1,VN_TEST_1,테스트카페,테스트구,역삼동,커피,아메리카노 (고소한 블렌드),4500,Y,1인,기본,,\n'
+                'MN_OLD_2,VN_TEST_1,테스트카페,테스트구,역삼동,커피,카페 라떼,5000,N,1인,기본,,\n'
+                'MN_OLD_3,VN_TEST_1,테스트카페,테스트구,역삼동,커피,바닐라빈 라떼,5800,N,1인,기본,,\n',
+                encoding='utf-8-sig',
+            )
+
+            repo = CsvLazyRepository.__new__(CsvLazyRepository)
+            repo._lock = threading.RLock()
+            repo._gu_venues_cache = {}
+            repo._venue_map = {}
+            repo._venue_menus_cache = {}
+            repo._gu_menus_loaded = {}
+            repo._disk_venues_buffer = {}
+            repo._disk_menus_buffer = {}
+            repo._enriched_gu_ready = set()
+            repo._gu_file_sigs = {}
+            repo._gu_last_stat_at = {}
+            repo._global_overlay_sigs = ()
+            repo._global_last_stat_at = time.monotonic()
+            repo._live_menus_by_vid = {}
+            repo._live_menus_by_name = {}
+            repo._live_menus_loaded = True
+            repo._research_overlay_by_vid = {}
+            repo._research_overlay_loaded = True
+            repo._fallback_venues_loaded = False
+            repo._fallback_menus_loaded = False
+
+            with patch('backend.venues.repositories.csv_lazy_repo.REGION_CSV_DIRS', [root]):
+                initial_venues = repo.get_venues_by_gu('테스트구')
+                self.assertEqual(len(initial_venues), 1)
+                initial_menus = repo.get_menus_by_venue('VN_TEST_1')
+                self.assertEqual([m['menu_name'] for m in initial_menus], ['아메리카노'])
+                self.assertEqual(initial_menus[0]['menu_source'], 'RESEARCH')
+
+                # 수집 스크립트가 *_menus.csv 에 MN_API_* 실수집 메뉴를 덮어쓴 상황 시뮬레이션
+                menus_csv.write_text(
+                    'menu_id,venue_id,매장명,자치구,행정동,메뉴판_카테고리,메뉴명,가격(원),대표메뉴여부,추천인원_및_양,메뉴설명_및_특징,날씨_및_꿀조합팁,메뉴사진_URL\n'
+                    'MN_API_SL_99,VN_TEST_1,테스트카페,테스트구,역삼동,커피,시그니처 크림라떼,6200,Y,1인,실수집,,\n',
+                    encoding='utf-8-sig',
+                )
+                stat_res = os.stat(menus_csv)
+                os.utime(menus_csv, ns=(stat_res.st_atime_ns, stat_res.st_mtime_ns + 5_000_000_000))
+                repo._gu_last_stat_at['테스트구'] = 0.0
+
+                reloaded_menus = repo.get_menus_by_venue('VN_TEST_1')
+                self.assertEqual([m['menu_name'] for m in reloaded_menus], ['시그니처 크림라떼'])
+                self.assertEqual(reloaded_menus[0]['price'], 6200)
+                self.assertEqual(reloaded_menus[0]['menu_source'], 'API')

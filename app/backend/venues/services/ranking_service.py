@@ -197,14 +197,20 @@ def filter_and_rank_venues(
             candidate['research'] = v['research']
         candidates.append(candidate)
 
-    # 9. 이벤트 > 실수집·조사 고유 메뉴 > 브랜드 메뉴 > 일반(메뉴 미확인) 순 우선, 동급 내 추천 점수 내림차순 정렬
+    # 9. 이벤트 > 실수집 API·네이버 메뉴 > 방문후기 조사 메뉴 > 브랜드 공식 메뉴 > 일반(메뉴 미확인) 순 우선, 동급 내 추천 점수 내림차순 정렬
     def _menu_tier(item: Dict[str, Any]) -> int:
         preview = item.get('matched_menus_preview') or []
         if not preview:
             return 0
         if any(
-            m.get('menu_source') in ('LIVE', 'RESEARCH')
-            or str(m.get('menu_id', '')).startswith(('MN_DEMO_', 'RM_', 'MN_JSON_'))
+            m.get('menu_source') in ('API', 'LIVE')
+            or str(m.get('menu_id', '')).startswith(('MN_API_', 'MN_DEMO_', 'MN_JSON_'))
+            for m in preview
+        ):
+            return 3
+        if any(
+            m.get('menu_source') == 'RESEARCH'
+            or str(m.get('menu_id', '')).startswith('RM_')
             for m in preview
         ):
             return 2
