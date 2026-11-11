@@ -166,7 +166,7 @@ jobs:
       vars.INFRA_APPROVAL_PUBLIC_KEY_SHA256 != '' &&
       vars.INFRA_PRIVATE_REVIEW_ROOT != ''
     needs: [verify, publish]
-    runs-on: [self-hosted, Linux, X64, mlo-runtime-locked]
+    runs-on: [self-hosted, Linux, X64, mlo-main-web]
     timeout-minutes: 60
     environment: infra-runtime
     concurrency:
@@ -191,7 +191,7 @@ jobs:
           MLO_WEB_IMAGE: ${{ needs.publish.outputs.image }}
           MLO_WEB_DEPLOY: 'true'
           PYTHONDONTWRITEBYTECODE: '1'
-        run: aws-infra/runtime/.venv/bin/python scripts/run_reviewed_workflow.py
+        run: /opt/mlo/runtime-venv/bin/python scripts/run_reviewed_workflow.py
       - name: Check the deployed revision through CloudFront
         env:
           VIEWER_HOST: ${{ vars.WEB_VIEWER_HOST }}

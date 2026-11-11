@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "scripts"), str(ROOT / "aws-infra/contracts")]
 from infra_common.coordination import require
 from infra_common.preauth_execution import ExecutionGate, sha, private_file
-from infra_common.oidc import write_config
+from infra_common.oidc import ENVIRONMENTS, write_config
 from infra_control import execute
 
 
@@ -117,12 +117,14 @@ def main():
         # Config holds commands only; web identity and session keys remain in
         # credential_process memory. GitHub Environment approval is separate.
         credential_purpose = "apply" if purpose == "destroy" else purpose
+        if expected_web_release is not None:
+            credential_purpose = "web-deploy"
         config = write_config(
             folder / "oidc-config",
             review["account_ids"],
             credential_purpose,
             os.environ["GITHUB_REPOSITORY"],
-            "infra-" + credential_purpose,
+            ENVIRONMENTS[credential_purpose],
         )
         for name in list(os.environ):
             if name.startswith("AWS_"):
