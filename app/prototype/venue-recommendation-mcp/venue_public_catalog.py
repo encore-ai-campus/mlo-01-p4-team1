@@ -55,6 +55,11 @@ class PublicVenue(BaseModel):
     research: VenueResearch | None = None
 
 
+class MenuEvidence(BaseModel):
+    model_config = ConfigDict(strict=True)
+    urls: list[Text]
+
+
 class PublicMenu(BaseModel):
     model_config = ConfigDict(strict=True)
 
@@ -64,6 +69,7 @@ class PublicMenu(BaseModel):
     cuisine_tag_ids: list[Text] = Field(default_factory=list)
     menu_type_tag_ids: list[Text] = Field(default_factory=list)
     price_krw: Annotated[int, Field(ge=0)] | None = None
+    evidence: MenuEvidence | None = None
 
 
 def require_unique_ids(rows, key):

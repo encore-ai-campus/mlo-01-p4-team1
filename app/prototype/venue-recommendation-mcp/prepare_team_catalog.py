@@ -15,11 +15,11 @@ from urllib.parse import urlsplit
 
 from venue_csv_catalog import CONFIRMED_PUB_SUBTYPES, is_out_of_scope_facility
 from venue_nearby import PROVINCE_ALIASES, PROVINCE_LABELS, SeoulPlaceIndex, district_contains, dong_key
-from venue_recommendation_mcp import TAG_FILE
 from venue_search_intent import CALM_WORDS
 from verify_tag_weather import normalize, read_tags
 
 
+TAG_FILE = Path(__file__).with_name("공통_태그_목록_v0.2.csv")
 EXPLICIT_PUB_SUBTYPES = {
     "살얼음맥주/가성비호프", "경성레트로펍/파스타맥주", "야키토리/이자카야", "매운닭발/정통포차",
     "수제맥주펍", "캐주얼와인바", "포장마차", "오션뷰펍", "숙성생맥주펍", "살얼음생맥주/포차",

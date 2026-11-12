@@ -18,6 +18,7 @@ from venue_csv_catalog import add_csv_venues
 from venue_forecast import KST, fetch_forecasts, project_endpoint, timestamp
 from venue_nearby import PROVINCE_LABELS, RADIUS_M, SeoulPlaceIndex, display_district, station_label
 from venue_public_catalog import PublicCatalogReader
+from venue_team_catalog import TeamCatalogReader
 from venue_search_intent import (
     APPROXIMATE_BUDGET, BudgetBand, CALM_WORDS, UnverifiedCondition, VenueCategory, budget_from_text,
     compile_menu_words, explicit_menu_tags, has_budget_amount, per_person_budget, query_tags,
@@ -155,9 +156,12 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
     if public_mode:
         mapping_version = place_index.weather_mapping_version
         catalog_source = "PUBLIC_SNAPSHOT"
-        public_catalog = PublicCatalogReader(
-            public_catalog_path, place_index.weather_regions, tags, allow_preview=allow_preview_catalog,
-        )
+        if public_catalog_path.suffix.lower() in {".sqlite", ".sqlite3"}:
+            public_catalog = TeamCatalogReader(public_catalog_path, place_index.weather_regions, tags, labels, ancestors)
+        else:
+            public_catalog = PublicCatalogReader(
+                public_catalog_path, place_index.weather_regions, tags, allow_preview=allow_preview_catalog,
+            )
     else:
         demo_catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
         verify_pilot(demo_catalog, tags)
@@ -421,7 +425,13 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
             "district": None, "preferred_moods": sorted(preferred | required), "orders": menu_orders,
         }
         scoped_ids = {venue["venue_id"] for venue in scoped_venues}
-        scoped_menus = [menu for menu in catalog["menus"] if menu["venue_id"] in scoped_ids]
+        if public_mode and isinstance(public_catalog, TeamCatalogReader):
+            menu_venues = scoped_venues
+            if second_round and not menu_orders:
+                menu_venues = [venue for venue in scoped_venues if venue.get("research")]
+            scoped_menus = await asyncio.to_thread(public_catalog.menus_for, menu_venues, catalog["_identity"])
+        else:
+            scoped_menus = [menu for menu in catalog["menus"] if menu["venue_id"] in scoped_ids]
         base = list(match_venues({"venues": scoped_venues, "menus": scoped_menus}, conditions, labels, ancestors))
         if scoped_venues and not base:
             empty_reason = "NO_MENU"
