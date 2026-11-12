@@ -177,7 +177,13 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
                   <div className="fp-header-menu-backdrop" aria-hidden="true" onClick={() => setHeaderMenuOpen(false)} />
                   <nav id="fp-header-menu" className="fp-header-menu" aria-label="전체 메뉴">
                     <div className="fp-header-menu-title"><strong>전체 메뉴</strong><button type="button" aria-label="메뉴 닫기" onClick={() => setHeaderMenuOpen(false)}>×</button></div>
-                    <a href="/muther">음악 큐레이션 <span aria-hidden="true">›</span></a>
+                    <details className="fp-owner-menu">
+                      <summary>관련 서비스 <span aria-hidden="true">⌄</span></summary>
+                      <div className="fp-owner-submenu">
+                        <a href="/platform">itda <span aria-hidden="true">›</span></a>
+                        <a href="/muther">muther <span aria-hidden="true">›</span></a>
+                      </div>
+                    </details>
                     <details className="fp-owner-menu">
                       <summary>사장님 페이지 <span aria-hidden="true">⌄</span></summary>
                       <div className="fp-owner-submenu">
@@ -186,7 +192,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
                         <button type="button" onClick={() => { setHeaderMenuOpen(false); readOnly ? window.alert('현재 플랫폼에서는 해당 기능을 사용할 수 없습니다.') : setIsPublishEventOpen(true); }}>이벤트 발행 <span aria-hidden="true">›</span></button>
                       </div>
                     </details>
-                    <a href="/login">로그인 <span aria-hidden="true">›</span></a>
+                    <a href="/platform/login">로그인 <span aria-hidden="true">›</span></a>
                   </nav>
                 </>}
               </div>
