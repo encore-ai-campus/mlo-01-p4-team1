@@ -24,6 +24,6 @@ export function PlatformHomeDesign({account,admin,loading}:{account:Account|null
         <article className="ph-card"><div className="ph-card-image ph-muther-image"><img src={muther} alt=""/></div><div className="ph-card-copy"><p className="ph-label ph-muther">muther</p><h2>날씨와 음악을 잇다</h2><p className="ph-description">기분의 맞는 음악을 설정하고<br/>오늘의 날씨를 느껴보세요.</p><a href="/muther">뮤더 시작하기 →</a></div></article>
       </div>
     </main>
-    <footer className="ph-footer"><nav aria-label="법적 고지 및 문의"><a href="/platform/terms">이용약관</a><span>·</span><a href="/platform/privacy">개인정보 처리방침</a><span>·</span><a href="/platform/privacy-contact">개인정보 관련 문의</a></nav><p>통합 플랫폼 · 서비스 정보는 시안용입니다</p></footer>
+    <footer className="ph-footer"><nav aria-label="법적 고지 및 문의"><a href="/platform/terms">이용약관</a><span>·</span><a href="/platform/privacy">개인정보 처리방침</a><span>·</span><a href="/platform/privacy-contact">개인정보 관련 문의</a></nav><p><a href="/platform/admin">관리자 페이지</a></p></footer>
   </div>;
 }

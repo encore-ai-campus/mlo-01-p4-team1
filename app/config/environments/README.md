@@ -27,3 +27,9 @@ Vite는 광고 `/api/ads`, `/api/ad-events`, `/api/ad-deliveries/`, `/api/admin/
 통합 호스트의 새 설정·실행 순서와 검증 경계는 서비스 통합 라우팅을 확인합니다. 날씨에 MongoDB 설정을 전달하지 않습니다.
 
 추천 API/작업자의 두 Control 배치·종류별 큐·전역 호출 제한·systemd 예시는 [추천 분산 실행 설정](./recommendation/README.md)과 인프라 인계를 확인합니다. 실제 운영 적용은 별도입니다.
+
+## AWS Control 관리자 패스키
+
+기존 Control Compose와 웹 이미지 오버레이 뒤에 [패스키 오버레이](aws/control-web-passkey.compose.json)를 추가합니다. 현재 공개 CloudFront 호스트를 WebAuthn RP ID로, 해당 HTTPS 주소를 Origin으로 고정합니다. 대상 주소가 바뀌면 두 값을 함께 검토합니다.
+
+승인된 운영 배포에서 Control B의 `web` 서비스만 교체하고 기존 이미지 다이제스트, `/readyz`, ALB 대상 상태를 확인한 뒤 Control A를 교체합니다. 설정 적용 후 관리자는 로그인하고 `/admin/passkey`에서 일회용 등록권으로 본인 기기에 패스키를 등록합니다.

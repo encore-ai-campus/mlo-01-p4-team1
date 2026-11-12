@@ -22,14 +22,12 @@ export function Header({login=false,showGuide,isDemo=false,musicSource,weatherIs
     </a>
     {login?<nav aria-label="로그인 메뉴"><a className="home-link" href="/muther"><Icon name="home"/>선곡 페이지로 <Icon name="arrow"/></a></nav>:
       <nav className="muther-header-nav" aria-label="주 메뉴">
-        <a href="/muther" aria-current={currentPage==='home'?'page':undefined}
-          onClick={event=>selectPage(event,'home')}>홈</a>
-        {account?.platform_enabled&&<a href="/platform">메인 플랫폼</a>}
+        <button type="button" onClick={showGuide}>사용 안내</button>
         <a href="/playlist" aria-current={currentPage==='playlist'?'page':undefined}
           onClick={event=>selectPage(event,'playlist')}>오늘의 선곡</a>
-        <a href="/venues">카페·주점 탐색</a>
-        <button type="button" onClick={showGuide}>사용 안내</button>
-        <a href={account?.platform_enabled?(account?.role==='USER'?'/platform/account':'/platform/login'):(account?.role==='USER'?'/mypage':'/login')} className="muther-nav-account">{account?.role==='USER'?`${account.nickname} · 마이페이지`:'로그인'}</a>
+        <a href="/platform">itda</a>
+        <a href="/venues">핏플레이스</a>
+        <a href={account?.role==='USER'?'/platform/account':'/platform/login'} className="muther-nav-account">{account?.role==='USER'?`${account.nickname} · 마이페이지`:'로그인'}</a>
       </nav>}
     {isDemo&&!login&&<span className="demo-note" title={'음악: '+(musicSource==='CSV'?'제공 CSV의 실제 곡 정보':'로컬 자료')+' · 날씨: '+(weatherSource||'지역 선택 후 조회')}>
       로컬 데모 · {weatherSource||'날씨 확인 전'}

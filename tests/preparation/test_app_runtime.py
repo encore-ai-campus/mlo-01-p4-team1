@@ -13,6 +13,27 @@ spec.loader.exec_module(runtime)
 
 
 class AppRuntimeTests(unittest.TestCase):
+    def test_protected_secret_file_accepts_weather_and_venue_mcp_settings(self):
+        settings = {
+            'ES_URL': 'https://weather.example.test:9200',
+            'WEATHER_INDEX': 'weather-current-v1',
+            'ES_USERNAME': 'weather_reader',
+            'ES_PASSWORD': 'disposable-unit-fixture',
+            'ES_CA_CERT': '/run/mlo/secrets/weather-ca.crt',
+            'VENUE_MCP_SERVICE_ENABLED': '1',
+            'VENUE_MCP_PUBLIC_CATALOG': '/run/mlo/secrets/published-venues.json',
+            'VENUE_WEATHER_BASE_URL': 'https://weather-api.example.test',
+            'VENUE_LLM_MODEL': 'fixture-model',
+            'GEMINI_ENABLED': '1',
+            'GEMINI_API_KEY': 'disposable-unit-fixture',
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder).resolve()
+            path = root / 'app-env.json'
+            path.write_text(json.dumps(settings))
+            path.chmod(0o600)
+            self.assertEqual(runtime.secret_environment(path, root), settings)
+
     def test_protected_secret_file_rejects_symlinks_public_permissions_and_unknown_keys(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder).resolve()

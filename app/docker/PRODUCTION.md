@@ -58,6 +58,20 @@ Runtime은 node별 `service.json`을 읽기 전용으로 연결하고 private IP
 인증 session·Guest TTL·provider 및 업무 adapter는 수락한 별도 운영 설정을 함께 제공합니다.
 운영 migration은 승인된 단일 실행자가 별도 단계에서 수행하고, 구/신 이미지 호환 근거 없이 자동 rollback을 허용하지 않습니다.
 
+### 날씨 조회와 매장 추천
+
+Control A/B의 공통 API에는 `ES_URL`, `WEATHER_INDEX`, `ES_USERNAME`, `ES_PASSWORD`를 보호된
+`app-env.json`으로 제공합니다. 사설 CA를 사용하면 컨테이너가 읽을 수 있는 `ES_CA_CERT` 경로도
+지정합니다. Elasticsearch TLS 주소와 지정 인덱스에 문서 읽기 및 인덱스 메타데이터 조회 권한을 부여합니다.
+각 Control에서 대표 지역의 `/api/weather`가 200을 반환하고 `recommendation_ready=true`인지 확인합니다.
+
+매장 MCP는 기본 비활성입니다. `VENUE_MCP_SERVICE_ENABLED=1`과 `VENUE_MCP_PUBLIC_CATALOG`를
+설정하면 로그인 세션과 활성 `CONSUMER` 권한이 있는 계정에서 호출할 수 있습니다. 승인된
+`preview_only=false` 스냅샷을 컨테이너에 읽기 전용으로 연결합니다. `VENUE_WEATHER_BASE_URL`은
+MCP 프로세스에서 직접 연결할 수 있는 공통 API 주소를 사용합니다. 자연어 질문까지 사용하려면
+`GEMINI_ENABLED=1`, `GEMINI_API_KEY`, `VENUE_LLM_MODEL`을 보호 설정에 추가합니다.
+승인된 계정으로 추천 옵션, 방문 조건 추천, 자연어 질문을 각각 호출해 확인합니다.
+
 곡 신청과 태깅 워커를 AWS 테스트 환경에서 연결할 때는 다음 값을 공통 API에만 제공합니다.
 Docker 운영 이미지는 보호된 `app-env.json`, native API는 보호된 `application.env`를 사용합니다.
 
