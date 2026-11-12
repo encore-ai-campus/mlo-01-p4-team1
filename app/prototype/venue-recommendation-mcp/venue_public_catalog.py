@@ -1,5 +1,7 @@
 """Read a published snapshot of the existing venue/menu catalog by stable ID."""
 
+import os
+from threading import Lock
 from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, StringConstraints, ValidationError
@@ -73,11 +75,48 @@ def require_tags(ids, kind, tags):
         raise ValueError(f"공개 스냅샷에 등록되지 않은 {kind} 태그가 있습니다.")
 
 
+def snapshot_identity(stream):
+    info = os.fstat(stream.fileno())
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+
+class PublicCatalogReader:
+    """Reuse one validated snapshot until the publisher atomically replaces its file."""
+
+    def __init__(self, path, weather_regions, tags, *, allow_preview=False):
+        self.path = path
+        self.weather_regions = weather_regions
+        self.tags = tags
+        self.allow_preview = allow_preview
+        self._cached = None
+        self._lock = Lock()
+
+    def read(self):
+        with self._lock:
+            try:
+                with self.path.open("rb") as stream:
+                    identity = snapshot_identity(stream)
+                    if self._cached is not None and self._cached[0] == identity:
+                        return self._cached[1]
+                    content = stream.read()
+                    if snapshot_identity(stream) != identity:
+                        raise ValueError("공개 매장·메뉴 스냅샷을 읽는 중에 파일이 변경되었습니다.")
+            except OSError:
+                raise ValueError("공개 매장·메뉴 스냅샷을 읽을 수 없습니다.") from None
+
+            result = parse_public_catalog(content, self.weather_regions, self.tags, allow_preview=self.allow_preview)
+            self._cached = identity, result
+            return result
+
+
 def read_public_catalog(path, weather_regions, tags, *, allow_preview=False):
-    """Read both record sets once. The publisher replaces the complete snapshot atomically."""
+    return PublicCatalogReader(path, weather_regions, tags, allow_preview=allow_preview).read()
+
+
+def parse_public_catalog(content, weather_regions, tags, *, allow_preview):
     try:
-        snapshot = CatalogSnapshot.model_validate_json(path.read_bytes())
-    except (OSError, ValidationError):
+        snapshot = CatalogSnapshot.model_validate_json(content)
+    except ValidationError:
         raise ValueError("공개 매장·메뉴 스냅샷을 읽을 수 없습니다.") from None
     if not allow_preview:
         if 'preview_only' not in snapshot.model_fields_set:

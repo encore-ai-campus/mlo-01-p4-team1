@@ -5,7 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from venue_public_catalog import read_public_catalog
+from venue_public_catalog import PublicCatalogReader, read_public_catalog
 
 
 class PublicCatalogVisibilityTests(unittest.TestCase):
@@ -40,6 +40,41 @@ class PublicCatalogVisibilityTests(unittest.TestCase):
         self.assertEqual(self.read(local=True)[0]['version'], 'test')
         self.write(preview_only=True)
         self.assertTrue(self.read(local=True)[0]['metadata']['preview_only'])
+
+    def test_reader_reuses_an_unchanged_snapshot(self):
+        self.write(preview_only=False)
+        reader = PublicCatalogReader(self.path, {}, {})
+        self.assertIs(reader.read(), reader.read())
+
+    def test_atomic_replacement_removes_a_venue_from_the_cached_catalog(self):
+        region = {'sido': '서울특별시', 'sigungu': '마포구', 'name': '서교동', 'nx': 59, 'ny': 126}
+        venue = {'venue_id': 'demo-1', 'name': '테스트 카페', 'address': '서울 마포구 테스트 주소',
+                 'region_id': 'demo-region', 'venue_category': 'CAFE', 'is_public': True}
+        self.write(preview_only=False, venues=[venue])
+        reader = PublicCatalogReader(self.path, {'demo-region': region}, {})
+        self.assertEqual(len(reader.read()[0]['venues']), 1)
+
+        replacement = self.path.with_name('replacement.json')
+        replacement.write_text(json.dumps({
+            'version': 'test', 'preview_only': False, 'venues': [{**venue, 'is_public': False}], 'menus': [],
+        }), encoding='utf-8')
+        replacement.replace(self.path)
+        catalog, locations = reader.read()
+        self.assertEqual(catalog['venues'], [])
+        self.assertEqual(locations, {})
+
+    def test_reader_rejects_invalid_replacement_instead_of_serving_cached_data(self):
+        self.write(preview_only=False)
+        reader = PublicCatalogReader(self.path, {}, {})
+        reader.read()
+
+        replacement = self.path.with_name('replacement.json')
+        replacement.write_text(json.dumps({
+            'version': 'test', 'preview_only': True, 'venues': [], 'menus': [],
+        }), encoding='utf-8')
+        replacement.replace(self.path)
+        with self.assertRaisesRegex(ValueError, '시연용'):
+            reader.read()
 
 
 if __name__ == '__main__':
