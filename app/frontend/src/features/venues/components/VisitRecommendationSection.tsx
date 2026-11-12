@@ -69,9 +69,8 @@ export function venueCatalogNotice(metadata?: VisitCatalogMetadata) {
 }
 
 export function canOpenVenueDetail(source: string | undefined, metadata?: VisitCatalogMetadata) {
-  // The local preview detail endpoint is not an operational snapshot API.
   // Use the metadata on this result, not earlier options that may be stale.
-  return source !== 'PUBLIC_SNAPSHOT' || metadata?.preview_only === true;
+  return source !== 'PUBLIC_SNAPSHOT' || metadata?.preview_only === true || metadata?.detail_supported === true;
 }
 
 export function VisitCards({ venues, onOpenVenue, distanceFrom, previewCatalog = false }: {

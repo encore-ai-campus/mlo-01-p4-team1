@@ -16,9 +16,10 @@ export const VenueCard: React.FC<VenueCardProps> = ({venue,selected=false,onSele
     catch {setError('찜을 변경하지 못했습니다.');} finally {setBusy(false);}
   }
   const open=()=>onSelectVenue?.(venue.venue_id);
+  const budget = venue.avg_price == null ? '1인 예산 미확인' : `1인 ${venue.avg_price.toLocaleString()}원`;
   return <article className={'fitplace-venue-card'+(selected?' is-selected':'')} onClick={open}>
     <div className="fp-card-title"><div className="fp-card-heading"><h3><button type="button" className="fp-card-open" aria-label={`${venue.venue_name} 상세 보기`} onClick={e=>{e.stopPropagation();open();}}>{venue.venue_name}</button></h3><p className="fp-card-meta">{venue.category==='CAFE'?'카페':'주점'} · {venue.gu_name} {venue.dong_name}{venue.sub_category?` · ${venue.sub_category}`:''}</p></div>{feedbackEnabled && <button type="button" className="fp-card-bookmark" aria-label={isBookmarked?'찜 해제':'찜하기'} aria-pressed={isBookmarked} disabled={busy} onClick={bookmark}>{isBookmarked?'♥':'♡'}</button>}</div>
-    <p className="fp-card-facts"><span className="fp-status">{venue.is_open_now?'영업 중':'영업 종료'}</span>{venue.is_partner&&<span className="fp-partner-badge">제휴 매장</span>}<strong>1인 {venue.avg_price.toLocaleString()}원</strong><span>평점 준비 중</span></p>
+    <p className="fp-card-facts"><span className="fp-status">{venue.is_open_now == null ? '영업 정보 미확인' : venue.is_open_now ? '영업 중' : '영업 종료'}</span>{venue.is_partner&&<span className="fp-partner-badge">제휴 매장</span>}<strong>{budget}</strong><span>평점 준비 중</span></p>
     {venue.has_closure_warning&&<p className="fp-card-notice">폐업 제보 접수</p>}
     {venue.active_event&&<p className="fp-card-notice">{venue.active_event.badge_text}: {venue.active_event.title} · 남은 수량 {venue.active_event.remaining_quantity}개</p>}
     {!!venue.mood_tags?.length&&<p className="fp-card-tags">{venue.mood_tags.map(t=>`#${t}`).join(' ')}</p>}

@@ -393,6 +393,52 @@ class VenueAdminClosureAndMonitoringTests(Helpers, TestCase):
         self.assertEqual(detail.json()["venue"]["recent_reviews"][0]["user_id"], "방문 회원")
         self.assertNotContains(detail, platform_id)
 
+    def _patch_operational_sqlite_catalog(self):
+        import gzip
+        import sqlite3
+        from contextlib import closing
+        from pathlib import Path
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        db_path = Path(tmp.name) / "catalog.sqlite3"
+        row = {
+            "venue_id": self.venue_id,
+            "매장명": "운영 테스트 카페",
+            "도로명주소": "서울특별시 강남구 테헤란로 1",
+            "업종구분": "카페",
+            "세부카테고리": "카페",
+            "영업상태_코드": "OPEN",
+            "자치구": "강남구",
+            "행정동": "역삼동",
+            "1인_평균예산(원)": "8000",
+            "위도_lat": "37.5",
+            "경도_lng": "127.04",
+        }
+        menu = {
+            "menu_id": "MN_OPS_1",
+            "venue_id": self.venue_id,
+            "매장명": "운영 테스트 카페",
+            "메뉴명": "아메리카노",
+            "가격(원)": "4500",
+            "대표메뉴여부": "Y",
+        }
+        raw_row = json.dumps(row, ensure_ascii=False, separators=(",", ":"))
+        with closing(sqlite3.connect(db_path)) as db:
+            db.executescript(
+                "CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);"
+                "CREATE TABLE venues (venue_id TEXT NOT NULL, raw TEXT NOT NULL);"
+                "CREATE TABLE menus (menu_id TEXT NOT NULL, venue_id TEXT NOT NULL, raw TEXT NOT NULL);"
+            )
+            db.execute("INSERT INTO metadata VALUES (?, ?)", ("catalog", json.dumps({"schema": 1, "version": "t", "preview_only": False})))
+            db.execute("INSERT INTO metadata VALUES (?, ?)", ("venue_rows_gzip", sqlite3.Binary(gzip.compress((raw_row + "\n").encode()))))
+            db.execute("INSERT INTO venues VALUES (?, ?)", (self.venue_id, raw_row))
+            db.execute("INSERT INTO menus VALUES (?, ?, ?)", (menu["menu_id"], self.venue_id, json.dumps(menu, ensure_ascii=False)))
+            db.commit()
+        env_patch = patch.dict(os.environ, {"VENUE_MCP_PUBLIC_CATALOG": str(db_path)})
+        env_patch.start()
+        self.addCleanup(env_patch.stop)
+
     @override_settings(
         LOCAL_DEMO=False,
         MEMBER_LOCAL_PREVIEW=False,
@@ -400,6 +446,7 @@ class VenueAdminClosureAndMonitoringTests(Helpers, TestCase):
         VENUE_PUBLIC_CATALOG_ENABLED=True,
     )
     def test_production_public_catalog_opt_in_serves_read_only_catalog_and_keeps_writes_closed(self):
+        self._patch_operational_sqlite_catalog()
         platform_id = f"platform:{self.consumer.pk}"
         VenueInteraction.objects.create(
             venue_id=self.venue_id,
@@ -442,6 +489,7 @@ class VenueAdminClosureAndMonitoringTests(Helpers, TestCase):
         VENUE_PUBLIC_CATALOG_ENABLED=False,
     )
     def test_production_platform_enabled_allows_authenticated_consumer_without_local_preview(self):
+        self._patch_operational_sqlite_catalog()
         anon = Client(enforce_csrf_checks=True)
         self.assertEqual(anon.get("/api/venues", {"sigungu": "강남구"}).status_code, 401)
 

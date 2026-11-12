@@ -1,7 +1,9 @@
 import json
 import os
+from pathlib import Path
 import time
 
+from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -18,6 +20,19 @@ from backend.venues.services.venue_llm_concierge import (
 )
 from backend.venues.streaming.observability import emit_observation
 from .access import consumer_post, ensure_request_id, parse_json_body
+
+
+def _catalog_detail_capability(result):
+    metadata = result.get("catalog_metadata")
+    path = os.environ.get("VENUE_MCP_PUBLIC_CATALOG", "").strip()
+    if (
+        Path(path).suffix.lower() in {".sqlite", ".sqlite3"}
+        and result.get("catalog_source") == "PUBLIC_SNAPSHOT"
+        and isinstance(metadata, dict)
+        and metadata.get("preview_only") is False
+    ):
+        result = {**result, "catalog_metadata": {**metadata, "detail_supported": True}}
+    return result
 
 
 def _llm_availability(mcp_client):
@@ -74,6 +89,7 @@ def ai_concierge_chat_api(request):
         region=region,
     )
     if result["success"]:
+        result = {**result, "mcp": _catalog_detail_capability(result["mcp"])}
         return JsonResponse(result)
 
     code = result["code"]
@@ -90,7 +106,7 @@ def _mcp_recommendation(request, arguments):
         return JsonResponse({"success": False, "code": "VENUE_MCP_UNAVAILABLE"}, status=503)
 
     try:
-        result = client.recommend(arguments)
+        result = _catalog_detail_capability(client.recommend(arguments))
     except VenueMcpRequestError:
         return JsonResponse({"success": False, "code": "MCP_REQUEST_REJECTED"}, status=422)
     except VenueMcpUnavailable:

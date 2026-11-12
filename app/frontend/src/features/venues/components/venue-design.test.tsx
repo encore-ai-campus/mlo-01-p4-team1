@@ -25,6 +25,12 @@ describe('매장 탐색 디자인',()=>{
   const html=renderToStaticMarkup(<VenueCard venue={{...venue,is_partner:true}}/>);
   expect(html).toContain('제휴 매장');
  });
+ it('예산 정보가 없으면 카드와 상세에 미확인으로 표시한다',()=>{
+  const missing={...venue,avg_price:null};
+  expect(renderToStaticMarkup(<VenueCard venue={missing}/>)).toContain('1인 예산 미확인');
+  const detail={...missing,menu_tabs:[],all_menus_count:0,applied_playlist:null};
+  expect(renderToStaticMarkup(<VenueDetailDrawer venue={detail} isOpen onClose={noop} readOnly/>)).toContain('1인 예산 미확인');
+ });
  it('대표 사진을 먼저 두고 중복 및 잘못된 URL은 제외한다',()=>{
   expect(venuePhotoUrls(' https://example.com/a.jpg ', ['https://example.com/b.jpg','https://example.com/a.jpg','', 'javascript:alert(1)'])).toEqual(['https://example.com/a.jpg','https://example.com/b.jpg']);
   expect(venuePhotoUrls(undefined,[])).toEqual([]);
@@ -87,6 +93,7 @@ describe('매장 탐색 디자인',()=>{
   expect(renderCard(true)).toContain('aria-label="검증 매장 매장 상세 보기"');
   expect(renderCard(false)).not.toContain('매장 상세 보기');
   expect(renderCard()).not.toContain('매장 상세 보기');
+  expect(canOpenVenueDetail('PUBLIC_SNAPSHOT',{preview_only:false,detail_supported:true})).toBe(true);
   expect(canOpenVenueDetail('PUBLIC_SOURCE_PILOT')).toBe(true);
  });
  it('MCP 옵션 404는 이용 불가 상태로 처리하고 질문을 막는다', async () => {

@@ -18,6 +18,10 @@ from backend.venues.services.ranking_service import filter_and_rank_venues
 
 
 class UnknownWeatherAndMenusTests(SimpleTestCase):
+    def test_unknown_venue_budget_is_not_assigned_a_price_tier(self):
+        encoded = FeatureEncoder18D().encode_venue({'price_tier': None})
+        self.assertEqual(encoded[5:8].tolist(), [0.0, 0.0, 0.0])
+
     def test_unknown_weather_is_not_encoded_as_sunshine(self):
         encoder = FeatureEncoder18D()
         self.assertEqual(encoder.encode_weather_gate('UNKNOWN').tolist(), [0.0, 0.0])
