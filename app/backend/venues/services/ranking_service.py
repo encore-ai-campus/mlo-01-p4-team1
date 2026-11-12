@@ -76,6 +76,7 @@ def filter_and_rank_venues(
     limit: int = 30,
     return_total: bool = False,
     bbox: Optional[tuple[float, float, float, float]] = None,
+    venue_repo=None,
 ) -> Union[List[Dict[str, Any]], tuple[List[Dict[str, Any]], int]]:
     """
     Track 2 매장 탐색, 필터링 및 Two-Tower 결합 랭킹 서비스.
@@ -84,7 +85,7 @@ def filter_and_rank_venues(
     - 조건 부합 메뉴 가로 프리뷰 스트립용 상위 메뉴 바인딩 (matched_menus_preview)
     - Two-Tower DL 점수와 규칙 기반 점수 앙상블 (50:50)
     """
-    repo = get_venue_repo()
+    repo = venue_repo if venue_repo is not None else get_venue_repo()
     encoder = get_feature_encoder()
     two_tower = get_micro_two_tower()
     user_memory = get_user_memory()
@@ -170,7 +171,7 @@ def filter_and_rank_venues(
                 continue
 
         # [필터 5] 지금 영업 중 필터
-        is_open = is_venue_open_now(v)
+        is_open = None if v.get('_team_catalog') else is_venue_open_now(v)
         if only_open_now and not is_open:
             continue
 
@@ -197,7 +198,7 @@ def filter_and_rank_venues(
         if weather.upper() not in ('', 'UNKNOWN', 'MISSING') and (w_aff == weather.upper() or w_aff == 'ALL'):
             rule_score += 0.2
         # 평점 가산점 (4.0 ~ 5.0 -> 0.0 ~ 0.2)
-        rating = float(v.get('rating', 4.5))
+        rating = float(v.get('rating') or 0)
         rule_score += max(0.0, (rating - 4.0) * 0.2)
         bridge = _find_for_venue(v, bridges_by_vid)
         applied_playlist = _find_for_venue(v, applied_playlists_by_vid)
@@ -263,7 +264,7 @@ def filter_and_rank_venues(
             'music_banner': music_banner,
             'active_events': events,
             'matched_menus_preview': matched_preview,
-            'has_verified_menus': bool(matched_preview),
+            'has_verified_menus': any(menu.get('menu_source') != 'TEAM_CSV' for menu in matched_preview),
             'match_score': round(final_score * 100, 1),
             'dl_similarity': round(cos_sim, 4),
         }

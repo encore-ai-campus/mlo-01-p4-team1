@@ -97,8 +97,13 @@ function pinLabel(venue: VenueItem) {
   return '지도에서 ' + category + ' ' + venue.venue_name + event + ' 상세 보기';
 }
 
+function hasCoordinates(venue: VenueItem): venue is VenueItem & { latitude: number; longitude: number } {
+  return typeof venue.latitude === 'number' && Number.isFinite(venue.latitude)
+    && typeof venue.longitude === 'number' && Number.isFinite(venue.longitude);
+}
+
 function CoordinatePins({ venues, onSelectVenue, notice = '지도 타일 연결 대기 · 매장 위치 핀' }: Pick<VenueInteractiveMapProps, 'venues' | 'onSelectVenue'> & { notice?: string }) {
-  const pins = venues.filter(({ latitude, longitude }) => Number.isFinite(latitude) && Number.isFinite(longitude)).slice(0, 40);
+  const pins = venues.filter(hasCoordinates).slice(0, 40);
   if (!pins.length) return null;
 
   const latitudes = pins.map(({ latitude }) => latitude);
@@ -305,7 +310,7 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
 
     // 2. 유효한 위경도를 가진 상위 매장 핀(최대 40개) 렌더링
     const validVenues = venues
-      .filter((v) => Number.isFinite(v.latitude) && Number.isFinite(v.longitude))
+      .filter(hasCoordinates)
       .slice(0, 40);
 
     const boundsPoints: Array<[number, number]> = [];
@@ -342,8 +347,8 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
       marker.on('click', () => onSelectVenue(v.venue_id));
 
       const tooltip = document.createElement('div');
-      tooltip.textContent = v.venue_name + ' (' + v.dong_name + ') · ' + v.match_score + '% 매칭 · 1인 평균 ' +
-        (v.avg_price || 10000).toLocaleString() + '원';
+      const budget = v.avg_price == null ? '1인 예산 미확인' : `1인 평균 ${v.avg_price.toLocaleString()}원`;
+      tooltip.textContent = v.venue_name + ' (' + v.dong_name + ') · ' + v.match_score + '% 매칭 · ' + budget;
       marker.bindTooltip(tooltip, { direction: 'top', offset: [0, -10] });
       marker.addTo(markersLayer);
       const markerElement = marker.getElement();

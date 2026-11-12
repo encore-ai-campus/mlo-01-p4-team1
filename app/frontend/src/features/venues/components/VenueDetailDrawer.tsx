@@ -119,8 +119,8 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isO
       <div className="fitplace-detail-content" ref={contentRef}>
         <section className="fitplace-detail-section fitplace-detail-intro" data-detail-section="info">
           <h3>{venue.venue_name}</h3>
-          <p className="fitplace-detail-meta">{!venue.curated_listing && <span className="fitplace-detail-status">{venue.is_open_now ? '영업 중' : '영업 종료'}</span>} {venue.category === 'CAFE' ? '카페' : '주점'} · {venue.dong_name} {venue.sub_category ? `· ${venue.sub_category}` : ''}</p>
-          {!venue.curated_listing && <p className="fitplace-detail-rating">평점 준비 중 · 1인 {venue.avg_price.toLocaleString()}원</p>}
+          <p className="fitplace-detail-meta">{!venue.curated_listing && <span className="fitplace-detail-status">{venue.is_open_now == null ? '영업 정보 미확인' : venue.is_open_now ? '영업 중' : '영업 종료'}</span>} {venue.category === 'CAFE' ? '카페' : '주점'} · {venue.dong_name} {venue.sub_category ? `· ${venue.sub_category}` : ''}</p>
+          {!venue.curated_listing && <p className="fitplace-detail-rating">평점 준비 중 · {venue.avg_price == null ? '1인 예산 미확인' : `1인 ${venue.avg_price.toLocaleString()}원`}</p>}
           {!venue.curated_listing && venue.recommendation_style && <p>{venue.recommendation_style}</p>}
           {!venue.curated_listing && venue.mood_tags?.length > 0 && <p className="fitplace-detail-tags">{venue.mood_tags.map(tag => `#${tag}`).join('  ')}</p>}
         </section>

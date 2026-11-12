@@ -198,7 +198,8 @@ class FeatureEncoder18D:
 
         # [5~7] 가격 티어
         price_tier = venue.get('price_tier', 2)
-        vec[5:8] = self.encode_budget_tier(price_tier)
+        if price_tier is not None:
+            vec[5:8] = self.encode_budget_tier(price_tier)
 
         # [8~13] 세부 취향 키워드 결합
         venue_text = f"{venue.get('venue_name', '')} {venue.get('sub_category', '')} {' '.join(moods)}"
