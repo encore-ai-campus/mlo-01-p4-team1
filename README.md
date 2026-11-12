@@ -1,98 +1,168 @@
-# MLO 4차 프로젝트 — MUSIC X WEATHER 앱·Docker·AWS 인프라
+# MLO 1기 4차 프로젝트 — 핏플레이스
 
-날씨와 사용자 피드백을 활용하는 맞춤형 음악 서비스의 **웹/API·데이터 파이프라인·Docker 로컬 환경과 AWS 인프라 코드**를 함께 관리합니다. 인프라는 Terraform·Ansible·Docker·systemd로 구성합니다. 실제 AWS 계정 접근권한, 자격증명과 실데이터는 이 저장소에 포함하지 않습니다.
+- 작성일 : 2026-11-12
+- 문서상태 : 초안
 
-## 현재 상태
+## 1. 프로젝트 개요
 
-**2026-11-04 로컬 통합 준비 상태:** 최신 인프라 실행 코드와 3차 기반 Docker 앱을 한 디렉터리로 모았습니다. 기존 인프라·Docker 각 단계의 로컬 검증 이력은 있지만, 이 통합된 공개용 파일 세트 자체의 전체 CI는 최종 검증이 필요합니다. 실제 AWS 배포는 진행하지 않았으며 `ready_for_aws=false`입니다.
-
-- Foundation·Runtime·Lifecycle의 공개용 기준에 최신 공통 실행·인증 전 안전경계 코드를 반영하고 `app/`에 Django·React·Kafka·Spark·Elasticsearch Docker 개발 구성을 추가했습니다. 공개용 Git 이력은 기존 Private 저장소 이력과 분리하여 새로 시작합니다.
-- 인프라의 과거 `make predeploy-check` 검증은 각 개발 단계에서 수행됐으며, 새 통합본에서는 재검증이 필요합니다. 공개 가능한 [기술 기준](docs/handoff/infra/BASELINE.md) 및 [테스트 안내](docs/handoff/infra/TESTING.md)만 저장소에 포함합니다.
-- Docker 앱은 합성 데이터로 음악·YouTube·광고·피드백 Spark와 Spark Master HA를 로컬 테스트했으며 실제 외부 API·Linux AMD64·실제 AWS 계정 검증은 완료하지 않았습니다.
-- 일반 Git push는 AWS 생성·배포·삭제를 실행하지 않습니다. 실제 배포는 운영 입력·권한·plan·비용 검토와 별도 승인 후 진행합니다. 실제 AWS destroy adapter는 비활성 상태입니다.
-
-## 아키텍처
-
-서울 리전(`ap-northeast-2`)의 **5계정·5VPC·16EC2·3물리 AZ**, 계정 간 직접 VPC Peering 10쌍을 기준으로 합니다. EC2 호스트 기준 OS는 **Ubuntu 24.04 amd64**입니다.
-
-| 계정 | EC2 구성 | 수량 |
-|---|---|---:|
-| encore1 | private Control A/B, PostgreSQL | 3 |
-| encore2~4 | 계정별 Kafka·Spark·Elasticsearch 각 1대 | 9 |
-| encore5 | public Gateway A/B, private 광고 앱·MongoDB | 4 |
-
-- 공개 서비스: 사용자 HTTPS → CloudFront → HTTP ALB → private Control A/B.
-- 운영 접속: private EC2의 SSM Agent → 중앙 SSM Endpoint·내부 DNS. S3는 각 VPC의 Gateway Endpoint로 접근합니다.
-- 외부 패키지·이미지: private 호스트 프록시 → Gateway A/B → 인터넷. NAT Gateway는 사용하지 않습니다.
-- 집 모델: Control → Gateway 사설 중계 API → Tailscale HTTPS → 집 Windows PC의 모델 API. 실제 tailnet·GPU 통신은 후속 검증 대상입니다.
-- 데이터: 날씨 원문 S3 → Kafka → Spark → MongoDB·Elasticsearch, 피드백 PostgreSQL Outbox → Kafka → Spark → PostgreSQL·S3 Delta.
-
-PostgreSQL·MongoDB·집 PC의 단일 노드와 SSM Endpoint 1AZ 제약을 수용한 설계입니다. 상세 역할·사양·실행 규약은 [기술 기준](docs/handoff/infra/BASELINE.md), 그림은 [아키텍처 설계도 3장](docs/architecture/README.md)을 참고합니다.
-
-## 저장소 구성
-
-| 경로 | 역할 |
+| 항목 | 내용 |
 |---|---|
-| [aws-infra/foundation/](aws-infra/foundation/README.md) | Terraform 네트워크·EC2·스토리지·IAM 정의, mock plan, inventory export, 실제 실행 wrapper |
-| [aws-infra/runtime/](aws-infra/runtime/README.md) | Ansible·Compose·호스트 설정, 설치·health·배포·롤백, 서비스·중계 로컬 시험 |
-| [aws-infra/lifecycle/](aws-infra/lifecycle/README.md) | 종료·보존·삭제 계획, 승인·journal·재개·관측 검증. 실제 AWS 삭제는 비활성 |
-| [aws-infra/contracts/](aws-infra/contracts/README.md) | topology·inventory·서비스·artifact·공통 실행 잠금 계약 |
-| [app/](app/README.md) | Django·React·광고 API·Docker Compose·Kafka·Spark·Elasticsearch 로컬 통합 소스 |
-| [scripts/](scripts/) · [tests/](tests/) | 준비 검사와 파트 간 실행·종료·백업 연계 검증 |
-| [.github/workflows/](.github/workflows/) | PR 검사와 별도 수동 실행 workflow |
-| [docs/handoff/infra/BASELINE.md](docs/handoff/infra/BASELINE.md) | 공개 가능한 인프라 기준 계약. 개인정보 감사·작업 세션·점검 보고서는 로컬 Git 제외 |
+| 프로젝트명 | 핏플레이스 |
+| 프로젝트 소개 | 날씨·분위기·예산 등을 고려한 카페·주점 탐색 서비스 |
+| 연계 서비스 | 3차 음악 큐레이션 서비스 muther, 두 서비스를 연결하는 통합 플랫폼 itda |
+| 프로젝트 기간 | 확인 필요 |
+| 평가 방식 | 기능 시연 중심 |
 
-## 로컬 준비와 검증
+## 2. 프로젝트 배경과 목표
 
-명령은 저장소 루트에서 실행합니다. 고정 버전 Python **3.14.8**을 사용하며, 전체 통합 검사에는 실행 중인 Docker와 각 파트의 고정 도구·이미지가 필요합니다. 지원 검증 호스트는 macOS ARM64와 Linux X64입니다.
+**핏플레이스**는 일반 사용자가 지역, 날씨, 분위기, 예산 등을 고려해 카페와 주점을 찾는 서비스입니다. 매장 운영자용 음악 큐레이션 서비스 **muther(뮤더)**의 확장 서비스이며, 매장에서 재생되는 음악의 정보를 **핏플레이스**에 연동하는 것을 목적으로 합니다.
 
-공통 준비 검사:
+- 일반 사용자가 조건에 맞는 매장을 찾고 방문에 필요한 정보를 확인하도록 돕습니다.
+- 통합 플랫폼 itda를 통해 3차 뮤더와 핏플레이스 각각의 플랫폼으로 연결할 수 있도록 합니다.
 
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-common.lock.txt
-make prep-check prep-test
+
+## 3. 서비스 구성과 이용 흐름
+
+| 서비스 | 대상 | 주요 흐름 |
+|---|---|---|
+| **핏플레이스 · track2** | 일반 사용자 | 중심 서비스: 로그인 → 필터·지역 설정 → 검색 또는 지도에서 매장 확인 → 상세 정보 확인 |
+| **muther · track1** | 매장 운영자 | 3차 음악 서비스: 로그인 → 음악 추천 조건 설정 → 추천 결과 확인 → YouTube 연계 재생 |
+| **itda · 통합 플랫폼** | 두 서비스의 이용자 | 핏플레이스와 뮤더의 공통 진입·서비스 연동 지원 |
+
+```mermaid
+flowchart TD
+    Entry["itda 공통 진입"] --> Login["로그인"]
+    Login -->|일반 사용자| Fit["핏플레이스"]
+    Fit --> Search["조건·위치·지역으로 매장 탐색"]
+    Search --> Detail["매장 상세·메뉴 확인"]
+    Detail --> Partner["파트너 매장·현재 재생 음악 확인"]
+    Login -->|매장 운영자| Muther["muther"]
+    Muther --> Options["날씨·취향 등 추천 조건 설정"]
+    Options --> Recommend["음악 추천 결과 확인"]
+    Recommend --> Playback["YouTube 연계 음악 재생"]
+    Playback -. 재생 정보 연동 .-> Partner
 ```
 
-전체 검사를 처음 실행할 때 파트별 로컬 환경도 준비합니다. 아래 준비 단계는 공개 의존성을 다운로드하며 AWS 자원을 생성하지 않습니다.
+점선은 서비스 간 연동이 필요한 **목표 흐름**입니다. 매장 식별과 재생 정보의 전달·갱신 방식, 실제 재생 상태의 통합 검증은 확인이 필요합니다. 적용된 선곡표와 현재 재생 중인 음악은 서로 다른 상태입니다.
 
-```bash
-.venv/bin/python aws-infra/foundation/scripts/setup-local.py
-bash aws-infra/runtime/scripts/prepare-lab.sh
-python3 -m venv aws-infra/lifecycle/.venv
-aws-infra/lifecycle/.venv/bin/python -m pip install -r aws-infra/lifecycle/requirements.lock.txt
-aws-infra/lifecycle/.venv/bin/python aws-infra/lifecycle/scripts/setup-toolchain.py
-make predeploy-check
+## 4. 주요 기능
+
+
+### track2 · 핏플레이스
+
+- 사용자가 설정한 조건에 따라 매장을 추천받습니다.
+- 현재 위치 또는 선택한 지역을 기준으로 주변 매장을 검색합니다.
+- 목록이나 지도에서 매장을 선택하고 사진·대표 메뉴·위치 등 상세 정보를 확인합니다.
+
+### track1 · muther
+
+- 음악 데이터의 적재 여부를 확인합니다.
+- 날씨와 취향 등 선택한 조건에 따라 음악을 추천받습니다.
+- 추천 음악을 YouTube와 연계해 재생합니다.
+- 사용자 피드백과 해당 데이터의 적재 여부를 확인합니다.
+
+### 공통·서비스 연동
+
+- 로그인 후 이용 유형에 맞는 서비스에 접근합니다.
+- 뮤더 이용 매장을 핏플레이스에 파트너 매장으로 표시하고 해당 매장의 현재 재생 음악을 보여줍니다.
+
+매장 운영자의 이벤트 발행은 이번 업무 범위에서 제외합니다. 찜·리뷰와 메뉴 조합은 BRD와 PRD의 범위 정합성을 확인해야 합니다.
+
+## 5. 주요 화면
+
+| 화면 | 주요 내용 |
+|---|---|
+| 공통 진입·로그인 | 사용자 유형별 서비스 진입 |
+| 핏플레이스 탐색 | 조건 설정과 매장 목록·지도 |
+| 매장 상세 | 매장 사진·대표 메뉴·위치 |
+| 뮤더 | 음악 추천 조건 설정, 선곡 결과와 재생 |
+| 서비스 연동 | 파트너 매장과 현재 재생 음악 표시 · 통합 검증 필요 |
+
+화면 이미지와 최종 시연 화면은 확인 후 추가합니다. 프론트엔드 화면 문서는 준비 중입니다.
+
+## 6. 데이터와 처리 흐름
+
+| 데이터 | 활용 목적 | 확인 사항 |
+|---|---|---|
+| 매장·메뉴 | 매장 검색·추천과 상세 정보 제공 | 출처·사용 범위·정보 갱신 |
+| 날씨 | 매장 탐색과 음악 추천 조건 | 출처·갱신 주기·조회 실패 처리 |
+| 음악 | 조건별 추천과 재생 | 출처·적재 상태·추천 기준 |
+| 사용자 피드백 | 사용자 반응 수집과 데이터 적재 확인 | 수집 항목·저장·조회 권한 |
+| 파트너·재생 정보 | 매장과 음악 정보 연결 | 매장 식별·상태 전달·갱신·오류 처리 |
+
+실제 데이터를 사용한다는 팀 공유 사항이 있으며, 데이터별 출처와 사용 범위는 확인이 필요합니다. 매장 데이터 처리 코드에 관한 이력은 [PR #56](https://github.com/encore-ai-campus/mlo-01-p4-team1/pull/56)을 참고합니다.
+
+
+## 7. 기술 구성
+
+| 영역 | 구성·역할 |
+|---|---|
+| 프론트엔드 | React · TypeScript · Vite — 서비스 화면 |
+| 백엔드 | Django 기반 서비스 API와 별도 광고 API |
+| 데이터 처리 | 음악·날씨·매장·피드백 데이터 처리 코드 |
+| 인프라 | Docker 및 AWS 실행·배포 관련 코드 |
+| 외부 연동 | YouTube 연계 재생, 날씨 데이터 조회 등 |
+
+구성은 저장소와 기존 문서에서 확인한 개요입니다. 최신 통합 환경의 정확한 버전과 실제 운영 적용 범위는 추가 확인이 필요합니다. 상세 내용은 [앱 안내](app/README.md), [Docker 개발 가이드](app/docker/README.md), [아키텍처 문서](docs/architecture/README.md)를 참고합니다.
+
+## 8. 프로젝트 구조
+
+```text
+.
+├─ app/                 # 앱·API·프론트엔드·데이터 처리 코드
+│  ├─ frontend/         # 프론트엔드
+│  ├─ backend/          # 백엔드
+│  ├─ ad-server/        # 광고 API
+│  ├─ pipeline/         # 데이터 처리
+│  ├─ docker/           # Docker 실행 관련 자료
+│  └─ docs/             # 기존 음악 서비스 문서
+├─ aws-infra/           # 인프라 코드
+├─ docs/                # 프로젝트 요구사항·화면·아키텍처 문서
+├─ scripts/             # 공통 실행·검사 도구
+└─ tests/               # 검증 테스트
 ```
 
-| 명령 | 검사 범위 |
+## 9. 팀 역할과 주요 작업
+
+| 담당 영역 | 주요 역할 |
 |---|---|
-| `make prep-check prep-test` | 문서 링크·소유권·공통 계약과 준비 검사 자체의 회귀검증 |
-| `make foundation-unit foundation-integration` | Foundation 단위 검사·7개 Terraform root의 모의 plan·inventory·실행 wrapper |
-| `make runtime-unit runtime-integration` | Runtime 단위·Ansible 구문/lint·실제 로컬 컨테이너 서비스 시험 |
-| `make lifecycle-unit lifecycle-integration` | 종료·삭제 계획·보존·실패·재개·관측의 로컬 시험 |
-| `make integration-lifecycle` | Foundation 산출물·공통 잠금·Runtime 종료와 실제 로컬 DB 백업/복원 연계 |
-| `make predeploy-check` | 공통·Foundation·Runtime·Lifecycle·파트 간 검사를 필요한 순서대로 실행 |
+| 서비스 기획·프론트엔드 | 요구사항·화면·사용자 이용 흐름 |
+| track2 백엔드·매장 추천 | 매장·메뉴 API와 장소 추천 |
+| 3차 개선·AI | 기존 음악 기능·DB 개선과 음악 분류기 학습·평가 |
+| 인프라·배포 | 서버·DB·컨테이너·데이터 파이프라인 |
+| track1·track2 통합 | 공통 인증·권한, 매장 연결과 API·화면 통합 |
 
-`integration-lifecycle`은 Foundation 통합 검사의 모의 산출물과 Runtime·Lifecycle 환경을 사용합니다. 최초 검증에는 환경 준비 후 `make predeploy-check`를 권장합니다. 세부 도구 버전·환경 조건은 각 파트 README와 [TESTING](docs/handoff/infra/TESTING.md)을 따릅니다.
+역할별 협의 사항은 [BRD](docs/BRD.md)를 참고합니다.
 
-현재 전체 로컬 결과는 공통 45, Foundation unit 29·wrapper 17·7 root 모의 plan, Runtime unit 57·integration 25, 기존 공동 실행 3, Lifecycle unit 33·integration 19, 신규 공통 연계 18 tests 통과입니다. 로컬 컨테이너 시험은 AWS 3AZ·EC2 amd64·SSM·집 PC GPU의 실제 검증을 대신하지 않습니다.
+## 10. 구현·검증 및 수행 결과
 
-## 실제 AWS 배포 전 남은 작업
+| 구분 | 확인된 내용 |
+|---|---|
+| 구현 이력 | 매장·관리 화면과 데이터 처리, 뮤더 선곡·날씨 화면 변경이 `main`에 병합됨. [릴리스 PR #61](https://github.com/encore-ai-campus/mlo-01-p4-team1/pull/61) |
+| 격리 환경 검증 | PR #61에 Linux AMD64 이미지 기준 웹·매장·시연 점주 회귀 테스트 99개 통과와 격리 PostgreSQL 마이그레이션 확인이 기록됨 |
+| 인프라 검증 | PR #63에 OIDC 시각 경계 테스트 32개, 네이티브 테스트 5개 및 관련 검사 통과가 기록됨. [PR #63](https://github.com/encore-ai-campus/mlo-01-p4-team1/pull/63) |
+| 운영 배포·전체 시연 | 실제 운영 배포 및 전체 통합 시연의 완료 여부 확인 필요 |
+| 남은 확인 | 음악 추천, 매장 추천 데이터의 조회·표시와 서비스 간 연동을 시연 환경에서 검증 |
 
-실제 AWS 적용 전에는 비공개 운영 인수 체크리스트와 권한 정책을 별도 승인 경로에서 검토하고 다음 항목을 확정해야 합니다.
+위 테스트는 PR에 기록된 결과이며, 이번 README 수정 과정에서 직접 실행하지 않았습니다. 코드 병합과 격리 환경 테스트만으로 운영 배포·전체 시연 성공을 판정하지 않습니다.
 
-1. 계정별 생성·배포·상태 접근 권한, GitHub OIDC·environment, 실제 AMI·AZ ID·CIDR·기존 자원 소유권·예산을 인수합니다.
-2. 모든 실행 주체가 같은 operation storage를 사용하도록 identity·bucket·S3 Endpoint 정책을 연결하고, NAT가 없는 private 노드의 STS 접근 경로를 마련합니다.
-3. 실제 업무 앱·이미지 digest·artifact·secret·DB 자격증명·운영 종료 관측·독립 백업/복원·보존 정책을 인수합니다.
-4. 준비된 Linux X64 runner 검사와 실제 Terraform plan·비용 검토 후 승인을 받아 생성·배포를 진행합니다. 이후 SSM·DNS·Peering·S3·서비스·집 Tailscale/GPU·장애 복구를 실환경에서 검증합니다.
+## 11. 실행 및 테스트
 
-로컬 검증 과정에서 이 인프라를 AWS에 배포하지 않았습니다. 계정 자원 상태·권한·과금 내역은 공개 저장소가 아닌 별도 승인된 운영 기록으로 확인해야 하며, 계정 전체가 비어 있거나 비용이 0이라는 판정은 아닙니다.
+- [통합 플랫폼 itda](https://dktu9581en6nc.cloudfront.net/platform)
+- [핏플레이스](https://dktu9581en6nc.cloudfront.net/venues)
+- [muther](https://dktu9581en6nc.cloudfront.net/muther)
 
-## 협업과 작업 지침
+## 12. 관련 문서와 발표 자료
 
-팀은 [CONTRIBUTING](CONTRIBUTING.md)의 Issue → 개발·검증 → Commit·Push → PR·리뷰 → Merge 절차를 따릅니다. 인프라 작업의 통합 브랜치는 `feature/infra`이며 `develop`·`main` 반영은 릴리스 절차로 관리합니다. 신규 커밋은 한국어 변경 내용과 실제 Issue 번호를 기록합니다.
+| 문서 | 내용 |
+|---|---|
+| [BRD](docs/BRD.md) | 프로젝트 배경·목표·업무 범위 |
+| [PRD](docs/PRD.md) | 기능·데이터·예외 처리·수용 기준 |
+| 프론트엔드 화면 문서 | 준비 중 |
+| [뮤더 앱 안내](app/README.md) | 기존 음악 서비스의 기능과 기술 기록 |
+| [기존 음악 서비스 BRD](app/docs/BRD.md) · [PRD](app/docs/PRD.md) | Track 1 참고 문서 |
+| [아키텍처 문서](docs/architecture/README.md) | 기존 시스템과 데이터 흐름 설계도 |
+| [인프라 기준](docs/handoff/infra/BASELINE.md) · [테스트 안내](docs/handoff/infra/TESTING.md) | 인프라와 검증 안내 |
+| [협업 안내](CONTRIBUTING.md) | 작업·리뷰·통합 절차 |
 
-- 작업 기준: [파일 소유권](docs/handoff/infra/OWNERSHIP.md), [공통 연계 계약](aws-infra/contracts/infra-coordination.v1.md), [인증 전 로컬 검증](aws-infra/contracts/local-validation.v1.md).
-- 개인용 지침과 프롬프트는 각 checkout의 Git 제외 `AGENTS.md`와 `.local/agents/`에 둡니다. 새 clone에는 자동 포함되지 않습니다.
-- 개별 개발자의 Orca 설정·세션 로그·보안 점검 자료는 공개 저장소에서 제외하고 로컬 전용으로 관리합니다.
+최종 발표 자료와 시연 영상 링크는 확인 후 추가합니다.
