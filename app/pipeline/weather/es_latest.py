@@ -10,6 +10,14 @@ from pipeline.weather.projection import project_grid
 from pipeline.weather.service_view import config, enrich
 
 
+class WeatherGridNotFound(KeyError):
+    pass
+
+
+class WeatherGridDataError(ValueError):
+    pass
+
+
 def configuration():
     base = os.environ.get('ES_URL', '').strip()
     index = os.environ.get('WEATHER_INDEX', '').strip()
@@ -74,10 +82,13 @@ def write_grid(nx, ny, incoming):
 def read_grid(nx, ny):
     base, index = configuration()
     document = load(base, index, grid_id(nx, ny))
-    if not document:
-        raise KeyError('weather_not_found')
-    source = document['_source']
-    if source.get('schema_version') != 1:
-        raise ValueError('weather_storage_schema')
-    # Stored features are shared; expiry is always re-evaluated for this query.
-    return enrich(source['view'])
+    if document is None:
+        raise WeatherGridNotFound('weather_not_found')
+    source = document.get('_source') if isinstance(document, dict) else None
+    if not isinstance(source, dict) or source.get('schema_version') != 1:
+        raise WeatherGridDataError('weather_storage_schema')
+    try:
+        # Stored features are shared; expiry is always re-evaluated for this query.
+        return enrich(source['view'])
+    except (AttributeError, KeyError, OverflowError, TypeError, ValueError) as error:
+        raise WeatherGridDataError('weather_storage_document') from error

@@ -8,6 +8,7 @@ export function RecommendationErrorNotice({failure,pendingRequest,locked,onResum
   return <div role="alert" className="notice error">{failure.message}
     {pendingRequest?<button onClick={onResume} disabled={locked}>같은 요청 다시 확인</button>:
       recommendationFailure?<button onClick={onReviewConditions} disabled={locked}>선택 조건 확인</button>:
+      failure.code==='POLICY_NOT_READY'?<p>잠시 후 선곡표 받기를 다시 눌러 주세요.</p>:
       <button onClick={onReconnect} disabled={locked}>연결 다시 확인</button>}
   </div>;
 }

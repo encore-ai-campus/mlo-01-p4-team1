@@ -5,9 +5,28 @@ const steps=[
   ['선곡표를 살펴보고 승인해 주세요','곡을 제외한 뒤 다른 선곡표를 요청할 수 있어요. 좋아요·싫어요와 전체 별점은 선택 사항이며, 새 선곡표는 따로 승인해 주세요.']
 ];
 const version='guide-3step-v1';
+
+type Bounds = Pick<DOMRectReadOnly, 'left' | 'top' | 'width' | 'height'>;
+
+export function guideFocusBounds(target: Bounds | null, widget: Bounds | null = null): Bounds | null {
+  if (!target || target.width <= 0 || target.height <= 0) return null;
+
+  const widgetOverlaps = widget && widget.width > 0 && widget.height > 0 &&
+    widget.left > target.left + 12 && widget.left < target.left + target.width &&
+    widget.top < target.top + target.height && widget.top + widget.height > target.top;
+  const width = widgetOverlaps ? widget.left - target.left - 12 : target.width;
+  return {left: target.left - 4, top: target.top - 4, width: width + 8, height: target.height + 8};
+}
+
+function visibleRect(element: Element | null | undefined): DOMRect | null {
+  return element && getComputedStyle(element).visibility === 'visible'
+    ? element.getBoundingClientRect()
+    : null;
+}
+
 export function Guide({close}:{close:()=>void}){
   const [step,setStep]=useState(0); const panel=useRef<HTMLDivElement>(null);
-  const [target,setTarget]=useState<{left:number;top:number;width:number;height:number}|null>(null);
+  const [target,setTarget]=useState<Bounds|null>(null);
   const [position,setPosition]=useState<{left:number;top:number}|undefined>();
   function finish(skipped=false){try{localStorage.setItem('cafe-guide',JSON.stringify({guideVersion:version,completed:!skipped,skipped}));}catch{/* optional convenience storage */}close();}
   useEffect(()=>{
@@ -27,24 +46,35 @@ export function Guide({close}:{close:()=>void}){
   },[]);
   useEffect(()=>{
     const element=document.querySelector<HTMLElement>('[data-guide="'+['region','selection','playlist'][step]+'"]');
-    if(!element)return;
-    if(innerWidth<1100)element.scrollIntoView({block:'center'});
-    function measure(){
-      const rect=element!.getBoundingClientRect();
-      const widget=step===0?element!.querySelector('.guide-widget')?.getBoundingClientRect():null;
-      setTarget({left:rect.left-4,top:rect.top-4,width:(widget?widget.left-rect.left-12:rect.width)+8,height:rect.height+8});
-      const dialog=panel.current?.getBoundingClientRect();
-      if(innerWidth>=1100&&dialog){
-        const left=step===0?(innerWidth-dialog.width)/2:step===1?rect.right+24:rect.left-dialog.width-24;
-        const top=step===0?rect.bottom+24:rect.top+12;
-        setPosition({left:Math.max(24,Math.min(innerWidth-dialog.width-24,left)),top:Math.max(24,Math.min(innerHeight-dialog.height-24,top))});
-      }else setPosition(undefined);
+    const initial = visibleRect(element);
+    if (element && initial && initial.height > 0 &&
+        (innerWidth < 1100 || initial.top < 0 || initial.bottom > innerHeight)) {
+      element.scrollIntoView({block: 'center', behavior: 'instant'});
+    }
+
+    function measure() {
+      const rect = visibleRect(element);
+      const widget = step === 0 ? visibleRect(element?.querySelector('.guide-widget')) : null;
+      const focus = guideFocusBounds(rect, widget);
+      setTarget(focus);
+      const dialog = panel.current?.getBoundingClientRect();
+      if (!focus || !rect || innerWidth < 1100 || !dialog) {
+        setPosition(undefined);
+        return;
+      }
+      const left = step === 0 ? (innerWidth - dialog.width) / 2
+        : step === 1 ? rect.right + 24 : rect.left - dialog.width - 24;
+      const top = step === 0 ? rect.bottom + 24 : rect.top + 12;
+      setPosition({
+        left: Math.max(24, Math.min(innerWidth - dialog.width - 24, left)),
+        top: Math.max(24, Math.min(innerHeight - dialog.height - 24, top)),
+      });
     }
     measure();addEventListener('resize',measure);addEventListener('scroll',measure,true);
     return()=>{removeEventListener('resize',measure);removeEventListener('scroll',measure,true);};
   },[step]);
   function next(){if(step===2)finish();else setStep(step+1);}
-  return <div className="guide-shade" onClick={next}>
+  return <div className={target ? 'guide-shade' : 'guide-shade guide-shade-fallback'} onClick={next}>
     {target&&<div className="guide-focus" style={target} aria-hidden="true"/>}
     <div className="guide-dialog" style={position} role="dialog" aria-modal="true" aria-labelledby="guide-title" tabIndex={-1} ref={panel}>
       <button className="guide-close" aria-label="안내 닫기" onClick={e=>{e.stopPropagation();finish(true);}}>×</button>

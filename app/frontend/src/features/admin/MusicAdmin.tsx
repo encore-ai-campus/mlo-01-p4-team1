@@ -5,7 +5,7 @@ import {AdminSongRequests} from '../song-requests/AdminSongRequests';
 import {tagLabel} from '../song-requests/viewModel';
 
 type MusicRow={track_id:string;track_name:string;artists_name:string;revision:number;review_status:string;instrumental_review_value:boolean|null;genre_codes?:string[];mood_codes?:string[]};
-type Readiness={registered_count:number;approved_review_count:number;common_eligible_count:number;weather_counts:Record<string,number>;catalog_versions:{version:string;ready:boolean;is_test:boolean}[]};
+type Readiness={registered_count:number;approved_review_count:number;common_eligible_count:number;weather_counts:Record<string,number>;active_catalog_version?:string|null;catalog_versions:{version:string;ready:boolean;is_test:boolean}[]};
 function MusicReview({row,onDone}:{row:MusicRow;onDone:()=>void}){
   const mutationKey=useAdminMutationKey(),{options}=useMusicLabels();
   const [vocal,setVocal]=useState(''),[themes,setThemes]=useState<string[]>([]),[themesChanged,setThemesChanged]=useState(false),[instrument,setInstrument]=useState(''),[reason,setReason]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
@@ -65,6 +65,11 @@ export function MusicAdmin(){
       <Metrics items={[{label:'등록된 음악',value:number(readiness?.registered_count),icon:'♫'},{label:'검수 승인',value:number(readiness?.approved_review_count),icon:'✓',tone:'green'},{label:'추천 적격 음악',value:number(readiness?.common_eligible_count),icon:'♬'},{label:'발행 카탈로그',value:readiness?number(readiness.catalog_versions.filter(x=>x.ready).length)+'개':'—',icon:'▤'}]}/>
       <nav className="admin-actions" aria-label="음악 관리 업무"><a href="#song-request-review">곡 신청 검수 · 처리 현황</a></nav>
       {notice&&<p className="notice" role="status">{notice}</p>}{readinessError&&<p className="notice error" role="alert">준비 현황: {readinessError} <button onClick={reload}>다시 확인</button></p>}
+      {!readinessError&&readiness?.active_catalog_version!==undefined&&(
+        readiness.active_catalog_version
+          ? <p className="notice" role="status">현재 선곡에 사용하는 카탈로그 <strong>{readiness.active_catalog_version}</strong></p>
+          : <p className="notice error" role="alert">선곡에 사용할 수 있는 카탈로그가 없습니다. 검수 승인과 카탈로그 발행 상태를 확인해 주세요.</p>
+      )}
       <div className="admin-workspace"><div className="admin-stack"><section id="music-list" className="admin-panel"><div className="admin-panel-heading"><h2>음악 목록</h2><button className="primary" onClick={()=>{upload.current?.scrollIntoView({behavior:'smooth',block:'center'});upload.current?.querySelector('input')?.focus();}}>＋ CSV 등록</button></div>
         <div className="admin-searchbar">{focusedTrack
           ? <button onClick={()=>focusMusicTrack('')}>전체 음악 목록 보기</button>

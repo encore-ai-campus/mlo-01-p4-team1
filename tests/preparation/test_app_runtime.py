@@ -2,7 +2,9 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import stat
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -13,6 +15,22 @@ spec.loader.exec_module(runtime)
 
 
 class AppRuntimeTests(unittest.TestCase):
+    def test_protected_configuration_accepts_weather_store_settings(self):
+        settings = {
+            'ES_URL': 'https://weather.invalid:9200',
+            'WEATHER_INDEX': 'weather-test',
+            'ES_USERNAME': 'unit-test',
+            'ES_PASSWORD': 'disposable-unit-fixture',
+            'ES_CA_CERT': '/run/mlo/secrets/weather-ca.pem',
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder).resolve()
+            path = root / 'app-env.json'
+            path.write_text(json.dumps(settings))
+            info = SimpleNamespace(st_mode=stat.S_IFREG | 0o600, st_size=path.stat().st_size)
+            with patch.object(Path, 'stat', return_value=info):
+                self.assertEqual(runtime.secret_environment(path, root), settings)
+
     def test_protected_secret_file_rejects_symlinks_public_permissions_and_unknown_keys(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder).resolve()

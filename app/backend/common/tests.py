@@ -241,8 +241,81 @@ class IntegrationTests(TestCase):
             self.assertEqual([t['track_id'] for t in Catalog.objects.get(pk='integration-v1').tracks],['approved'])
             self.assertEqual(ReviewChange.objects.count(),1)
 
+    def test_readiness_identifies_the_catalog_available_to_production_recommendations(self):
+        from .admin_roles import assign_role
+
+        assign_role(self.user, 'OPS_ADMIN')
+        self.client.force_login(self.user)
+        fixture = {'tracks': [], 'sha256': '', 'source_ref': 'test-fixture', 'source_sha256': ''}
+        with override_settings(LOCAL_DEMO=False), patch('backend.accounts.passkeys.complete', return_value=True):
+            not_ready = self.client.get('/api/admin/music/readiness')
+            self.assertEqual(not_ready.status_code, 200, not_ready.content)
+            self.assertIsNone(not_ready.json()['active_catalog_version'])
+            Catalog.objects.create(version='production-ready', ready=True, is_test=False, **fixture)
+            Catalog.objects.create(version='production-draft', ready=False, is_test=False, **fixture)
+            Catalog.objects.create(version='test-newer', ready=True, is_test=True, **fixture)
+            ready = self.client.get('/api/admin/music/readiness')
+            self.assertEqual(ready.status_code, 200, ready.content)
+            self.assertEqual(ready.json()['active_catalog_version'], 'production-ready')
+
 
 class WeatherAdapterTests(SimpleTestCase):
+    region = {'id': 'region:test', 'name': '시험 지역', 'nx': 60, 'ny': 127}
+
+    @override_settings(INTEGRATION_ENABLED=True, WEATHER_PROVIDER='backend.weather.adapter.obtain')
+    def test_missing_region_is_rejected_before_weather_lookup(self):
+        with patch('backend.weather.adapter.display') as display:
+            for query in ({}, {'region_id': '   '}):
+                with self.subTest(query=query):
+                    response = self.client.get('/api/weather', query)
+                    self.assertEqual(response.status_code, 422)
+                    self.assertEqual(response.json()['code'], 'VALIDATION_ERROR')
+            display.assert_not_called()
+
+    def test_missing_weather_document_gets_a_distinct_response(self):
+        from backend.weather.adapter import display
+        from pipeline.weather import es_latest
+
+        with patch('backend.weather.queries.lookup_region', return_value=self.region), \
+             patch.object(es_latest, 'configuration', return_value=('example', 'weather')), \
+             patch.object(es_latest, 'load', return_value=None), \
+             self.assertRaises(DomainError) as error:
+            display(self.region['id'], timezone.now())
+
+        self.assertEqual(error.exception.status, 503)
+        self.assertEqual(error.exception.code, 'FORECAST_UNAVAILABLE')
+        self.assertEqual(error.exception.message, '저장된 날씨가 없습니다.')
+
+    @override_settings(INTEGRATION_ENABLED=True, WEATHER_PROVIDER='backend.weather.adapter.obtain')
+    def test_weather_failure_logs_request_id_and_safe_diagnostics(self):
+        from urllib.error import HTTPError
+        from pipeline.weather import es_latest
+
+        private_value = 'test-only-private-value'
+        cases = (
+            ('storage_read', HTTPError('https://weather.invalid', 403, private_value, None, None),
+             None, 'HTTPError', 403),
+            ('data_conversion', None, {'_source': {'schema_version': 1, 'view': private_value}},
+             'WeatherGridDataError', None),
+        )
+        for stage, failure, document, error_type, storage_status in cases:
+            with self.subTest(stage=stage), \
+                 patch('backend.weather.queries.lookup_region', return_value=self.region), \
+                 patch.object(es_latest, 'configuration', return_value=('example', 'weather')), \
+                 patch.object(es_latest, 'load', return_value=document, side_effect=failure), \
+                 self.assertLogs('backend.weather.adapter', level='WARNING') as captured:
+                response = self.client.get('/api/weather', {'region_id': self.region['id']})
+
+            self.assertEqual(response.status_code, 503)
+            self.assertEqual(response.json()['code'], 'FORECAST_UNAVAILABLE')
+            self.assertNotIn(private_value, response.json()['message'])
+            request_id = response['X-Request-ID']
+            self.assertEqual([record.getMessage() for record in captured.records], [
+                f'Weather lookup failed request_id={request_id} stage={stage} '
+                f'error_type={error_type} storage_status={storage_status}',
+            ])
+            self.assertIsNone(captured.records[0].exc_info)
+
     def source(self):
         from pipeline.weather.common import KST
         now=datetime(2026,10,16,12,10,tzinfo=KST)

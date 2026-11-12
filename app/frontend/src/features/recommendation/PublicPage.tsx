@@ -17,10 +17,11 @@ import {YoutubeNativePlayback} from './YoutubeNativePlayback';
 import type {YoutubeMappingSnapshot} from './youtubeDestinations';
 import {RecommendationErrorNotice} from './RecommendationErrorNotice';
 import type {RecommendationFailure} from './RecommendationErrorNotice';
-import {RecommendationRun} from '../../shared/recommendationRun';
+import {isDefiniteSubmissionRejection,RecommendationRun,type JobIntent} from '../../shared/recommendationRun';
 import {HeroBanner} from './HeroBanner';
 import {MoodGallery} from './MoodGallery';
 import {PlaylistIntro} from './PlaylistIntro';
+import {PlaylistLoading} from './PlaylistLoading';
 import '../../muther-home.css';
 
 const defaults:Choices={region_id:'',vocal_option:'any',tempo_preference:'auto',weather_influence_mode:'ON',selected_theme_codes:[],selected_genre_codes:[],option_version:''};
@@ -39,6 +40,10 @@ export function PublicPage(){
     if(window.location.pathname!==target)window.history.pushState(null,'',target+window.location.search);
     setPage(next);window.scrollTo({top:0,behavior:'instant'});
   }
+  function openGuide() {
+    if (page === 'home') navigate('playlist');
+    setGuide(true);
+  }
   const [choices,setChoices]=useState(defaults),[options,setOptions]=useState<Option[]>([]),[regions,setRegions]=useState<RegionOption[]>([]);
   const [result,setResult]=useState<Playlist|null>(null),[excluded,setExcluded]=useState<Exclusions|null>(null),[draft,setDraft]=useState<string[]>([]);
   const [weather,setWeather]=useState<Weather|null>(null),[weatherError,setWeatherError]=useState(''),[error,setError]=useState<string|RecommendationFailure>(''),[saveError,setSaveError]=useState('');
@@ -51,24 +56,31 @@ export function PublicPage(){
   const [iframePlaylistId,setIframePlaylistId]=useState<string|null>(null);
   const iframeOpen=!!result&&iframePlaylistId===result.playlist_id;
   const [contextReady,setContextReady]=useState(false);
+  const [canSavePlaylist,setCanSavePlaylist]=useState(false);
   const [regionLoading,setRegionLoading]=useState(true),[regionError,setRegionError]=useState(''),[regionRetry,setRegionRetry]=useState(0);
   const [saveIntent,setSaveIntent]=useState<{ids:string[];body:unknown;id:string}|null>(null);
-  const [jobIntent,setJobIntent]=useState<{path:string;body:unknown;id:string}|null>(null);
+  const [jobIntent,setJobIntent]=useState<JobIntent|null>(null);
   const activeRun=useRef<RecommendationRun|null>(null);
+  const playlistPanel=useRef<HTMLElement>(null);
   const [cancelling,setCancelling]=useState(false),[jobNotice,setJobNotice]=useState('');
   const feedback=useFeedback(result?.playlist_id);
   useEffect(()=>{
-    const controller=new AbortController();setError('');setContextReady(false);
+    const controller=new AbortController();setError('');setContextReady(false);setCanSavePlaylist(false);
+    async function loadAccount(){
+      const account=await api<{role?:string|null}>('/api/auth/me','GET',undefined,undefined,controller.signal);
+      if(!controller.signal.aborted)setCanSavePlaylist(account.role==='USER');
+    }
     async function boot(){
       const opts=await api<{option_version:string;items:Option[]}>('/api/recommendation-options','GET',undefined,undefined,controller.signal);
       setOptions(opts.items);setChoices(c=>({...c,option_version:opts.option_version}));
       if(import.meta.env.VITE_C_DEMO==='1'){
         const context=await api<{csrf_token:string;regions:typeof regions;music_source?:{kind:string}}>('/api/c-demo/context','GET',undefined,undefined,controller.signal);
         setCsrf(context.csrf_token);setRegions(context.regions);setMusicSource(context.music_source?.kind);setDemo(true);setContextReady(true);
+        void loadAccount().catch(()=>{});
         let stored='';try{stored=localStorage.getItem('cafe-region')||'';}catch{/* optional */}
         if(context.regions.some(row=>row.region_id===stored))setChoices(c=>c.region_id?c:{...c,region_id:stored});
       }else{
-        await api('/api/auth/me','GET',undefined,undefined,controller.signal);
+        await loadAccount();
         setContextReady(true);
         // Region loading has its own retry and does not block OFF recommendations.
       }
@@ -116,7 +128,7 @@ export function PublicPage(){
   const canApprove=canRegenerate&&!weatherMismatch&&canonical(result!.context.excluded_track_ids)===canonical(excluded?.excluded_track_ids);
   const refreshed=useRef('');
   useEffect(()=>{
-    if(!weatherMismatch||!result||!weather||!excluded||busy||saving||approving||changed||dirty||!weather.recommendation_ready)return;
+    if(!weatherMismatch||!result||!weather||!excluded||busy||saving||approving||changed||dirty||jobIntent||!weather.recommendation_ready)return;
     const identity=result.playlist_id+'/'+weather.bundle_version;
     if(refreshed.current===identity)return;refreshed.current=identity;
     const run=new RecommendationRun({path:'/api/playlists/'+result.playlist_id+'/weather-refresh',body:{exclusion_revision:excluded.revision},id:key()});
@@ -139,7 +151,7 @@ export function PublicPage(){
       finally{if(activeRun.current===run&&!controller.signal.aborted){activeRun.current=null;setBusy(false);}}
     }
     void refresh();
-  },[weather?.bundle_version,result?.playlist_id,weatherMismatch,busy,saving,approving,changed,dirty]);
+  },[weather?.bundle_version,result?.playlist_id,weatherMismatch,busy,saving,approving,changed,dirty,jobIntent]);
   function toggleOption(option:Option){
     const field=option.type==='genre'?'selected_genre_codes':'selected_theme_codes';
     setChoices(c=>({...c,[field]:c[field].includes(option.code)?c[field].filter(x=>x!==option.code):[...c[field],option.code].sort()}));
@@ -156,24 +168,40 @@ export function PublicPage(){
   }
   async function generate(regenerate=false,retry=false){
     if(busy)return;
-    const intent=retry?jobIntent:{path:regenerate?`/api/playlists/${result!.playlist_id}/regenerations`:'/api/recommendation-jobs',
+    const intent:JobIntent|null=retry?jobIntent:{path:regenerate?`/api/playlists/${result!.playlist_id}/regenerations`:'/api/recommendation-jobs',
       body:regenerate?{exclusion_revision:excluded!.revision}:normalized(choices),id:key()};
     if(!intent)return;
     activeRun.current?.dispose();const run=new RecommendationRun(intent);activeRun.current=run;
     const controller={signal:run.signal};setBusy(true);setError('');setJobNotice('');setJobIntent(intent);
+    if(!regenerate&&window.matchMedia('(max-width: 950px)').matches){
+      playlistPanel.current?.scrollIntoView({block:'start',behavior:'instant'});
+    }
+    let acceptedJobId=intent.jobId;
+    let readingJobStatus=false;
     try{
       const job=await run.accepted;
       if(controller.signal.aborted)return;
+      if(!job.job_id)throw new Error('선곡 요청 상태를 확인하지 못했어요.');
+      acceptedJobId=job.job_id;
+      if(!intent.jobId)setJobIntent({...intent,jobId:acceptedJobId});
       const started=performance.now();
       for(;;){
         if(performance.now()-started>Number(import.meta.env.VITE_JOB_POLL_TIMEOUT_MS||120000))throw new Error('작업 조회를 잠시 멈췄어요. 같은 요청 다시 확인으로 진행 상태를 확인해 주세요.');
-        const status=await api<{status:string;playlist_id:string|null;error:{code:string;message:string;details?:Record<string,unknown>}|null}>(`/api/recommendation-jobs/${job.job_id}`,'GET',undefined,undefined,controller.signal);
+        readingJobStatus=true;
+        const status=await api<{status:string;playlist_id:string|null;error:{code:string;message:string;details?:Record<string,unknown>}|null}>(`/api/recommendation-jobs/${acceptedJobId}`,'GET',undefined,undefined,controller.signal);
+        readingJobStatus=false;
         if(status.status==='SUCCEEDED'){await loadResult(status.playlist_id!,controller.signal);setJobIntent(null);break;}
           if(status.status==='CANCELLED'){setJobIntent(null);setJobNotice('선곡표 준비를 취소했어요.');break;}
         if(status.status==='FAILED'||status.status==='EXPIRED'){setJobIntent(null);throw new ApiError(status.error?.code||'RECOMMENDATION_FAILED',status.error?.message||'선곡표 생성에 실패했어요.',status.error?.details);}
         await wait(performance.now()-started<5000?300:1000,controller.signal);
       }
-    }catch(e){if(!controller.signal.aborted){setError(e instanceof ApiError?{code:e.code,message:e.message}:(e as Error).message);if(e instanceof ApiError)setJobIntent(null);}}
+    }catch(e){
+      if(!controller.signal.aborted){
+        setError(e instanceof ApiError?{code:e.code,message:e.message}:(e as Error).message);
+        if((!acceptedJobId&&isDefiniteSubmissionRejection(e))||
+          (readingJobStatus&&e instanceof ApiError&&e.status===404&&e.code==='NOT_FOUND'))setJobIntent(null);
+      }
+    }
     finally{if(activeRun.current===run&&!controller.signal.aborted){activeRun.current=null;setBusy(false);}}
   }
   async function cancelGeneration(){
@@ -223,12 +251,14 @@ export function PublicPage(){
     saveError?'제외 설정 저장에 실패했어요. 저장을 완료한 뒤 다시 확인해 주세요.':
     dirty?'제외 설정에 저장하지 않은 변경이 있어요. 먼저 저장해 주세요.':
     result&&!applied?'제외 설정이 아직 이 선곡표에 반영되지 않았어요. 새 선곡표를 먼저 받아 주세요.':null;
-  const status=busy?'새 선곡표를 준비하고 있어요.':weatherMismatch?'날씨가 변경됐어요 · 갱신 전 선곡표':changed||dirty||!applied&&result?'변경 사항 미반영 · 변경 전 결과':
+  const showLoading=busy&&!cancelling&&!error;
+  const status=cancelling?'선곡표 준비를 취소하고 있어요.':showLoading?'선곡표를 준비하고 있어요.':
+    busy?'취소 여부를 확인하지 못했어요.':weatherMismatch?'날씨가 변경됐어요 · 갱신 전 선곡표':changed||dirty||!applied&&result?'변경 사항 미반영 · 변경 전 결과':
     result?.approved_playlist_id===result?.playlist_id&&result?result.preview_only?'CSV 검증용 선곡표를 승인했어요.':'승인한 선곡표예요.':
     result?.preview_only?'실제 CSV 곡을 보여주는 검증용 선곡표예요.':result?'선곡표를 확인해 주세요.':effectiveMode==='OFF'?'지역 없이 취향으로 선곡표를 받아 보세요.':'지역을 선택하고 선곡표를 받아 보세요.';
   return <>
     <div className={`muther-app${page === 'home' ? ' muther-home-font-preview' : ''}`} inert={guide}>
-      <Header showGuide={()=>setGuide(true)} isDemo={isDemo} musicSource={musicSource} weatherIsTest={weather?.is_test}
+      <Header showGuide={openGuide} isDemo={isDemo} musicSource={musicSource} weatherIsTest={weather?.is_test}
         currentPage={page} onNavigate={navigate}/>
       <Banner placement="top" blocked={guide} onReady={()=>setAdContextReady(true)}/>
       <main className="public-main">
@@ -237,7 +267,7 @@ export function PublicPage(){
         <WeatherPanel region={choices.region_id} regions={regions}
           regionLoading={regionLoading} regionError={regionError} onRegionsRetry={()=>setRegionRetry(x=>x+1)}
           onRegion={id=>setChoices(c=>({...c,region_id:id}))} locked={locked} weather={weather} error={weatherError}
-          onRetry={()=>setWeatherRetry(x=>x+1)} widget={widget} onGuide={()=>setGuide(true)} onHideWidget={()=>setWidget(false)}/>
+          onRetry={()=>setWeatherRetry(x=>x+1)} widget={widget} onGuide={openGuide} onHideWidget={()=>setWidget(false)}/>
         {error&&<RecommendationErrorNotice failure={typeof error==='string'?{message:error}:error} pendingRequest={!!jobIntent} locked={locked}
           onResume={()=>void generate(false,true)} onReconnect={()=>{refreshed.current='';setWeatherRetry(x=>x+1);setInitRetry(x=>x+1);}}
           onReviewConditions={()=>document.getElementById('selection-title')?.focus()}/>}
@@ -262,7 +292,10 @@ export function PublicPage(){
                 onChange={()=>setChoices(c=>({...c,weather_influence_mode:'ON'}))}/>반영</label>
               <label><input type="radio" name="weather-influence" checked={effectiveMode==='OFF'}
                 onChange={()=>setChoices(c=>({...c,weather_influence_mode:'OFF'}))}/>반영하지 않음</label>
-            </div>{!choices.region_id&&<small>지역 미설정 · 날씨를 제외하고 선곡합니다.</small>}</fieldset>
+            </div>{!choices.region_id&&<small>지역 미설정 · 날씨를 제외하고 선곡합니다.</small>}
+              {effectiveMode==='ON'&&(weatherError||weather?.recommendation_ready===false)&&
+                <small>날씨를 확인할 수 없어요. 날씨 없이 선곡을 요청하려면 ‘반영하지 않음’을 선택해 주세요.</small>}
+            </fieldset>
             <fieldset disabled={locked}><legend>보컬</legend><div className="radio-options">
               {[['any','제한 없음'],['instrumental_only','연주곡만']].map(([value,label])=>
                 <label key={value}><input type="radio" name="vocal" value={value} checked={choices.vocal_option===value}
@@ -280,9 +313,7 @@ export function PublicPage(){
               <div className="generation-actions">
                 <button className="primary" disabled={!contextReady||!choices.option_version||(effectiveMode==='ON'&&(!weather||weather.recommendation_ready===false))||locked||!!jobIntent}
                   onClick={()=>void generate()}>{busy?'선곡표 준비 중…':'선곡표 받기'}</button>
-                {busy&&<button type="button" className="generation-cancel" disabled={cancelling} onClick={()=>void cancelGeneration()}>{cancelling?'취소 중…':'취소'}</button>}
               </div>
-              {jobNotice&&<p className="generation-notice" role="status">{jobNotice}</p>}
             </div>
           </section>
           <section className="representative card representative-playback" aria-labelledby="cover-title">
@@ -303,12 +334,17 @@ export function PublicPage(){
             </>}
             {result&&isDemo&&<button className="youtube-review-toggle" type="button" aria-expanded={reviewOpen} aria-controls="youtube-review-panel" onClick={()=>{setReviewOpen(value=>!value);setReviewPreview(false);}}>{reviewOpen?'영상 연결 관리 닫기':'영상 연결 관리'}</button>}
           </section>
-          <section className="playlist card" aria-labelledby="playlist-title" data-guide="playlist">
-            <div className="list-heading"><h2 id="playlist-title">{(result?.context.options.weather_influence_mode||effectiveMode)==='OFF'?'취향에 맞춘 선곡표':'날씨에 맞춘 선곡표'}</h2><span className="count">{result?result.items.length+'곡':'준비 전'}</span></div>
-            <div aria-live="polite" className={'playlist-status'+(result&&!busy&&!changed&&!dirty&&applied&&result.approved_playlist_id!==result.playlist_id?' sr-only':'')}>{status}</div>
+          <section className="playlist card" aria-labelledby="playlist-title" data-guide="playlist" ref={playlistPanel}>
+            <div className={'list-heading'+(!result&&busy?' playlist-loading-heading':'')}>
+              <h2 id="playlist-title">{(result?.context.options.weather_influence_mode||effectiveMode)==='OFF'?'취향에 맞춘 선곡표':'날씨에 맞춘 선곡표'}</h2>
+              {!result&&busy?<span className="badge">준비 중</span>:<span className="count">{result?result.items.length+'곡':'준비 전'}</span>}
+            </div>
+            <div aria-live="polite" className={'playlist-status'+(showLoading||result&&!busy&&!changed&&!dirty&&applied&&result.approved_playlist_id!==result.playlist_id?' sr-only':'')}>{status}</div>
+            {jobNotice&&<p className="generation-notice" role="status">{jobNotice}</p>}
             {result&&!result.preview_only&&<p className="playlist-summary">{result.summary} <span className="badge">{result.generation_method==='RULE_BASED'?'기본 추천':'재설정'}</span></p>}
-            {!result&&<div className="list-meta">{effectiveMode==='OFF'?'날씨와 관계없이 취향에 맞는 음악을 준비해 드려요.':'지역에 맞는 음악을 준비해 드려요.'}</div>}
-            <ol className="tracks" aria-label="추천 곡 목록">{result?.items.map(track=>{
+            {!result&&!busy&&<div className="list-meta">{effectiveMode==='OFF'?'날씨와 관계없이 취향에 맞는 음악을 준비해 드려요.':'지역에 맞는 음악을 준비해 드려요.'}</div>}
+            {showLoading&&<PlaylistLoading compact={!!result}/>}
+            {(!busy||result)&&<ol className="tracks" aria-label="추천 곡 목록">{result?.items.map(track=>{
               const isExcluded=draft.includes(track.track_id);
               const reaction=feedback.feedback?.track_reactions.find(r=>r.track_id===track.track_id)?.value;
               const feedbackReady=!!feedback.feedback?.track_reactions.some(r=>r.track_id===track.track_id);
@@ -326,7 +362,7 @@ export function PublicPage(){
                 <button className="exclude" disabled={locked||!!saveError}
                   onClick={()=>void saveExclusions(isExcluded?draft.filter(id=>id!==track.track_id):[...draft,track.track_id])}>{isExcluded?'제외 취소':'제외'}</button>
               </li>;
-            })||<li className="empty"><Icon name="music"/><h3>{effectiveMode==='OFF'?'취향에 어울리는 음악':'날씨에 어울리는 음악'}</h3><p>{effectiveMode==='OFF'?'지역 없이 선곡표를 받아 보세요.':'지역을 선택하고 선곡표를 받아 보세요.'}</p></li>}</ol>
+            })||<li className="empty"><Icon name="music"/><h3>{effectiveMode==='OFF'?'취향에 어울리는 음악':'날씨에 어울리는 음악'}</h3><p>{effectiveMode==='OFF'?'지역 없이 선곡표를 받아 보세요.':'지역을 선택하고 선곡표를 받아 보세요.'}</p></li>}</ol>}
             {draft.length>0&&<div className="excluded-list">
               <button aria-expanded={expanded} onClick={()=>setExpanded(!expanded)}>이번 제외 곡 {draft.length}개 · {expanded?'접기 ▴':'보기 ▾'}</button>
               {expanded&&draft.map(id=>{const track=excluded?.items.find(x=>x.track_id===id)||result?.items.find(x=>x.track_id===id);
@@ -356,11 +392,15 @@ export function PublicPage(){
               </div>
             </div>}
             {feedback.error&&<div role="alert" className="notice feedback-notice">{feedback.error}{feedback.retry&&<button onClick={()=>void feedback.retry?.()}>{feedback.retryLabel}</button>}</div>}
-            <div className="playlist-actions">
+            {busy&&<div className="playlist-loading-actions">
+              <button type="button" className="generation-cancel" disabled={cancelling} onClick={()=>void cancelGeneration()}>{cancelling?'취소 중…':error?'취소 다시 확인':'취소'}</button>
+            </div>}
+            {(!busy||result)&&<div className="playlist-actions">
               <button disabled={!canRegenerate||!!jobIntent} onClick={()=>void generate(true)}>다른 선곡표 요청</button>
               <button className="primary" disabled={!canApprove||!!jobIntent||approvedCurrent} onClick={()=>void approve()}>{approving?'승인 중…':approvedCurrent?'승인 완료':'이 선곡표 승인'}</button>
-              <button disabled={!result||busy} onClick={()=>{if(result)void api('/api/me/playlists','POST',{playlist_id:result.playlist_id}).then(()=>setJobNotice('내 선곡표에 저장했습니다. 마이페이지에서 확인해 주세요.')).catch(e=>setError(e.message));}}>내 선곡표에 저장</button>
-            </div>
+              {canSavePlaylist&&<button disabled={!result||busy} onClick={()=>{if(result)void api('/api/me/playlists','POST',{playlist_id:result.playlist_id}).then(()=>setJobNotice('내 선곡표에 저장했습니다. 마이페이지에서 확인해 주세요.')).catch(e=>setError(e.message));}}>내 선곡표에 저장</button>}
+            </div>}
+            {result&&!canSavePlaylist&&<p className="playlist-hint">저장하려면 <a href="/login">로그인</a>한 뒤 새 선곡표를 받아 주세요.</p>}
             <small className="playlist-hint">{result?.preview_only?'CSV 검증용 결과입니다. 좋아요·싫어요·별점·제외·승인은 이 PC의 로컬 데이터에 저장돼요.':'조건을 바꾸면 새 선곡표를 받아 확인해 주세요.'}</small>
           </section>
         </div>
