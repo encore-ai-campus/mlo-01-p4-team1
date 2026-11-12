@@ -1,8 +1,10 @@
 from typing import Any, Dict, List
+from django.conf import settings
 from django.http import JsonResponse
 
 from backend.venues.repositories.csv_lazy_repo import get_venue_repo
-from backend.venues.repositories.curated_venue_detail import curated_venue_detail, local_catalog_detail
+from backend.venues.repositories.curated_venue_detail import configured_sqlite_catalog, curated_venue_detail, local_catalog_detail
+from backend.venues.repositories.operational_catalog import CatalogUnavailable, get_operational_venue_repo
 from backend.venues.models.status_overlay import VenueStatusOverlay
 from backend.venues.models.interaction import VenueInteraction
 from backend.venues.services.open_hours_service import is_venue_open_now
@@ -13,7 +15,7 @@ from backend.workspaces.music import public_applied_playlist
 from .access import consumer_get
 
 
-@consumer_get
+@consumer_get(operational_catalog=True)
 def venue_detail_api(request, venue_id: str, *, consumer):
     """
     GET /api/venues/<venue_id>
@@ -27,11 +29,17 @@ def venue_detail_api(request, venue_id: str, *, consumer):
         if consumer is not None:
             curated['applied_playlist'] = public_applied_playlist(venue_id)
         return JsonResponse({"success": True, "venue": curated})
-    if consumer is None and (curated := curated_venue_detail(venue_id)):
+    sqlite_catalog = configured_sqlite_catalog()
+    if consumer is None and not sqlite_catalog and (curated := curated_venue_detail(venue_id)):
         return JsonResponse({"success": True, "venue": curated})
 
-    repo = get_venue_repo()
-    venue = repo.get_venue_by_id(venue_id)
+    try:
+        use_catalog_repo = not settings.MEMBER_LOCAL_PREVIEW or sqlite_catalog
+        repo = get_operational_venue_repo() if use_catalog_repo else get_venue_repo()
+        venue = repo.get_venue_by_id(venue_id)
+    except CatalogUnavailable:
+        return JsonResponse({'success': False, 'code': 'VENUE_CATALOG_UNAVAILABLE',
+                             'message': '매장 카탈로그 연결을 확인해 주세요.'}, status=503)
 
     if not venue:
         return JsonResponse({
@@ -48,14 +56,20 @@ def venue_detail_api(request, venue_id: str, *, consumer):
     status_label = overlay.get_status_display() if overlay else '정상 영업'
 
     # 2. 지금 영업 중 판정
-    is_open = is_venue_open_now(venue)
+    is_open = None if venue.get('_team_catalog') else is_venue_open_now(venue)
 
     # 3. 실제 확인된(수집·조사·브랜드) 메뉴판 조회 및 5개 탭 분류 (배민 스타일, 공통 가짜 템플릿 비노출)
     lookup_id = canonical_id if consumer else venue_id
-    if hasattr(repo, 'get_verified_menus_by_venue'):
-        all_menus = repo.get_verified_menus_by_venue(lookup_id)
-    else:
-        all_menus = repo.get_menus_by_venue(lookup_id)
+    try:
+        if hasattr(repo, 'get_verified_menus_by_venue'):
+            all_menus = repo.get_verified_menus_by_venue(lookup_id)
+        else:
+            all_menus = repo.get_menus_by_venue(lookup_id)
+        if use_catalog_repo:
+            repo.verify_current()
+    except CatalogUnavailable:
+        return JsonResponse({'success': False, 'code': 'VENUE_CATALOG_UNAVAILABLE',
+                             'message': '매장 카탈로그 연결을 확인해 주세요.'}, status=503)
     cat = venue.get('category', 'CAFE').upper()
 
     tabs_dict: Dict[str, List[Dict[str, Any]]] = {}
@@ -79,7 +93,6 @@ def venue_detail_api(request, venue_id: str, *, consumer):
     menu_tabs = [{'tab_name': k, 'items': v} for k, v in tabs_dict.items()]
 
     # 4. 파트너 상태·적용 플레이리스트·음악 배너 (Option A)
-    from django.conf import settings
     from backend.venues.models.bridge import VenueOwnerBridge
     from backend.venues.services.music_banner_service import expand_venue_id_aliases
     from backend.workspaces.models import Workspace
@@ -146,7 +159,7 @@ def venue_detail_api(request, venue_id: str, *, consumer):
             'active_events': visible_events,
             'menu_tabs': menu_tabs,
             'all_menus_count': len(all_menus),
-            'has_verified_menus': len(all_menus) > 0,
+            'has_verified_menus': any(menu.get('menu_source') != 'TEAM_CSV' for menu in all_menus),
             'recent_reviews': recent_reviews,
         }
     })

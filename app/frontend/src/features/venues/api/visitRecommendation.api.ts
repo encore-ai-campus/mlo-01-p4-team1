@@ -9,6 +9,7 @@ export interface VenueTag {
 
 export interface VisitCatalogMetadata {
   preview_only?: boolean;
+  detail_supported?: boolean;
   source_basis?: string | null;
   budget_basis?: string | null;
 }
