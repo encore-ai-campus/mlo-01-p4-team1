@@ -26,21 +26,23 @@ def demo_only(view):
 
 
 def consumer_mcp(view):
-    """Allow the isolated preview and authenticated consumer platform preview."""
+    """Keep preview access and require an active consumer for operational MCP."""
     @never_cache
     @wraps(view)
     def checked(request, *args, **kwargs):
         if standalone_demo():
             return view(request, *args, **kwargs)
-        if not settings.MEMBER_LOCAL_PREVIEW or not settings.PLATFORM_ENABLED:
+        if not settings.MEMBER_LOCAL_PREVIEW and not settings.VENUE_MCP_SERVICE_ENABLED:
             return JsonResponse({"success": False, "code": "NOT_FOUND"}, status=404)
         try:
-            authorization.enabled()
             user = authorization.account(request)
             require(ServiceMembership.objects.filter(user=user, kind="CONSUMER", status="ACTIVE").exists(),
                     "CONSUMER_MEMBERSHIP_REQUIRED", "사용자 이용 유형을 먼저 추가해 주세요.", 403)
         except DomainError as error:
             return JsonResponse({"success": False, "code": error.code, "message": error.message}, status=error.status)
+        if not settings.MEMBER_LOCAL_PREVIEW and getattr(request, "scope", {}).get("venue_mcp_client") is None:
+            return JsonResponse({"success": False, "code": "VENUE_MCP_UNAVAILABLE",
+                                 "message": "매장 추천 연결을 확인해 주세요."}, status=503)
         return view(request, *args, **kwargs)
     return checked
 

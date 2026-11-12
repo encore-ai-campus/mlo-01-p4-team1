@@ -190,10 +190,9 @@ def with_local_venue_mcp(application):
         return application
 
     # Production execution must be explicitly configured and must not use the
-    # local fixtures or permit preview-only catalog snapshots. This only enables
-    # the host; request authentication and platform readiness remain separate.
+    # local fixtures or permit preview-only catalog snapshots.
     local_demo = settings.LOCAL_DEMO
-    if not local_demo and os.environ.get("VENUE_MCP_SERVICE_ENABLED") != "1":
+    if not local_demo and not settings.VENUE_MCP_SERVICE_ENABLED:
         return application
     public_catalog = os.environ.get("VENUE_MCP_PUBLIC_CATALOG")
     if not local_demo and not public_catalog:
