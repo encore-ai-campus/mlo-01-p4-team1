@@ -36,4 +36,12 @@ describe('Recommendation failure recovery',()=>{
     expect(html).toContain('연결 다시 확인');
     expect(html).toContain('disabled');
   });
+  it('does not offer connection recovery when the catalog is not ready',()=>{
+    const html=renderToStaticMarkup(createElement(RecommendationErrorNotice,{
+      ...callbacks,failure:{code:'POLICY_NOT_READY',message:'검증된 음악 카탈로그를 준비하고 있어요.'},
+      pendingRequest:false,locked:false}));
+    expect(html).toContain('검증된 음악 카탈로그를 준비하고 있어요.');
+    expect(html).toContain('잠시 후 선곡표 받기를 다시 눌러 주세요.');
+    expect(html).not.toContain('연결 다시 확인');
+  });
 });

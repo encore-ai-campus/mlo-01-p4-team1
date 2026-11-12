@@ -2,7 +2,13 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import logging
+from urllib.error import HTTPError
 from backend.recommendation.errors import DomainError, require
+from pipeline.weather import es_latest
+
+
+logger = logging.getLogger(__name__)
 
 
 def iso(at):
@@ -69,16 +75,18 @@ def build(region, document, now, config):
             'mapping_version':region.get('mapping_version'), 'source_document':document}
 
 
-def display(region_id, now):
+def display(region_id, now, *, request_id=None):
+    stage = 'region_lookup'
     try:
         from .queries import lookup_region
-        from pipeline.weather.es_latest import read_grid
         from pipeline.weather.service_view import config
         region=lookup_region(region_id)
         require(region is not None, 'REGION_NOT_FOUND', '지역을 찾을 수 없습니다.',404)
         require(region.get('mapping_status','mapped')=='mapped','REGION_MAPPING_UNRESOLVED','지역 격자를 확인해 주세요.',422)
-        document=read_grid(region['nx'],region['ny'])
+        stage = 'storage_read'
+        document=es_latest.read_grid(region['nx'],region['ny'])
         require(bool(document),'FORECAST_UNAVAILABLE','저장된 날씨가 없습니다.',503)
+        stage = 'data_conversion'
         bundle=build(region,document,now,config())
         from backend.recommendation.weather import validate,current_profile
         try:
@@ -87,9 +95,18 @@ def display(region_id, now):
         except DomainError as error:
             bundle['recommendation_ready']=False;bundle['recommendation_error']=error.code
         return bundle
+    except es_latest.WeatherGridNotFound:
+        raise DomainError('FORECAST_UNAVAILABLE', '저장된 날씨가 없습니다.', 503) from None
     except DomainError:
         raise
-    except Exception:
+    except Exception as error:
+        if isinstance(error, es_latest.WeatherGridDataError):
+            stage = 'data_conversion'
+        storage_status = error.code if isinstance(error, HTTPError) else None
+        logger.warning(
+            'Weather lookup failed request_id=%s stage=%s error_type=%s storage_status=%s',
+            request_id, stage, type(error).__name__, storage_status,
+        )
         raise DomainError('FORECAST_UNAVAILABLE','날씨 저장소 또는 입력 형식을 확인해 주세요.',503) from None
 
 
