@@ -67,7 +67,9 @@ Control A/B의 공통 API에는 `ES_URL`, `WEATHER_INDEX`, `ES_USERNAME`, `ES_PA
 
 매장 MCP는 기본 비활성입니다. `VENUE_MCP_SERVICE_ENABLED=1`과 `VENUE_MCP_PUBLIC_CATALOG`를
 설정하면 로그인 세션과 활성 `CONSUMER` 권한이 있는 계정에서 호출할 수 있습니다. 승인된
-`preview_only=false` 스냅샷을 컨테이너에 읽기 전용으로 연결합니다. `VENUE_WEATHER_BASE_URL`은
+`preview_only=false` 스냅샷을 담은 디렉터리를 컨테이너에 읽기 전용으로 마운트합니다.
+갱신할 때는 호스트의 같은 디렉터리에서 완성된 파일로 원자 교체합니다. JSON 파일을 단독으로 마운트한
+경우 교체한 파일을 보려면 컨테이너를 재생성해야 합니다. `VENUE_WEATHER_BASE_URL`은
 MCP 프로세스에서 직접 연결할 수 있는 공통 API 주소를 사용합니다. 자연어 질문까지 사용하려면
 `GEMINI_ENABLED=1`, `GEMINI_API_KEY`, `VENUE_LLM_MODEL`을 보호 설정에 추가합니다.
 승인된 계정으로 추천 옵션, 방문 조건 추천, 자연어 질문을 각각 호출해 확인합니다.

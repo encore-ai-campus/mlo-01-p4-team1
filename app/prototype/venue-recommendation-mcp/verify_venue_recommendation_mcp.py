@@ -236,10 +236,20 @@ async def verify_csv_sample():
         assert any(row["venue_id"] == venue_id for row in csv.DictReader(source))
     with (sample_data / "seoul_venue_menus_demo_sample.csv").open(encoding="utf-8-sig", newline="") as source:
         original_menus = {
-            row["menu_id"]: row["메뉴명"] for row in csv.DictReader(source) if row["venue_id"] == venue_id
+            row["menu_id"]: row for row in csv.DictReader(source) if row["venue_id"] == venue_id
         }
-    assert all(original_menus[item["menu_id"]] == item["name"]
-               for item in catalog["menus"] if item["venue_id"] == venue_id)
+    coffee = {"MN_API_SL_0289034": ("에스프레소", "menu_espresso"),
+              "MN_API_SL_0289037": ("아메리카노", "menu_americano")}
+    cookies = {"MN_API_SL_0289039": ("청크초코쿠키", "menu_cookie")}
+    catalog["menus"] = [menu for menu in catalog["menus"] if menu["venue_id"] != venue_id]
+    for menu_id, (name, tag) in {**coffee, **cookies}.items():
+        original = original_menus[menu_id]
+        assert original["메뉴명"] == name
+        catalog["menus"].append({
+            "menu_id": menu_id, "venue_id": venue_id, "name": name,
+            "cuisine_tag_ids": [], "menu_type_tag_ids": [tag],
+            "evidence": {"urls": [original["메뉴사진_URL"]]},
+        })
 
     venue.pop("seats")
     with TemporaryDirectory() as directory, project_fixture(locations) as (url, first, requests):
@@ -256,7 +266,7 @@ async def verify_csv_sample():
             matched, = result["ranked"]
             assert matched["venue_id"] == venue_id and "seat" not in matched, matched
             menu_groups = [{menu["menu_id"] for menu in group} for group in matched["matched_orders"]]
-            assert menu_groups == [{"MN_DEMO_03581", "MN_DEMO_03582"}, {"MN_DEMO_03579"}], matched
+            assert menu_groups == [set(coffee), set(cookies)], matched
             print_case("좌석 데이터 없는 매장의 원본 ID와 메뉴 근거", result)
         assert requests == [locations[venue_id]["region_id"]], requests
 
@@ -422,18 +432,24 @@ async def verify_search_location_and_budget():
             assert result["forecast_status"] == "NOT_NEEDED", (query, result)
         print("PASS 빈 결과 7가지 분리 · 예보 조회 생략")
 
-        for price, min_krw, max_krw in (
-            ("8천원 이하", None, 8000),
-            ("0.8만원 이하", None, 8000),
-            ("8,000원 이하", None, 8000),
-            ("7천원~9천원", 7000, 9000),
-            ("8천원부터 1만 5천원까지", 8000, 15000),
+        for price, min_krw, max_krw, includes_venue in (
+            ("8천원 이하", None, 8000, False),
+            ("0.8만원 이하", None, 8000, False),
+            ("8,000원 이하", None, 8000, False),
+            ("8,600원 미만", None, 8599, False),
+            ("8,600원 이하", None, 8600, True),
+            ("7천원~9천원", 7000, 9000, True),
+            ("8천원부터 1만 5천원까지", 8000, 15000, True),
         ):
             query = f"강남역 9번 출구 {price} 카페"
             result = await call(client, "recommend_venues", {**base, "query": query})
             assert result["request"]["budget"] == {"min_krw": min_krw, "max_krw": max_krw}, (query, result)
-            assert [venue["venue_id"] for venue in result["ranked"]] == ["VN_SL_021087"], (query, result)
-        print("PASS 원·천 원·소수 만 원·범위 표기 5개 · 8천 원 포함과 제외 경계")
+            if includes_venue:
+                venue, = result["ranked"]
+                assert venue["venue_id"] == "VN_SL_021087" and venue["avg_budget_krw"] == 8600, (query, result)
+            else:
+                assert not result["ranked"] and result["empty_reason"] == "NO_BUDGET", (query, result)
+        print("PASS 원·천 원·소수 만 원·범위 표기 · 8,600원 포함과 제외 경계")
 
 
 async def verify_seoul_place_index():
