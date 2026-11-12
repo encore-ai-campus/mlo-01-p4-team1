@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "scripts"), str(ROOT / "aws-infra/contracts")]
 from infra_common.coordination import require
 from infra_common.preauth_execution import ExecutionGate, sha, private_file
-from infra_common.oidc import ENVIRONMENTS, write_config
+from infra_common.oidc import ENVIRONMENTS, OIDC_PHASES, write_config
 from infra_control import execute
 
 
@@ -67,7 +67,20 @@ def web_release(review, purpose):
     return "main-" + commit, image
 
 
+def credential_failure_phase(error):
+    from botocore.exceptions import CredentialRetrievalError
+
+    if not isinstance(error, CredentialRetrievalError):
+        return None
+    marker = error.kwargs.get("error_msg")
+    for phase in OIDC_PHASES:
+        if marker == f"MLO_OIDC_PHASE={phase}\n":
+            return phase
+    return "credential-process"
+
+
 def main():
+    phase = "signed-inputs"
     try:
         purpose = os.environ.get("MLO_PURPOSE")
         review_id = os.environ.get("MLO_REVIEW_SHA256", "")
@@ -119,6 +132,7 @@ def main():
         credential_purpose = "apply" if purpose == "destroy" else purpose
         if expected_web_release is not None:
             credential_purpose = "web-deploy"
+        phase = "credential-config"
         config = write_config(
             folder / "oidc-config",
             review["account_ids"],
@@ -137,12 +151,17 @@ def main():
             AWS_CLI_AUTO_PROMPT="off",
             AWS_STS_REGIONAL_ENDPOINTS="regional",
         )
+        phase = "operation"
         execute(gate, folder / "execution-receipt.json", web_release=expected_web_release)
         print("PASS: reviewed manual operation completed; inspect private receipt")
         return 0
-    except Exception:
+    except Exception as error:
+        if phase == "operation":
+            oidc_phase = credential_failure_phase(error)
+            if oidc_phase is not None:
+                phase = f"oidc/{oidc_phase}"
         print(
-            "FAIL: manual workflow refused/failed; inspect protected inputs and receipt",
+            f"FAIL: manual workflow stopped at {phase}; inspect protected inputs and receipt",
             file=sys.stderr,
         )
         return 2

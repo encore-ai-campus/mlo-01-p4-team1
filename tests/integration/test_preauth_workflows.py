@@ -2,13 +2,16 @@
 
 import copy
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import yaml
+from botocore.exceptions import CredentialRetrievalError
 from test_preauth_boundary import PrivateInputs, ROOT, digest
+from infra_common import oidc
 import infra_control
 import run_reviewed_workflow as workflow
 
@@ -84,6 +87,28 @@ class ManualWorkflows(PrivateInputs):
             self.assertEqual(workflow.main(), 2)
         config.assert_not_called()
         execute.assert_not_called()
+
+    def test_credential_failure_logs_only_allowlisted_stage(self):
+        stderr, stdout = io.StringIO(), io.StringIO()
+        with patch("sys.argv", ["infra_control.py", "credential-process"]), patch(
+            "sys.stderr", stderr
+        ), patch("sys.stdout", stdout), patch.object(
+            oidc, "credentials", side_effect=oidc.OIDCPhaseError("token-request")
+        ):
+            self.assertEqual(infra_control.main(), 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertEqual(
+            workflow.credential_failure_phase(CredentialRetrievalError(
+                provider="custom-process", error_msg=stderr.getvalue()
+            )),
+            "token-request",
+        )
+        self.assertEqual(
+            workflow.credential_failure_phase(CredentialRetrievalError(
+                provider="custom-process", error_msg=stderr.getvalue() + "private-value\n"
+            )),
+            "credential-process",
+        )
 
     def test_foundation_saved_plan_is_bound_to_separate_review(self):
         binding = {

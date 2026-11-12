@@ -360,11 +360,16 @@ def main():
     args = parser.parse_args()
     try:
         if args.operation == "credential-process":
-            from infra_common.oidc import credentials
+            from infra_common.oidc import OIDC_PHASES, OIDCPhaseError, credentials
 
-            result = credentials(
-                args.account, args.role, args.repository, args.environment
-            )
+            try:
+                result = credentials(
+                    args.account, args.role, args.repository, args.environment
+                )
+            except OIDCPhaseError as error:
+                if error.phase in OIDC_PHASES:
+                    print(f"MLO_OIDC_PHASE={error.phase}", file=sys.stderr)
+                return 2
         elif args.operation == "oidc-config":
             from infra_common.oidc import write_config
 
