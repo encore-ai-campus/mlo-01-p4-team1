@@ -13,6 +13,15 @@ spec.loader.exec_module(runtime)
 
 
 class AppRuntimeTests(unittest.TestCase):
+    def test_protected_secret_file_accepts_weather_api_key(self):
+        settings = {'ES_API_KEY': 'Zml4dHVyZTpmaXh0dXJl'}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder).resolve()
+            path = root / 'app-env.json'
+            path.write_text(json.dumps(settings))
+            path.chmod(0o600)
+            self.assertEqual(runtime.secret_environment(path, root), settings)
+
     def test_protected_secret_file_accepts_weather_and_venue_mcp_settings(self):
         settings = {
             'ES_URL': 'https://weather.example.test:9200',
