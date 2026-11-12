@@ -52,6 +52,25 @@ def documents():
             'local_preview': settings.MEMBER_LOCAL_PREVIEW, 'documents': settings.MEMBER_POLICY_DOCUMENTS}
 
 
+def signup_route_enabled():
+    if settings.MEMBER_LOCAL_PREVIEW:
+        return True
+    if settings.PHASE4_OWNER_PORTAL_ENABLED:
+        return False
+    if settings.PHASE4_PRIVATE_DEMO_ENABLED:
+        return settings.MEMBER_PUBLIC_SIGNUP_ENABLED
+    return True
+
+
+def signup_policy_ready():
+    if settings.MEMBER_LOCAL_PREVIEW:
+        return True
+    return bool(settings.MEMBER_POLICIES_READY and settings.MEMBER_PUBLIC_LIMIT_HOUR > 0
+                and settings.MEMBER_POLICY_VERSION
+                and settings.MEMBER_POLICY_VERSION != settings.PHASE4_PRIVATE_DEMO_POLICY_VERSION
+                and valid_documents(settings.MEMBER_POLICY_DOCUMENTS))
+
+
 def valid_documents(documents):
     return isinstance(documents, dict) and all(
         isinstance(documents.get(kind), str) and documents[kind].strip()

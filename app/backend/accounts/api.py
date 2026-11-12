@@ -34,7 +34,7 @@ def admission(request, action):
 
 class Policy(Endpoint):
     def get(self, request):
-        return Response(policy.documents())
+        return Response(policy.documents() | {'ready': policy.signup_route_enabled() and policy.signup_policy_ready()})
 
 
 class Availability(Endpoint):
@@ -46,9 +46,9 @@ class Availability(Endpoint):
 
 class Signup(Endpoint):
     def post(self, request):
-        require(settings.MEMBER_LOCAL_PREVIEW or not (
-                    settings.PHASE4_OWNER_PORTAL_ENABLED or settings.PHASE4_PRIVATE_DEMO_ENABLED),
+        require(policy.signup_route_enabled(),
                 'SIGNUP_UNAVAILABLE', '회원가입을 이용할 수 없습니다.', 404)
+        require(policy.signup_policy_ready(), 'POLICY_NOT_READY', '회원 정책 게시를 준비하고 있습니다.', 503)
         admission(request, 'signup')
         allowed = {'username', 'password', 'password_confirmation', 'nickname', 'email', 'email_consent',
                    'policy_version', 'terms_accepted', 'privacy_acknowledged', 'age_confirmed'}
