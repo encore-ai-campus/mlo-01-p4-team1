@@ -13,6 +13,7 @@ from django.utils import timezone
 from backend.common.admin_roles import ROLES
 from backend.common.management.commands import check_runtime
 from backend.venues.management.commands.relay_venue_outbox import relay_pending_batch
+from backend.venues.models.catalog import VenueCatalogRecord
 from backend.venues.models.event import OwnerEventTrustScore, VenueEvent
 from backend.venues.models.interaction import VenueInteraction
 from backend.venues.models.outbox import VenueOutbox
@@ -315,22 +316,43 @@ class VenueAdminClosureAndMonitoringTests(Helpers, TestCase):
         self.assertEqual(conn["administrator_permissions"], {"ok": True})
 
     @override_settings(LOCAL_DEMO=False, MEMBER_LOCAL_PREVIEW=False, PLATFORM_ENABLED=False)
-    def test_non_demo_non_platform_allows_public_catalog_read_while_keeping_writes_closed(self):
+    def test_disabled_platform_serves_no_catalog_or_event_data_and_performs_no_promo(self):
         anon = Client(enforce_csrf_checks=True)
-        listing = anon.get("/api/venues", {"sigungu": "강남구"})
-        self.assertEqual(listing.status_code, 200)
-        self.assertTrue(listing.json()["venues"])
-        self.assertEqual(anon.get(f"/api/venues/{self.venue_id}").status_code, 200)
-        self.assertEqual(anon.get("/api/venues/events/active", {"gu": "강남구"}).status_code, 200)
+        owner_venue = VenueCatalogRecord.objects.create(
+            venue_id="custom_venue_private",
+            dataset_version="owner_direct",
+            venue_name="심사 전 매장",
+            gu_name="강남구",
+            venue_payload={"phone": "000-0000-0000"},
+        )
+        catalog_paths = (
+            "/api/venues",
+            "/api/venues/search",
+            f"/api/venues/{self.venue_id}",
+            f"/api/venues/{self.venue_id}/menus",
+            f"/api/venues/{owner_venue.venue_id}",
+            f"/api/venues/{owner_venue.venue_id}/menus",
+            "/api/venues/events",
+            "/api/venues/events/active",
+        )
+        with (
+            patch("backend.venues.views.list_view.filter_and_rank_venues") as listing,
+            patch("backend.venues.views.list_view.check_and_send_nearby_event_promo") as promo,
+            patch("backend.venues.views.detail_view.get_venue_repo") as detail,
+            patch("backend.venues.views.event_view.get_active_events_in_gu") as events,
+        ):
+            for path in catalog_paths:
+                with self.subTest(path=path):
+                    response = anon.get(path, {"gu": "강남구", "user_id": f"platform:{self.consumer.pk}"})
+                    self.assertEqual(response.status_code, 503)
+                    self.assertEqual(response.json()["code"], "PLATFORM_NOT_READY")
+                    self.assertIn("no-store", response.headers["Cache-Control"])
+            for bypass in (listing, promo, detail, events):
+                bypass.assert_not_called()
 
-        # Personal notification/summary endpoints degrade cleanly to empty state in non-demo public mode
         notis = anon.get("/api/venues/notifications")
         self.assertEqual(notis.status_code, 200)
         self.assertEqual(notis.json()["notifications"], [])
-
-        # CLOSED_HIDDEN venues are excluded in non-demo public reads too
-        VenueStatusOverlay.objects.create(venue_id=self.venue_id, status="CLOSED_HIDDEN")
-        self.assertEqual(anon.get(f"/api/venues/{self.venue_id}").status_code, 404)
 
         # Write endpoints stay fail-closed without CSRF/auth
         self.assertEqual(anon.post(f"/api/venues/{self.venue_id}/bookmark", {}, content_type="application/json").status_code, 403)
@@ -346,3 +368,27 @@ class VenueAdminClosureAndMonitoringTests(Helpers, TestCase):
             ).status_code,
             503,
         )
+
+        owner = self.client_for(self.business)
+        for endpoint, payload in (
+            ("/api/owner/venues/claim", {"venue_id": self.venue_id}),
+            ("/api/owner/venues/register", {"venue_name": "승인 전 매장"}),
+        ):
+            with self.subTest(endpoint=endpoint):
+                response = self._post_with_csrf(owner, endpoint, payload)
+                self.assertEqual(response.status_code, 503)
+                self.assertEqual(response.json()["code"], "PLATFORM_NOT_READY")
+        self.assertEqual(VenueCatalogRecord.objects.count(), 1)
+
+    @override_settings(LOCAL_DEMO=True, MEMBER_LOCAL_PREVIEW=True, PLATFORM_ENABLED=False)
+    def test_standalone_demo_keeps_catalog_but_masks_platform_review_identity(self):
+        platform_id = f"platform:{self.consumer.pk}"
+        VenueInteraction.objects.create(venue_id=self.venue_id, user_id=platform_id,
+                                        interaction_type="REVIEW", content="시연 리뷰", rating=5)
+        listing = self.client.get("/api/venues", {"sigungu": "강남구"})
+        self.assertEqual(listing.status_code, 200)
+        self.assertTrue(listing.json()["venues"])
+        detail = self.client.get(f"/api/venues/{self.venue_id}")
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json()["venue"]["recent_reviews"][0]["user_id"], "방문 회원")
+        self.assertNotContains(detail, platform_id)
