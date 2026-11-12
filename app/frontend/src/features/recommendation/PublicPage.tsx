@@ -24,7 +24,7 @@ import {PlaylistIntro} from './PlaylistIntro';
 import {PlaylistLoading} from './PlaylistLoading';
 import '../../muther-home.css';
 
-const defaults:Choices={region_id:'',vocal_option:'any',tempo_preference:'auto',weather_influence_mode:'ON',selected_theme_codes:[],selected_genre_codes:[],option_version:''};
+const defaults:Choices={region_id:'',vocal_option:'any',weather_influence_mode:'ON',selected_theme_codes:[],selected_genre_codes:[],option_version:''};
 function Cover({url,small=false}:{url?:string|null;small?:boolean}){
   return <img className={small?'track-cover':'album-cover'} src={url||'/default-cover.svg'} alt={small?'':'현재 선곡표 첫 곡의 앨범 이미지'} onError={e=>{e.currentTarget.onerror=null;e.currentTarget.src='/default-cover.svg';}}/>;
 }
@@ -53,8 +53,7 @@ export function PublicPage(){
   const [adContextReady,setAdContextReady]=useState(false);
   const [reviewOpen,setReviewOpen]=useState(false),[reviewPreview,setReviewPreview]=useState(false),[mappingRevision,setMappingRevision]=useState(0);
   const [liveYoutubeMappings,setLiveYoutubeMappings]=useState<YoutubeMappingSnapshot|null>(null);
-  const [iframePlaylistId,setIframePlaylistId]=useState<string|null>(null);
-  const iframeOpen=!!result&&iframePlaylistId===result.playlist_id;
+  const [iframePlaying,setIframePlaying]=useState(false),[pausePlaybackRevision,setPausePlaybackRevision]=useState(0);
   const [contextReady,setContextReady]=useState(false);
   const [canSavePlaylist,setCanSavePlaylist]=useState(false);
   const [regionLoading,setRegionLoading]=useState(true),[regionError,setRegionError]=useState(''),[regionRetry,setRegionRetry]=useState(0);
@@ -120,16 +119,28 @@ export function PublicPage(){
       weather_influence_mode:result.region_id?result.weather_influence_mode:'OFF' as const};
   }
   const effectiveMode=choices.region_id?choices.weather_influence_mode:'OFF';
-  const changed=!!result&&canonical(normalized(choices))!==canonical(result.context.options);
+  const {tempo_preference:_legacyTempo,...resultOptions}=result?.context.options??{};
+  const changed=!!result&&canonical(normalized(choices))!==canonical(resultOptions);
   const dirty=!!excluded&&canonical(draft)!==canonical(excluded.excluded_track_ids);
   const locked=busy||saving||approving;
   const canRegenerate=!!result&&!locked&&!changed&&!dirty&&!saveError;
-  const weatherMismatch=!!result&&result.context.options.weather_influence_mode==='ON'&&!!weather?.weather_code&&result.context.weather_code!==weather.weather_code;
+  const [hourlyDue,setHourlyDue]=useState(false);
+  const refreshAt=result?.hourly_plan?.next_refresh_at;
+  useEffect(()=>{
+    setHourlyDue(false);
+    if(!refreshAt)return;
+    const due=Date.parse(refreshAt);
+    if(!Number.isFinite(due))return;
+    const timer=window.setTimeout(()=>setHourlyDue(true),Math.max(0,due-Date.now()));
+    return()=>window.clearTimeout(timer);
+  },[refreshAt,result?.playlist_id]);
+  const weatherMismatch=!!result&&!refreshAt&&result.context.options.weather_influence_mode==='ON'&&!!weather?.weather_code&&result.context.weather_code!==weather.weather_code;
   const canApprove=canRegenerate&&!weatherMismatch&&canonical(result!.context.excluded_track_ids)===canonical(excluded?.excluded_track_ids);
   const refreshed=useRef('');
   useEffect(()=>{
-    if(!weatherMismatch||!result||!weather||!excluded||busy||saving||approving||changed||dirty||jobIntent||!weather.recommendation_ready)return;
-    const identity=result.playlist_id+'/'+weather.bundle_version;
+    if(!result||!excluded||busy||saving||approving||changed||dirty||jobIntent)return;
+    if(refreshAt ? (!hourlyDue||iframePlaying||Date.now()<Date.parse(refreshAt)) : (!weatherMismatch||!weather?.recommendation_ready))return;
+    const identity=result.playlist_id+'/'+(refreshAt??weather?.bundle_version);
     if(refreshed.current===identity)return;refreshed.current=identity;
     const run=new RecommendationRun({path:'/api/playlists/'+result.playlist_id+'/weather-refresh',body:{exclusion_revision:excluded.revision},id:key()});
     activeRun.current=run;const controller={signal:run.signal};setBusy(true);setError('');setJobNotice('');
@@ -151,7 +162,7 @@ export function PublicPage(){
       finally{if(activeRun.current===run&&!controller.signal.aborted){activeRun.current=null;setBusy(false);}}
     }
     void refresh();
-  },[weather?.bundle_version,result?.playlist_id,weatherMismatch,busy,saving,approving,changed,dirty,jobIntent]);
+  },[weather?.bundle_version,result?.playlist_id,weatherMismatch,refreshAt,hourlyDue,iframePlaying,busy,saving,approving,changed,dirty,jobIntent]);
   function toggleOption(option:Option){
     const field=option.type==='genre'?'selected_genre_codes':'selected_theme_codes';
     setChoices(c=>({...c,[field]:c[field].includes(option.code)?c[field].filter(x=>x!==option.code):[...c[field],option.code].sort()}));
@@ -252,10 +263,11 @@ export function PublicPage(){
     dirty?'제외 설정에 저장하지 않은 변경이 있어요. 먼저 저장해 주세요.':
     result&&!applied?'제외 설정이 아직 이 선곡표에 반영되지 않았어요. 새 선곡표를 먼저 받아 주세요.':null;
   const showLoading=busy&&!cancelling&&!error;
+  const previewSource=musicSource==='TAGGED_JSON'?'태깅 JSON':'CSV';
   const status=cancelling?'선곡표 준비를 취소하고 있어요.':showLoading?'선곡표를 준비하고 있어요.':
     busy?'취소 여부를 확인하지 못했어요.':weatherMismatch?'날씨가 변경됐어요 · 갱신 전 선곡표':changed||dirty||!applied&&result?'변경 사항 미반영 · 변경 전 결과':
-    result?.approved_playlist_id===result?.playlist_id&&result?result.preview_only?'CSV 검증용 선곡표를 승인했어요.':'승인한 선곡표예요.':
-    result?.preview_only?'실제 CSV 곡을 보여주는 검증용 선곡표예요.':result?'선곡표를 확인해 주세요.':effectiveMode==='OFF'?'지역 없이 취향으로 선곡표를 받아 보세요.':'지역을 선택하고 선곡표를 받아 보세요.';
+    result?.approved_playlist_id===result?.playlist_id&&result?result.preview_only?previewSource+' 검증용 선곡표를 승인했어요.':'승인한 선곡표예요.':
+    result?.preview_only?previewSource+'에서 가져온 곡의 검증용 선곡표예요.':result?'선곡표를 확인해 주세요.':effectiveMode==='OFF'?'지역 없이 취향으로 선곡표를 받아 보세요.':'지역을 선택하고 선곡표를 받아 보세요.';
   return <>
     <div className={`muther-app${page === 'home' ? ' muther-home-font-preview' : ''}`} inert={guide}>
       <Header showGuide={openGuide} isDemo={isDemo} musicSource={musicSource} weatherIsTest={weather?.is_test}
@@ -301,11 +313,6 @@ export function PublicPage(){
                 <label key={value}><input type="radio" name="vocal" value={value} checked={choices.vocal_option===value}
                   onChange={()=>setChoices(c=>({...c,vocal_option:value}))}/>{label}</label>)}
             </div></fieldset>
-            <fieldset disabled={locked}><legend>빠르기</legend><div className="radio-options tempo-options">
-              {[['auto',effectiveMode==='ON'?'날씨에 맡기기':'제한 없음'],['slow','느린 곡 우선'],['fast','빠른 곡 우선']].map(([value,label])=>
-                <label key={value}><input type="radio" name="tempo" value={value} checked={choices.tempo_preference===value}
-                  onChange={()=>setChoices(c=>({...c,tempo_preference:value}))}/>{label}</label>)}
-            </div></fieldset>
             <fieldset className="tag-fieldset" disabled={locked}><legend>테마 · 장르 <small>복수 선택 가능</small></legend>
               <TagPicker options={options} choices={choices} disabled={locked} onToggle={toggleOption} onSelectGroup={selectGroup}/>
             </fieldset>
@@ -319,14 +326,13 @@ export function PublicPage(){
           <section className="representative card representative-playback" aria-labelledby="cover-title">
             <div className="cover-heading"><h2 id="cover-title">음악 재생</h2>{!result&&<span className="badge">기본 이미지</span>}</div>
             {result?<>
-              <div className="cover-wrap"><Cover url={result.items[0]?.cover_image_url}/></div>
-              <h3 className="representative-track">{result.items[0]?.track_name}</h3>
-              <p className="representative-artist">{result.items[0]?.artists_name}</p>
-              <p className="representative-album">{result.items[0]?.album_name}</p>
-              <small className="representative-caption">선곡표 첫 곡 · 실제 재생은 YouTube 새 탭에서 진행됩니다.</small>
-              <YoutubeNativePlayback playlistId={result.playlist_id} tracks={result.items} blockReason={youtubeBlockReason} mappingRevision={mappingRevision} onMappings={setLiveYoutubeMappings} onOpen={()=>setIframePlaylistId(null)}/>
-              <button className="youtube-iframe-toggle" type="button" aria-expanded={iframeOpen} aria-controls="youtube-iframe-secondary" onClick={()=>setIframePlaylistId(value=>value===result.playlist_id?null:result.playlist_id)}>{iframeOpen?'대시보드 재생 닫기':'대시보드에서 재생 (보조)'}</button>
-              {iframeOpen&&<div className="youtube-iframe-secondary" id="youtube-iframe-secondary"><p className="youtube-iframe-caution">이 보조 플레이어는 영상의 삽입 허용 여부에 따라 재생이 제한될 수 있어요.</p><YoutubePlayer playlistId={result.playlist_id} tracks={result.items} blockReason={youtubeBlockReason} mappingRevision={mappingRevision}/></div>}
+              <YoutubePlayer key={result.playlist_id} playlistId={result.playlist_id} tracks={result.items}
+                blockReason={youtubeBlockReason} mappingRevision={mappingRevision} pauseRevision={pausePlaybackRevision}
+                showSourceThumbnail={result.is_test&&!!result.preview_only&&musicSource==='TAGGED_JSON'}
+                allowTaggedPreview={isDemo&&result.is_test&&!!result.preview_only&&musicSource==='TAGGED_JSON'}
+                onPlaybackActivityChange={setIframePlaying}/>
+              <YoutubeNativePlayback playlistId={result.playlist_id} tracks={result.items} blockReason={youtubeBlockReason}
+                mappingRevision={mappingRevision} onMappings={setLiveYoutubeMappings} onOpen={()=>setPausePlaybackRevision(value=>value+1)}/>
             </>:<>
               <div className="cover-wrap"><Cover/></div>
               <h3>오늘의 음악을 만나 보세요</h3>
@@ -341,7 +347,7 @@ export function PublicPage(){
             </div>
             <div aria-live="polite" className={'playlist-status'+(showLoading||result&&!busy&&!changed&&!dirty&&applied&&result.approved_playlist_id!==result.playlist_id?' sr-only':'')}>{status}</div>
             {jobNotice&&<p className="generation-notice" role="status">{jobNotice}</p>}
-            {result&&!result.preview_only&&<p className="playlist-summary">{result.summary} <span className="badge">{result.generation_method==='RULE_BASED'?'기본 추천':'재설정'}</span></p>}
+            {result&&!result.preview_only&&<p className="playlist-summary">{result.summary} <span className="badge">{result.generation_method==='GPT_SELECTION'?'GPT 선곡':result.generation_method==='RULE_BASED'?'기본 추천':'재설정'}</span></p>}
             {!result&&!busy&&<div className="list-meta">{effectiveMode==='OFF'?'날씨와 관계없이 취향에 맞는 음악을 준비해 드려요.':'지역에 맞는 음악을 준비해 드려요.'}</div>}
             {showLoading&&<PlaylistLoading compact={!!result}/>}
             {(!busy||result)&&<ol className="tracks" aria-label="추천 곡 목록">{result?.items.map(track=>{
@@ -401,7 +407,7 @@ export function PublicPage(){
               {canSavePlaylist&&<button disabled={!result||busy} onClick={()=>{if(result)void api('/api/me/playlists','POST',{playlist_id:result.playlist_id}).then(()=>setJobNotice('내 선곡표에 저장했습니다. 마이페이지에서 확인해 주세요.')).catch(e=>setError(e.message));}}>내 선곡표에 저장</button>}
             </div>}
             {result&&!canSavePlaylist&&<p className="playlist-hint">저장하려면 <a href="/login">로그인</a>한 뒤 새 선곡표를 받아 주세요.</p>}
-            <small className="playlist-hint">{result?.preview_only?'CSV 검증용 결과입니다. 좋아요·싫어요·별점·제외·승인은 이 PC의 로컬 데이터에 저장돼요.':'조건을 바꾸면 새 선곡표를 받아 확인해 주세요.'}</small>
+            <small className="playlist-hint">{result?.preview_only?previewSource+' 검증용 결과입니다. 좋아요·싫어요·별점·제외·승인은 이 PC의 로컬 데이터에 저장돼요.':'조건을 바꾸면 새 선곡표를 받아 확인해 주세요.'}</small>
           </section>
         </div>
         {result&&isDemo&&reviewOpen&&<div id="youtube-review-panel"><YoutubeReviewPanel key={result.playlist_id} playlistId={result.playlist_id} onUpdated={()=>setMappingRevision(value=>value+1)} onPreviewActive={setReviewPreview} blocked={guide||locked}/></div>}

@@ -339,6 +339,10 @@ class AccountTests(AccountCase):
         AccountToken.objects.filter(user=profile.user).update(expires_at=timezone.now()-timedelta(seconds=1))
         self.login()
         self.assertEqual(self.post('/api/me/email/verify',{'code':code}).status_code,422)
-        call_command('cleanup_account_tokens')
+        Session.objects.create(session_key='expired-recovery-test', session_data='',
+                               expire_date=timezone.now()-timedelta(seconds=1))
+        call_command('deliver_account_mail', once=True, limit=0)
         self.assertFalse(AccountMail.objects.exists())
         self.assertFalse(AccountToken.objects.exists())
+        self.assertFalse(Session.objects.filter(session_key='expired-recovery-test').exists())
+        self.assertTrue(self.client.get('/api/auth/me').json()['authenticated'])

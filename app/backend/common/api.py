@@ -20,7 +20,7 @@ def account_data_for_user(user):
     if active:
         if (
             getattr(settings, 'PLATFORM_ENABLED', False) and (user.has_perm('workspaces.review_workspace') or permitted(user, 'manage_venues'))
-            or private_demo.available() and private_demo.reviewer_allowed(user)
+            or private_demo.review_available_to(user)
         ):
             menus.append({'path':'/platform/review','label':'매장 권한 심사'})
         for permission, path, label in [('manage_ads','/admin/ads','광고 관리'),

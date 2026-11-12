@@ -6,6 +6,7 @@ import { withMinimumRecommendationDelay, RecommendationLoading } from './Recomme
 
 const quickQueries = [
   '인천 연수구 카페', '경기 수원시 팔달구 카페', '서교동 17,000원 이하 나베 술집',
+  '인천 연수구 2차 술집',
 ];
 
 function summarizeConditions(result: VenueChatResponse, tags: VenueTag[], previewCatalog: boolean) {
@@ -24,6 +25,8 @@ function summarizeConditions(result: VenueChatResponse, tags: VenueTag[], previe
   const tagLabel = (id: string) => tags.find(tag => tag.id === id)?.label ?? id;
   const required = (request?.required_moods ?? conditions?.required_moods ?? []).map(tagLabel);
   const preferred = (request?.preferred_moods ?? conditions?.preferred_moods ?? []).map(tagLabel);
+  const purposes = (request?.visit_purposes ?? conditions?.visit_purposes ?? []).map(tagLabel);
+  const lowerBudget = request?.prefer_lower_budget ?? conditions?.prefer_lower_budget;
   const orders = (conditions?.orders ?? [])
     .map(order => order.cuisine ? tagLabel(order.cuisine) : (order.types ?? []).map(tagLabel).join(' 또는 '))
     .filter(Boolean);
@@ -32,8 +35,10 @@ function summarizeConditions(result: VenueChatResponse, tags: VenueTag[], previe
   return [
     area, category === 'CAFE' ? '카페' : category === 'PUB' ? '술집' : null,
     amount && (previewCatalog ? '1인 평균 예산 ' : '1인 예산 ') + amount + (budgetMode === 'PREFER' ? ' 참고' : ''),
+    lowerBudget ? '낮은 1인 예산 비교' : null,
     required.length ? '필수 분위기 ' + required.join(', ') : null,
     preferred.length ? '선호 분위기 ' + preferred.join(', ') : null,
+    purposes.length ? '방문 목적 ' + purposes.join(', ') : null,
     orders.length ? '메뉴 ' + orders.join(' / ') : null,
     visitTime && '방문 ' + visitTime,
   ].filter(Boolean).join(' · ');
@@ -75,7 +80,7 @@ export function VenueConciergeSection({ defaultRegion, connection, onReconnect, 
     : provider?.provider === 'gemini' && provider.mode === 'API' ? 'Gemini API' : null;
   const configured = Boolean(options?.mcp && provider?.configured === true);
   const canAsk = configured && !error?.reconnect;
-  const needsReconnect = connection.status !== 'checking' && !canAsk;
+  const needsReconnect = connection.status === 'error' || (connection.status === 'ready' && !canAsk);
 
   function updateQuery(value: string) {
     setQuery(value);
@@ -127,6 +132,7 @@ export function VenueConciergeSection({ defaultRegion, connection, onReconnect, 
     </header>
     <div id="venue-concierge-provider" role="status">
       {connection.status === 'checking' ? <p>매장 추천 연결을 확인하는 중입니다.</p>
+        : connection.status === 'unavailable' ? <p>현재 AI 매장 추천을 사용할 수 없습니다.</p>
         : connection.status === 'error' ? <p>매장 추천에 연결하지 못했습니다.</p>
           : !options?.mcp ? <p>이 환경에서 매장 추천 연결을 사용할 수 없습니다.</p>
             : !configured ? <p><strong>AI 연결 설정 필요</strong>{providerName && ' · ' + providerName} · 방문 조건으로 매장을 조회할 수 있습니다.</p>
@@ -166,8 +172,7 @@ export function VenueConciergeSection({ defaultRegion, connection, onReconnect, 
     {result && <div className="visit-recs__results fp-ai-result" aria-live="polite">
       <h3>{resultTitle}</h3>
       <p>{needsConfirmation && unverified.length ? '매장 자료로 확인할 수 없는 조건이 있습니다.'
-        : matched || needsConfirmation ? result.llm.message
-          : '지역이나 메뉴, 예산 조건을 바꿔 다시 질문해 주세요.'}</p>
+        : result.llm.message}</p>
       {interpreted && <p><strong>해석한 조건</strong> · {interpreted}</p>}
       {unverified.length > 0 && <p><strong>조회 한계</strong> · {unverified.join(' · ')} 조건은 매장 자료에서 확인할 수 없습니다.</p>}
       {matched && <>

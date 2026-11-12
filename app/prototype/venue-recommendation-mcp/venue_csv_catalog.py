@@ -14,6 +14,17 @@ CONFIRMED_PUB_SUBTYPES = {
     "맥주전문점", "와인바", "칵테일바", "이자카야", "전통주점", "호프",
 }
 CLOSED_STATUSES = {"CLOSED", "CLOSED_HIDDEN"}
+OUT_OF_SCOPE_FACILITIES = (
+    "어린이집", "유치원", "초등학교", "중학교", "고등학교", "특수학교",
+    "집단급식소", "구내식당", "보건소", "보건지소", "보건진료소", "경로당",
+    "요양원", "요양병원", "노인복지관", "주간보호센터",
+)
+
+
+def is_out_of_scope_facility(name):
+    # Match a facility suffix on the name itself, including a trailing branch note.
+    name = re.sub(r"\([^()]*\)$", "", normalize(name))
+    return name.endswith(OUT_OF_SCOPE_FACILITIES)
 
 
 def csv_category(row):
@@ -37,7 +48,7 @@ def positive_won(value):
 
 def add_csv_venues(catalog, locations, path, mood_labels):
     venues = {row["venue_id"]: row for row in catalog["venues"]}
-    closed = set()
+    excluded = set()
     seen = set()
     labels = {**mood_labels, **{word: "mood_calm" for word in CALM_WORDS}}
     with path.open(encoding="utf-8-sig", newline="") as source:
@@ -52,8 +63,8 @@ def add_csv_venues(catalog, locations, path, mood_labels):
             if not venue_id or venue_id in seen:
                 raise ValueError("매장 CSV의 venue_id가 비어 있거나 중복됩니다.")
             seen.add(venue_id)
-            if row["영업상태_코드"] in CLOSED_STATUSES:
-                closed.add(venue_id)
+            if row["영업상태_코드"] in CLOSED_STATUSES or is_out_of_scope_facility(row["매장명"]):
+                excluded.add(venue_id)
                 continue
             if not row["매장명"] or not row["자치구"]:
                 continue
@@ -89,6 +100,6 @@ def add_csv_venues(catalog, locations, path, mood_labels):
 
     return {
         **catalog,
-        "venues": [venue for venue_id, venue in venues.items() if venue_id not in closed],
-        "menus": [menu for menu in catalog["menus"] if menu["venue_id"] not in closed],
+        "venues": [venue for venue_id, venue in venues.items() if venue_id not in excluded],
+        "menus": [menu for menu in catalog["menus"] if menu["venue_id"] not in excluded],
     }

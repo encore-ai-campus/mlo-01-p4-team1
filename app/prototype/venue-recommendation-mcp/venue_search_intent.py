@@ -31,6 +31,13 @@ MAX_BUDGET_SUFFIX = re.compile(
     r"\s*(?:을|를)?\s*(?:(?:넘지|초과하지)\s*않(?:는|게|도록)|(?:넘으면|초과하면)\s*안\s*(?:돼|되))"
 )
 APPROXIMATE_BUDGET = re.compile(r"(?:원|만|천)\s*(?:정도|전후|쯤)")
+LOWER_BUDGET = re.compile(
+    r"(?:가|갓)성비|저렴한|저렴하고|가격(?:이|은)?\s*(?:낮은|착한)|싼\s*(?:술집|카페|곳|가격)|"
+    r"(?:가격|비용)\s*부담\s*(?:없는|적은)|부담\s*없는\s*가격"
+)
+LOWER_BUDGET_NEGATED = re.compile(
+    r"\s*(?:가|는|를)?\s*(?:없|보다|상관|신경|중요하지|따지지|필요\s*없)"
+)
 SOCIAL_PURPOSE = re.compile(
     r"헌팅(?:\s*(?:술집|포차|가능|되는|하기|할\s*수))?|"
     r"(?:소개\s*팅|합석)\s*(?:가능|되는|할\s*수|하기\s*좋|장소|술집|포차)|"
@@ -48,7 +55,7 @@ ONLY_MENU = re.compile(r"(?:만|한잔만)(?=$|먹|마시|주문|파는|있는|�
 REQUESTED_MENU = re.compile(r"(?:을|를|이|가)?(?:먹|마시|파는|있는|땡|당|카페|술집|한잔|맛집|추천|$)")
 VENUE_TARGET = re.compile(
     r"(카페|" + "|".join(PUB_WORDS) + r")(?=$|[ .,!?]|1인|인당|한사람당|"
-    r"(?:을|를|로|으로)?(?:좀)?(?:추천|찾|검색|알려|골라|원해)|에(?:가고|갈))"
+    r"(?:을|를|로|으로)?(?:좀)?(?:추천|ᄎᄎ|찾|검색|알려|골라|원해|어디)|에(?:가고|갈))"
 )
 
 
@@ -97,6 +104,16 @@ def per_person_budget(text):
     if not PER_PERSON.search(unicodedata.normalize("NFKC", text)):
         return None, False
     return budget_from_text(text)
+
+
+def wants_lower_budget(text):
+    phrase = unicodedata.normalize("NFKC", text)
+    return any(not LOWER_BUDGET_NEGATED.match(phrase, match.end()) for match in LOWER_BUDGET.finditer(phrase))
+
+
+def has_budget_amount(text):
+    phrase = unicodedata.normalize("NFKC", text)
+    return bool(BUDGET_TEXT.search(phrase) or WRITTEN_WON.search(phrase))
 
 
 class BudgetBand(BaseModel):

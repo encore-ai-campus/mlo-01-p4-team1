@@ -1,0 +1,11 @@
+services:
+  web:
+    environment:
+      VENUE_MCP_PUBLIC_CATALOG: /data/venue-catalog/catalog.sqlite3
+    volumes:
+      - type: bind
+        source: ${VENUE_MCP_CATALOG_DIR:?set the host catalog directory}
+        target: /data/venue-catalog
+        read_only: true
+        bind:
+          create_host_path: false

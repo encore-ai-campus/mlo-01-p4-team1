@@ -15,6 +15,7 @@ from django.core.cache import cache
 from . import youtube_registry
 from .errors import require
 from .youtube_audio_worker import VIDEO_ID, REASONS, trusted_url
+from .youtube_playback import tagged_preview_candidate
 
 
 _lock = threading.Lock()
@@ -49,7 +50,7 @@ def validate_audio_request(body):
     return track_id, video_id
 
 
-def authorized_video(track, video_id):
+def authorized_video(track, video_id, *, playlist=None):
     catalog_verified = track.get('youtube_match_status') == 'VERIFIED' and track.get('youtube_video_id') == video_id
     registry_configured = settings.LOCAL_DEMO or getattr(settings, 'YOUTUBE_REGISTRY_BACKEND', 'disabled') == 'database'
     if not registry_configured:
@@ -57,8 +58,12 @@ def authorized_video(track, video_id):
         # registry was never configured. A configured but failing registry does
         # not fall back: that could bypass a revocation we cannot currently read.
         return catalog_verified
-    rows = [row for row in youtube_registry.track_registry(track['track_id'])['mappings']
-            if row.get('video_id') == video_id]
+    mappings = youtube_registry.track_registry(track['track_id'])['mappings']
+    if not mappings and playlist is not None:
+        candidate = tagged_preview_candidate(playlist, track)
+        if candidate and candidate['video_id'] == video_id:
+            return True
+    rows = [row for row in mappings if row.get('video_id') == video_id]
     if any(row.get('native_source') == 'OPERATOR_NATIVE_BLOCK' for row in rows):
         return False
     native_confirmed = any(row.get('native_verified') and row.get('native_source') == 'OPERATOR_NATIVE_REPORTED_PLAYING' for row in rows)
@@ -116,8 +121,9 @@ def _worker(video_id):
     return {key: payload[key] for key in ('status', 'video_id', 'audio_url', 'thumbnail_url', 'expires_at')}
 
 
-def resolve_audio(track, video_id, owner_id):
-    require(authorized_video(track, video_id), 'AUDIO_MAPPING_REQUIRED', '이 곡으로 확인된 영상만 오디오를 준비할 수 있어요.', 409)
+def resolve_audio(track, video_id, owner_id, *, playlist=None):
+    require(authorized_video(track, video_id, playlist=playlist),
+            'AUDIO_MAPPING_REQUIRED', '이 곡으로 확인된 영상만 오디오를 준비할 수 있어요.', 409)
     now = time.monotonic()
     with _lock:
         for key in list(_sources):

@@ -150,7 +150,7 @@ def contextual(request, operation, values, *, lock=False):
         user=auth.reviewer(request)
         if private_demo.review_only_mode():
             require(private_demo.reviewer_allowed(user), 'FORBIDDEN', '이 신청을 심사할 수 없습니다.', 403)
-            private_demo.require_demo_runtime()
+            private_demo.require_review_runtime()
     else:
         user=auth.account(request)
     context={'user':user}

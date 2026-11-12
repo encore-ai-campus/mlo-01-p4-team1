@@ -19,6 +19,7 @@ DEBUG = True
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False
 PHASE4_ALLOW_INSECURE_WORKER_LOCAL = os.environ.get('PHASE4_ALLOW_INSECURE_WORKER_LOCAL') == '1'
+OPENAI_PLAYLIST_LOCAL_RULE_FALLBACK = True
 
 # Synthetic local membership policy; never inherited by the production settings.
 MEMBER_LOCAL_PREVIEW = True

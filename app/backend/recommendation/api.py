@@ -11,9 +11,10 @@ from rest_framework.response import Response
 from . import service, demo_feedback
 from .errors import DomainError, require
 from .models import Family, Job, Playlist
-from .policy import GENRES, THEMES, OPTIONS
+from .policy import THEMES, OPTIONS
+from .inputs import recommendation_genres, tagged_preview_enabled
 from .weather import obtain
-from .youtube_playback import validate_playback_request, resolve_playback_candidates
+from .youtube_playback import validate_playback_request, resolve_playback_candidates, tagged_preview_candidate
 
 
 def csrf_failure(request,reason=''):
@@ -68,9 +69,10 @@ class Endpoint(APIView):
 
 class Options(Endpoint):
     def get(self,request):
+        catalog = service.current_catalog() if tagged_preview_enabled() else None
         return Response({'option_version':OPTIONS,'items':[
             *[{'code':k,'label':v,'type':'theme','enabled':True} for k,v in THEMES.items()],
-            *[{'code':k,'label':v[0],'type':'genre','enabled':True} for k,v in GENRES.items()]]})
+            *[{'code':k,'label':v,'type':'genre','enabled':True} for k,v in recommendation_genres(catalog).items()]]})
 
 
 class DemoContext(Endpoint):
@@ -79,9 +81,12 @@ class DemoContext(Endpoint):
         self.owner(request)
         from backend.weather.regions import bundled,choice
         catalog=service.catalog()
+        if catalog.source_ref.startswith('local-preview:tagged-json:'):
+            source_kind = 'TAGGED_JSON'
+        else:
+            source_kind = 'CSV' if catalog.source_ref.startswith('local-preview:') else 'SYNTHETIC'
         return Response({'is_test':True,'csrf_token':get_token(request),'regions':[choice(row) for row in bundled()],
-                         'music_source':{'kind':'CSV' if catalog.source_ref.startswith('local-preview:') else 'SYNTHETIC',
-                                         'catalog_version':catalog.version}})
+                         'music_source':{'kind':source_kind,'catalog_version':catalog.version}})
 
 
 class Weather(Endpoint):
@@ -135,7 +140,13 @@ class YoutubePlayback(Endpoint):
                 'EXCLUSIONS_NOT_APPLIED','제외 변경을 반영한 새 선곡표를 먼저 받아 주세요.',409)
         track=next((item for item in playlist.snapshot['items'] if item['track_id']==track_id),None)
         require(track is not None,'NOT_FOUND','선곡표에 있는 곡만 재생할 수 있어요.',404)
-        return Response(resolve_playback_candidates(track,excluded_videos,owner_id=owner))
+        result = resolve_playback_candidates(track, excluded_videos, owner_id=owner)
+        if result['status'] == 'MAPPING_REQUIRED' and result.get('reason') == 'UNMAPPED':
+            candidate = tagged_preview_candidate(playlist, track)
+            if candidate and candidate['video_id'] not in excluded_videos:
+                result = {'track_id': track_id, 'status': 'READY', 'candidates': [candidate],
+                          'mapping_revision': result['mapping_revision']}
+        return Response(result)
 
 
 class Exclusions(Endpoint):

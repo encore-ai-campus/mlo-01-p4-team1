@@ -97,7 +97,7 @@ def _now():
 
 @contextmanager
 def _connection(write=False):
-    if not settings.LOCAL_DEMO:
+    if not settings.LOCAL_DEMO or settings.YOUTUBE_REGISTRY_BACKEND == 'database':
         require(getattr(settings, 'YOUTUBE_REGISTRY_BACKEND', 'disabled') == 'database', 'POLICY_NOT_READY', '공유 영상 연결 저장소의 운영 연결을 기다리고 있어요.', 503)
         from .youtube_database import registry_connection
         with registry_connection(write) as connection:
@@ -219,7 +219,7 @@ def _revision(connection, track_id, expected):
 
 
 def _audit(connection, track_id, video_id, action, revision):
-    if not settings.LOCAL_DEMO:
+    if not settings.LOCAL_DEMO or settings.YOUTUBE_REGISTRY_BACKEND == 'database':
         from .youtube_database import review_actor
         connection.execute('INSERT INTO review_audit(track_id,video_id,action,revision,created_at,actor) VALUES(?,?,?,?,?,?)',
                            (track_id, video_id, action, revision, _now(), review_actor.get()))
@@ -308,7 +308,7 @@ def parse_mapping_csv(text):
     return rows
 
 
-def verify_mapping(track, video_id, expected_revision, identity_confirmed, playback_observed, duration_seconds, note=''):
+def validate_iframe_review(track, video_id, identity_confirmed, playback_observed, duration_seconds):
     require(isinstance(video_id, str) and VIDEO_ID.fullmatch(video_id))
     require(identity_confirmed is True and playback_observed is True, 'REVIEW_INCOMPLETE',
             '원곡 확인과 iframe 실제 재생 관측을 모두 완료해 주세요.')
@@ -317,6 +317,10 @@ def verify_mapping(track, video_id, expected_revision, identity_confirmed, playb
     require(original > 0 and abs(duration_seconds - original) <= min(60, max(12, original * .12)),
             'DURATION_MISMATCH', '원본 곡과 영상 재생시간 차이가 커서 검수를 보류했어요.',
             original_duration_seconds=original, observed_duration_seconds=duration_seconds)
+
+
+def verify_mapping(track, video_id, expected_revision, identity_confirmed, playback_observed, duration_seconds, note=''):
+    validate_iframe_review(track, video_id, identity_confirmed, playback_observed, duration_seconds)
     note = _note(note)
     track_id = track['track_id']
     with _connection(write=True) as connection:

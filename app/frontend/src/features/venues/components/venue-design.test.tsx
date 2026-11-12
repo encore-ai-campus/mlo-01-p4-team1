@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { VenueCard } from './VenueCard';
 import { VenuePhotoGallery, venuePhotoUrls } from './VenuePhotoGallery';
@@ -8,6 +8,8 @@ import { MenuCategoryTabs } from './MenuCategoryTabs';
 import { VenueFilterBar } from './VenueFilterBar';
 import { VenueDetailDrawer } from './VenueDetailDrawer';
 import { canOpenVenueDetail, VisitCards } from './VisitRecommendationSection';
+import { VenueConciergeSection } from './VenueConciergeSection';
+import { fetchVisitOptions } from '../api/visitRecommendation.api';
 import { nextRegionIndex } from './RegionSelect';
 import type { VenueItem } from '../types/venue.types';
 
@@ -85,5 +87,31 @@ describe('매장 탐색 디자인',()=>{
   expect(renderCard(false)).not.toContain('매장 상세 보기');
   expect(renderCard()).not.toContain('매장 상세 보기');
   expect(canOpenVenueDetail('PUBLIC_SOURCE_PILOT')).toBe(true);
+ });
+ it('MCP 옵션 404는 이용 불가 상태로 처리하고 질문을 막는다', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({code:'NOT_FOUND'}), {status:404})));
+  try {
+   await expect(fetchVisitOptions(new AbortController().signal)).resolves.toBeNull();
+   const html = renderToStaticMarkup(<VenueConciergeSection
+    connection={{status:'unavailable'}} onReconnect={noop} onSelectVenue={noop}/>);
+   expect(html).toContain('현재 AI 매장 추천을 사용할 수 없습니다.');
+   expect(html).toContain('type="submit" disabled=""');
+  } finally {
+   vi.unstubAllGlobals();
+  }
+ });
+ it('2차 추천 카드에 후기와 메뉴 근거를 각각 표시한다', () => {
+  const recommendation = {
+   venue_id:'review', name:'후기 매장', address:'인천 연수구', sub_category:null, avg_budget_krw:null,
+   matched_moods:[], matched_orders:[],
+   forecast:{provider:'project_weather',state:'NO_FORECAST' as const,condition:null,start_at:null,end_at:null},
+   matched_purposes:[{id:'visit_second_round',label:'2차'}],
+  };
+  const menuCandidate = {...recommendation, venue_id:'menu', name:'메뉴 후보', matched_purposes:[
+   {id:'visit_second_round',label:'2차',menu_names:['생맥주','감자튀김']},
+  ]};
+  const html = renderToStaticMarkup(<VisitCards venues={[recommendation, menuCandidate]}/>);
+  expect(html).toContain('방문 후기 · 2차');
+  expect(html).toContain('메뉴로 찾은 후보 · 생맥주 + 감자튀김');
  });
 });

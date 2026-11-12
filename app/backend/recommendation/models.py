@@ -33,6 +33,44 @@ class CatalogPublication(models.Model):
     catalog = models.OneToOneField(Catalog, on_delete=models.CASCADE, related_name='publication')
 
 
+class HourlyCatalogIndex(models.Model):
+    catalog = models.ForeignKey(Catalog, on_delete=models.CASCADE)
+    sha256 = models.CharField(max_length=64)
+    index_version = models.PositiveSmallIntegerField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['catalog', 'sha256', 'index_version'],
+                                               name='rec_hourly_snapshot_unique')]
+
+
+class HourlyCatalogCandidate(models.Model):
+    catalog_index = models.ForeignKey(HourlyCatalogIndex, on_delete=models.CASCADE)
+    position = models.PositiveIntegerField()
+    track_id = models.TextField()
+    instrumental = models.BooleanField(default=False)
+    verified_youtube = models.BooleanField(default=False)
+    payload = models.JSONField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['catalog_index', 'position'], name='rec_hourly_position_unique'),
+            models.UniqueConstraint(fields=['catalog_index', 'track_id'], name='rec_hourly_track_unique'),
+        ]
+
+
+class HourlyCatalogTag(models.Model):
+    catalog_index = models.ForeignKey(HourlyCatalogIndex, on_delete=models.CASCADE)
+    candidate = models.ForeignKey(HourlyCatalogCandidate, on_delete=models.CASCADE)
+    kind = models.CharField(max_length=5)
+    code = models.CharField(max_length=32)
+
+    class Meta:
+        indexes = [models.Index(fields=['catalog_index', 'kind', 'code', 'candidate'],
+                                name='rec_hourly_tag_lookup_idx')]
+        constraints = [models.UniqueConstraint(fields=['candidate', 'kind', 'code'],
+                                               name='rec_hourly_track_tag_unique')]
+
+
 class Family(models.Model):
     id = models.TextField(primary_key=True,default=uid)
     owner_id = models.TextField(db_index=True)

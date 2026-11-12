@@ -48,6 +48,11 @@ export interface AdminSongItem extends SongItem {pipeline_status?: string | null
 export interface SongTags {genre: string[]; mood: string[];}
 interface TrackMetadata {album_name: string; duration_ms: number; explicit: boolean;}
 export interface FinalSongReview extends TrackMetadata {expected_revision: number; tags: SongTags;}
+export interface SongCatalogPublication {
+  expected_revision: number;
+  genre_groups: string[];
+  audio?: {energy: number; acousticness: number; valence: number; source: string; mode?: boolean};
+}
 export interface AdminTask {
   id: string;
   request_item_id: string;
@@ -59,7 +64,8 @@ export interface AdminTask {
   is_current?: boolean;
   linked_track_id?: string | null;
   result: {model_version: string; tags: SongTags; metadata?: Partial<TrackMetadata> | null} | null;
-  registration?: {track_id: string; tags: SongTags} | null;
+  registration?: {track_id: string; tags: SongTags; catalog_version?: string | null} | null;
+  video_review_pending?: boolean;
 }
 export type SongReview = {expected_revision: number; reason: string} & (
   {decision: 'APPROVE'; youtube_url: string} |
@@ -114,11 +120,13 @@ export function createSongRequestClient() {
     reviewSong: (id: string, body: SongReview) =>
       mutate<AdminSongItem>(`/admin/song-items/${encodeURIComponent(id)}/review`, body),
     getAdminTasks: (page: number, signal: AbortSignal) =>
-      transport.get<Items<AdminTask> & {tag_options?: SongTags}>('/admin/tasks' + listQuery(page), signal),
+      transport.get<Items<AdminTask> & {tag_options?: SongTags; recommendation_genres?: Record<string, string>}>('/admin/tasks' + listQuery(page), signal),
     finalizeSong: (id: string, body: FinalSongReview) =>
       mutate<AdminTask>(`/admin/tasks/${encodeURIComponent(id)}/finalize`, body),
     recoverSong: (id: string, body: SongResultRecovery) =>
       mutate<AdminTask>(`/admin/tasks/${encodeURIComponent(id)}/recover`, body),
+    publishSong: (id: string, body: SongCatalogPublication) =>
+      mutate<AdminTask>(`/admin/tasks/${encodeURIComponent(id)}/publish`, body),
   };
 }
 

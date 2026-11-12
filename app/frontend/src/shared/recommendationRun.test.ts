@@ -47,6 +47,7 @@ describe('server-confirmed recommendation cancellation',()=>{
   it('distinguishes definite registration rejection from an uncertain response',()=>{
     expect(isDefiniteSubmissionRejection(new ApiError('VALIDATION_ERROR','invalid',{},422))).toBe(true);
     expect(isDefiniteSubmissionRejection(new ApiError('POLICY_NOT_READY','catalog',{},503))).toBe(true);
+    expect(isDefiniteSubmissionRejection(new ApiError('RECOMMENDATION_PROVIDER_UNAVAILABLE','configuration',{},503))).toBe(true);
     expect(isDefiniteSubmissionRejection(new ApiError('FORECAST_UNAVAILABLE','weather',{},503))).toBe(true);
     expect(isDefiniteSubmissionRejection(new ApiError('REQUEST_TIMEOUT','timeout'))).toBe(false);
     expect(isDefiniteSubmissionRejection(new ApiError('REQUEST_TIMEOUT','timeout',{},408))).toBe(false);

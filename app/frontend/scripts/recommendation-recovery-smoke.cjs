@@ -77,7 +77,10 @@ async function exercise(browser, role) {
             scores: {W: null, P: null, S: null},
           }],
           generation_method: 'RULE_BASED', is_test: true, approval_revision: 0, approved_playlist_id: null,
-          context: {options: submissions[0].body, excluded_track_ids: []},
+          context: {
+            options: role === 'USER' ? {...submissions[0].body, tempo_preference: 'slow'} : submissions[0].body,
+            excluded_track_ids: [],
+          },
         };
       } else if (path === '/api/playlist-families/family-fixture/exclusions') {
         json = {family_id: 'family-fixture', revision: 0, excluded_track_ids: [], items: []};
@@ -100,6 +103,7 @@ async function exercise(browser, role) {
     const cancel = playlist.getByRole('button', {name: '취소', exact: true});
     const track = playlist.locator('.tracks').getByText('시험 선곡', {exact: true});
     assert.equal(await loading.count(), 0, 'Idle selection must not show loading');
+    assert.equal(await page.getByRole('group', {name: '빠르기', exact: true}).count(), 0);
     await generate.click();
     if (role !== 'USER') {
       await firstSubmission;
@@ -128,6 +132,7 @@ async function exercise(browser, role) {
     }
     await track.waitFor();
     await loading.waitFor({state: 'hidden'});
+    for (const {body} of submissions) assert.equal(Object.hasOwn(body, 'tempo_preference'), false);
     const save = page.getByRole('button', {name: '내 선곡표에 저장', exact: true});
     if (role === 'USER') {
       assert.equal(submissions.length, 2);
@@ -135,6 +140,8 @@ async function exercise(browser, role) {
       await save.click();
       await page.getByText('내 선곡표에 저장했습니다. 마이페이지에서 확인해 주세요.').waitFor();
       assert.deepEqual(saved, [{playlist_id: 'playlist-fixture'}]);
+      assert(await playlist.getByRole('button', {name: '이 선곡표 승인', exact: true}).isEnabled(),
+        'Legacy tempo metadata must not block approval');
       await playlist.getByRole('button', {name: '다른 선곡표 요청', exact: true}).click();
       await playlist.locator('.playlist-loading--compact').waitFor({state: 'visible'});
       assert(await track.isVisible(), 'The existing playlist must stay visible during regeneration');
@@ -162,7 +169,7 @@ async function exercise(browser, role) {
   try {
     await exercise(browser, null);
     await exercise(browser, 'USER');
-    console.log('PASS: mobile reduced-motion loading, timeout and recovery, member-only saving, and compact regeneration cancellation with playlist preservation.');
+    console.log('PASS: mobile loading and recovery, member-only saving, tempo-free requests, and approval and regeneration with legacy playlist metadata.');
   } finally {
     await browser.close();
   }

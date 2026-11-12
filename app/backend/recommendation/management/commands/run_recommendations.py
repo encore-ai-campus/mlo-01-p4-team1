@@ -8,7 +8,7 @@ import threading
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import DatabaseError, close_old_connections, connection
-from backend.recommendation.dispatch import configuration
+from backend.recommendation.dispatch import QUEUES, configuration, require_provider_configuration
 from backend.recommendation.errors import DomainError
 from backend.recommendation.worker import run_one, warm_current_catalog
 
@@ -17,7 +17,7 @@ class Command(BaseCommand):
     help = 'Run the C recommendation worker; PostgreSQL required for multiple workers.'
     def add_arguments(self,parser):
         parser.add_argument('--once',action='store_true')
-        parser.add_argument('--queue', choices=['rule', 'gemini', 'all'], default=settings.RECOMMENDATION_QUEUE)
+        parser.add_argument('--queue', choices=QUEUES, default=settings.RECOMMENDATION_QUEUE)
         parser.add_argument('--worker-id', default=settings.RECOMMENDATION_WORKER_ID)
 
     def handle(self,*args,**options):
@@ -25,12 +25,11 @@ class Command(BaseCommand):
         if invalid: raise CommandError('invalid_worker_settings: ' + ','.join(invalid))
         if not settings.LOCAL_DEMO and connection.vendor != 'postgresql':
             raise CommandError('PostgreSQL is required outside single-worker local demo mode')
-        if options['queue'] == 'gemini' and not settings.GEMINI_ENABLED:
-            raise CommandError('Gemini is disabled; do not start a dedicated Gemini worker')
-        if options['queue'] in ('gemini', 'all') and settings.GEMINI_ENABLED:
-            budget = os.environ.get('GEMINI_MAX_OUTPUT_TOKENS', '')
-            if not os.environ.get('GEMINI_API_KEY') or not budget.isdecimal() or int(budget) <= 0:
-                raise CommandError('Gemini worker requires a private API key and positive output token budget')
+        if options['queue'] in ('gpt', 'gemini') or (options['queue'] == 'all' and settings.OPENAI_PLAYLIST_ENABLED):
+            try:
+                require_provider_configuration()
+            except DomainError as exc:
+                raise CommandError('GPT worker requires OPENAI_API_KEY and valid playlist settings') from exc
         worker_id = options['worker_id'] or f'{socket.gethostname()}:{os.getpid()}:{options["queue"]}'
         if not re.fullmatch(r'[A-Za-z0-9_.:-]{1,160}', worker_id):
             raise CommandError('worker_id must contain 1-160 ASCII letters, digits or _.:-')

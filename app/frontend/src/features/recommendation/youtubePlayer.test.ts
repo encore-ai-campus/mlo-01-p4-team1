@@ -81,6 +81,17 @@ describe('embedded YouTube queue controller', () => {
     expect(unavailable.controller.snapshot().index).toBe(0);
   });
 
+  it('continues to the next local preview candidate after an unavailable iframe', async () => {
+    const resolver = vi.fn(async (id: string) => ready(id, [{...candidate(Number(id.at(-1))),
+      source: 'TAGGED_JSON_PREVIEW', match_status: 'CANDIDATE'}]));
+    const {controller, adapter} = harness(resolver);
+    await controller.start(); controller.onPlayerError(153); await settle();
+    expect(controller.snapshot().skipped.map(item => item.track_id)).toEqual(['track-1']);
+    expect(controller.snapshot().index).toBe(1);
+    expect(adapter.load).toHaveBeenLastCalledWith('testVID0002');
+    expect(adapter.play).not.toHaveBeenCalled();
+  });
+
   it('records an actually blocked recording when its alternative search is unavailable, then holds on the next unmapped song', async () => {
     const resolver = vi.fn(async (id: string, excluded: string[], _signal: AbortSignal): Promise<PlaybackResolution> => id === 'track-1' && !excluded.length ? ready(id) : {track_id: id, status: 'SEARCH_UNAVAILABLE', candidates: []});
     const {controller} = harness(resolver);
@@ -133,10 +144,10 @@ describe('embedded YouTube queue controller', () => {
     expect(adapter.pause).toHaveBeenCalled(); expect(adapter.load).not.toHaveBeenCalled();
   });
 
-  it('renders the original whole queue count and in-place playback controls without requiring approval or an LLM', () => {
+  it('renders the first song and in-place playback controls without requiring playlist approval or an LLM', () => {
     const html = renderToStaticMarkup(createElement(YoutubePlayer, {playlistId: 'result-1', tracks, blockReason: '변경 조건 미반영'}));
     expect(html).toContain('선곡표 연속 재생'); expect(html).toContain('Song 1');
-    expect(html).toContain('1/3곡'); expect(html).toContain('YouTube 재생');
+    expect(html).toContain('YouTube 재생'); expect(html).not.toContain('외부 연결 준비');
     expect(html).toContain('변경 조건 미반영'); expect(html).not.toContain('임시 목록');
   });
 });

@@ -37,6 +37,16 @@ x-api-environment: &api-env
   ADMIN_PASSKEY_RP_ID: localhost
   ADMIN_PASSKEY_ORIGIN: http://localhost:5173
 
+x-playlist-environment: &playlist-env
+  OPENAI_PLAYLIST_ENABLED: ${OPENAI_PLAYLIST_ENABLED:-0}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_PLAYLIST_TIMEOUT_MS: ${OPENAI_PLAYLIST_TIMEOUT_MS:-45000}
+  OPENAI_PLAYLIST_MAX_CANDIDATES: ${OPENAI_PLAYLIST_MAX_CANDIDATES:-150}
+  OPENAI_PLAYLIST_MAX_OUTPUT_TOKENS: ${OPENAI_PLAYLIST_MAX_OUTPUT_TOKENS:-8192}
+  OPENAI_PLAYLIST_MAX_CONCURRENT: ${OPENAI_PLAYLIST_MAX_CONCURRENT:-5}
+  OPENAI_PLAYLIST_MIN_INTERVAL_SECONDS: ${OPENAI_PLAYLIST_MIN_INTERVAL_SECONDS:-0.1}
+  RECOMMENDATION_MAX_QUEUED_GPT: ${RECOMMENDATION_MAX_QUEUED_GPT:-20}
+
 x-ads-environment: &ads-env
   DJANGO_DEBUG: "1"
   DJANGO_SECRET_KEY: ${MLO_DEV_ADS_SECRET_KEY:?Run python3 docker/init_dev_env.py}
@@ -98,7 +108,7 @@ services:
       dockerfile: docker/api.Dockerfile
       target: development
     environment:
-      <<: *api-env
+      <<: [*api-env, *playlist-env]
       # Optional local integration; disabled unless explicitly configured.
       PLATFORM_LOCAL_MVP: ${PLATFORM_LOCAL_MVP:-0}
       PHASE4_WORKER_TOKEN: ${PHASE4_WORKER_TOKEN:-}
@@ -136,17 +146,19 @@ services:
 
   recommendation-worker:
     profiles: [workers]
+    scale: 5
     image: mlo-p4-api:dev
     build:
       context: .
       dockerfile: docker/api.Dockerfile
       target: development
-    environment: *api-env
+    environment:
+      <<: [*api-env, *playlist-env]
     volumes:
       - .:/workspace/app:ro
       - common_local_data:/workspace/app/.local
       - youtube_review_data:/workspace/app/.local-preview-logs
-    command: ["python", "-m", "backend.manage", "run_recommendations", "--queue", "rule"]
+    command: ["python", "-m", "backend.manage", "run_recommendations", "--queue", "all"]
     depends_on:
       api:
         condition: service_healthy
@@ -332,7 +344,9 @@ services:
       context: .
       dockerfile: docker/api.Dockerfile
       target: development
-    environment: *api-env
+    environment:
+      <<: *api-env
+      OPENAI_PLAYLIST_ENABLED: "0"
     # Uses Django's automatically created and deleted *test* PostgreSQL DB.
     # Source is embedded in the image, not bind-mounted read-only.
     command: ["python", "-m", "backend.manage", "test", "backend.music", "backend.recommendation.tests", "--noinput", "--verbosity", "1"]

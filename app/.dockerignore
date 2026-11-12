@@ -45,6 +45,9 @@ prototype/venue-recommendation-mcp/*
 !prototype/venue-recommendation-mcp/venue_nearby.py
 !prototype/venue-recommendation-mcp/venue_public_catalog.py
 !prototype/venue-recommendation-mcp/venue_search_intent.py
+!prototype/venue-recommendation-mcp/venue_visit_purposes.py
+!prototype/venue-recommendation-mcp/venue_team_catalog.py
+!prototype/venue-recommendation-mcp/prepare_team_catalog.py
 !prototype/venue-recommendation-mcp/verify_tag_weather.py
 !prototype/venue-recommendation-mcp/seoul_location_index.json
 !prototype/venue-recommendation-mcp/공통_태그_목록_v0.2.csv

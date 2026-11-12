@@ -7,7 +7,7 @@ type Accepted={job_id?:string};
 export function isDefiniteSubmissionRejection(error:unknown):boolean{
   if(!(error instanceof ApiError))return false;
   return (error.status>=400&&error.status<500&&error.status!==408)||
-    (error.status===503&&['POLICY_NOT_READY','FORECAST_UNAVAILABLE'].includes(error.code));
+    (error.status===503&&['POLICY_NOT_READY','FORECAST_UNAVAILABLE','RECOMMENDATION_PROVIDER_UNAVAILABLE'].includes(error.code));
 }
 
 // Cancelling a fetch alone cannot cancel a job already accepted by the server.
