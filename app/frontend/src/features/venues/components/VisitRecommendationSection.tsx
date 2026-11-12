@@ -112,6 +112,9 @@ export function VisitCards({ venues, onOpenVenue, distanceFrom, previewCatalog =
           <span className={forecast.available ? 'visit-recs__forecast' : 'visit-recs__forecast--unavailable'}>{forecast.text}</span>
           {forecast.available && venue.weather_match && <span>{venue.weather_match.label}</span>}
           {venue.matched_moods.length > 0 && <span>{venue.matched_moods.map(mood => mood.label).join(' · ')}</span>}
+          {venue.matched_purposes?.map(purpose => <span key={purpose.id}>
+            {purpose.menu_names?.length ? '메뉴로 찾은 후보 · ' + purpose.menu_names.join(' + ') : '방문 후기 · ' + purpose.label}
+          </span>)}
           {menuNames.length > 0
             ? <span>추천 메뉴 · {menuNames.join(', ')}</span>
             : !!venue.representative_menus?.length && <span>대표 메뉴 · {venue.representative_menus.join(', ')}</span>}

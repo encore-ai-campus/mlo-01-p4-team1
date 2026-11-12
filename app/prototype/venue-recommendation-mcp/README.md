@@ -117,6 +117,8 @@ py -3.14 -m venv .local/venue-mcp
 
 - `list_venue_tags`: 공통 태그, 검색 지역, 카탈로그 정보를 반환합니다.
 - `recommend_venues`: `region`, `venue_category`, `required_moods`, `preferred_moods`, `orders`, `budget`, `budget_mode`, `visit_at` 등의 구조화된 조건을 받습니다. 간단한 직접 검색에는 `query`도 지원합니다.
+- `visit_purposes`에는 `list_venue_tags`가 제공하는 혼술·혼카페·단체 모임·데이트·2차 태그 ID를 전달합니다. 2차 추천에는 방문 후기와 출처가 있는 주류·안주 또는 음료·디저트 조합을 사용합니다. 메뉴로 추천한 경우 `matched_purposes[].menu_names`에 근거를 반환합니다.
+- `prefer_lower_budget=true`는 자료상 1인 예산이 낮은 곳을 우선하는 조건입니다. 금액 범위는 `budget`으로 지정합니다.
 - `request_text`는 호스트가 원문을 전달하는 필드입니다. 모델이 원문을 다시 작성하는 용도로 사용하지 않습니다.
 - `unverified_conditions`는 자료로 확인할 수 없는 필수 요구를 보존합니다. 헌팅·소개팅·식이 제한 등을 근거 없이 일반 업종이나 분위기로 바꾸지 않습니다.
 - 응답의 `status`는 `OK`, `NO_MATCH`, `NEEDS_CHECK`입니다. `ranked`는 표시 후보, `counts.ranked`는 전체 일치 후보 수입니다. 예보는 별도의 `forecast_status`로 구분합니다.

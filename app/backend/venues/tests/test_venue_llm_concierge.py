@@ -121,18 +121,16 @@ class VenueLlmConciergeTests(SimpleTestCase):
     @patch("backend.venues.services.venue_llm_concierge.codex_model_overrides",
            return_value=["-c", 'model="existing-model"', "-c", 'model_reasoning_effort="high"'])
     @patch("backend.venues.services.venue_llm_concierge.TemporaryDirectory", return_value=nullcontext("isolated-cli-cwd"))
+    @patch("backend.venues.services.venue_llm_concierge.Path.write_text")
     @patch("backend.venues.services.venue_llm_concierge.subprocess.run")
-    def test_cli_cards_require_a_real_tool_event_and_cli_final_text_is_ignored(self, run, _directory, _overrides, _which):
+    def test_cli_interprets_the_question_and_uses_the_existing_mcp_client(self, run, write, _directory, _overrides, _which):
         self.mcp.command = ["python.exe", "venue_recommendation_mcp.py"]
-        item = {
-            "type": "mcp_tool_call", "server": "venue", "tool": TOOL_NAME,
-            "status": "completed", "arguments": {"region": "인천 연수구", "limit": 2},
-            "result": {"structured_content": catalog_result(ranked=self.rows)},
-        }
+        self.mcp.recommend.return_value = catalog_result(ranked=self.rows)
         auth = Mock(returncode=0, stdout="Logged in using ChatGPT", stderr="")
-        final_text = {"type": "item.completed", "item": {"type": "agent_message", "text": "임의 매장과 메뉴"}}
-        events = [final_text, {"type": "item.completed", "item": item}]
-        run.side_effect = [auth, Mock(returncode=0, stdout="\n".join(map(json.dumps, events)))]
+        plan = {"region": "인천 연수구", "venue_category": "CAFE", "limit": 2, "orders": None}
+        final = {"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(plan)}}
+        result = Mock(returncode=0, stdout=json.dumps(final))
+        run.side_effect = [auth, result]
 
         response = run_venue_llm_concierge("인천 연수구 카페", mcp_client=self.mcp)
 
@@ -140,18 +138,31 @@ class VenueLlmConciergeTests(SimpleTestCase):
         self.assertEqual(response["mcp"]["ranked"], self.rows)
         self.assertEqual(response["llm"]["mode"], "LOCAL_TEST")
         self.assertIsNone(response["llm"]["model"])
-        self.assertNotIn("임의 매장", response["llm"]["message"])
-        self.assertEqual(response["llm"]["tool_calls"][0]["source"], "CODEX_CLI_MCP_EVENT")
+        self.assertEqual(response["llm"]["tool_calls"][0]["source"], "MCP_STDIO")
         self.assertIn('model="existing-model"', run.call_args.args[0])
-        self.assertEqual(run.call_args.kwargs["env"]["VENUE_MCP_REQUEST_TEXT"], "인천 연수구 카페")
+        self.assertIn("--output-schema", run.call_args.args[0])
+        schema = json.loads(write.call_args.args[0])
+        self.assertFalse(schema["additionalProperties"])
+        self.assertEqual(set(schema["required"]), set(schema["properties"]))
+        self.assertNotIn("request_text", schema["properties"])
+        self.mcp.recommend.assert_called_once_with({
+            "region": "인천 연수구", "venue_category": "CAFE", "limit": 2, "request_text": "인천 연수구 카페",
+        })
+
+        self.mcp.recommend.reset_mock()
+        for text in ("임의 매장과 메뉴", json.dumps({**plan, "query": "임의 조건"})):
+            invalid = {**final, "item": {**final["item"], "text": text}}
+            run.side_effect = [auth, Mock(returncode=0, stdout=json.dumps(invalid))]
+            response = run_venue_llm_concierge("인천 연수구 카페", mcp_client=self.mcp)
+            self.assertEqual(response["code"], "LLM_INVALID_RESPONSE")
+            self.assertIsNone(response["mcp"])
+        unexpected = {"type": "item.completed", "item": {"type": "mcp_tool_call"}}
+        run.side_effect = [auth, Mock(returncode=0, stdout=json.dumps(final) + "\n" + json.dumps(unexpected))]
+        self.assertEqual(run_venue_llm_concierge("인천 연수구 카페", mcp_client=self.mcp)["code"], "LLM_INVALID_RESPONSE")
         self.mcp.recommend.assert_not_called()
-        run.side_effect = [auth, Mock(returncode=0, stdout=json.dumps(final_text))]
-        response = run_venue_llm_concierge("인천 연수구 카페", mcp_client=self.mcp)
-        self.assertEqual(response["code"], "LLM_INVALID_RESPONSE")
-        self.assertIsNone(response["mcp"])
         run.side_effect = [auth, TimeoutExpired("codex", 45)]
         response = run_venue_llm_concierge("인천 연수구 카페", mcp_client=self.mcp)
         self.assertEqual(response["code"], "LLM_TIMEOUT")
         self.assertIsNone(response["mcp"])
-        run.side_effect = [auth, Mock(returncode=0, stdout="\n".join(map(json.dumps, events)))]
+        run.side_effect = [auth, result]
         self.assertTrue(run_venue_llm_concierge("인천 연수구 카페", mcp_client=self.mcp)["success"])

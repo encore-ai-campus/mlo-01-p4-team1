@@ -6,8 +6,10 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, StringConstraints, ValidationError
 
+from venue_csv_catalog import is_out_of_scope_facility
 from venue_nearby import PROVINCE_LABELS
 from venue_search_intent import VenueCategory
+from venue_visit_purposes import RESEARCHED_MOODS, reviewed_venue_tags
 
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -134,6 +136,8 @@ def parse_public_catalog(content, weather_regions, tags, *, allow_preview):
             if row.get("is_public") is not True:
                 continue
             venue = PublicVenue.model_validate(row)
+            if is_out_of_scope_facility(venue.name):
+                continue
             region = weather_regions.get(venue.region_id)
             if region is None:
                 raise ValueError("공개 매장의 지역 ID가 프로젝트 날씨 매핑에 없습니다.")
@@ -151,8 +155,17 @@ def parse_public_catalog(content, weather_regions, tags, *, allow_preview):
             if venue.coordinates:
                 location.update(latitude=lat, longitude=lng)
             locations[venue.venue_id] = location
+            visit_purposes, reviewed_moods = reviewed_venue_tags(venue.venue_category, venue.research)
+            mood_ids = venue.mood_tag_ids
+            if snapshot.preview_only:
+                mood_ids = sorted(
+                    (set(mood_ids) - RESEARCHED_MOODS.keys())
+                    | (reviewed_moods & tags.keys())
+                )
             venues[venue.venue_id] = {
-                **venue.model_dump(exclude={"region_id"}, exclude_none=True),
+                **venue.model_dump(exclude={"region_id", "mood_tag_ids"}, exclude_none=True),
+                "mood_tag_ids": mood_ids,
+                **({"visit_purposes": sorted(visit_purposes)} if visit_purposes else {}),
                 "province": location["province"], "district": location["district"], "admin_dong": location["admin_dong"],
             }
 

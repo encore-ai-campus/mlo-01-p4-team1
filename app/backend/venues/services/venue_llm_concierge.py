@@ -55,7 +55,9 @@ NO_MATCH_MESSAGES = {
     "NO_CATEGORY": "이 지역에서 요청한 업종의 매장을 찾지 못했습니다.",
     "NO_MOOD": "요청한 분위기 태그를 갖춘 매장을 찾지 못했습니다.",
     "NO_MENU": "요청한 메뉴 조건을 모두 충족하는 매장을 찾지 못했습니다.",
-    "NO_BUDGET": "확인된 1인 예산이 요청 범위에 드는 매장을 찾지 못했습니다.",
+    "NO_BUDGET": "현재 자료의 1인 예산으로 요청 조건을 충족하는 매장을 찾지 못했습니다.",
+    "NO_VISIT_PURPOSE": "이 지역에서 요청하신 방문 목적이 언급된 후기를 찾지 못했습니다. 분위기나 예산 조건으로 다시 찾아보세요.",
+    "NO_SECOND_ROUND": "이 지역에서 2차 방문 후기나 가볍게 주문할 메뉴 조합을 찾지 못했습니다. 메뉴나 지역을 바꿔 찾아보세요.",
     "REGION_UNSUPPORTED": "현재 매장 자료에서 검색할 수 있는 지역을 입력해 주세요.",
     "MULTIPLE_LOCATIONS": "검색할 지역을 한 곳으로 알려 주세요.",
     "LOCATION_CONFLICT": "시·구·동이 서로 일치하는지 확인해 주세요.",
@@ -76,20 +78,27 @@ class VenueLlmError(RuntimeError):
 class VenueToolCall:
     name: str
     arguments: dict
-    result: dict | None = None
     model: str | None = None
 
 
-def instructions(region):
+def instructions(region, *, plan_only=False):
     context = f"화면에서 선택한 기본 지역은 {region!r}입니다." if region else "기본 지역 지정이 없습니다."
+    action = (
+        "사용자 질문에서 recommend_venues에 넘길 검색 조건만 JSON으로 반환하세요. "
+        "질문에 없는 조건은 null로 반환하세요. "
+        if plan_only else "사용자 질문을 구조화해 recommend_venues를 정확히 한 번 호출하세요. "
+    )
     return (
-        f"한국시간 현재 {datetime.now(KST).isoformat(timespec='minutes')}. {context} "
-        "사용자 질문을 구조화해 recommend_venues를 정확히 한 번 호출하세요. "
+        f"한국시간 현재 {datetime.now(KST).isoformat(timespec='minutes')}. {context} {action}"
         "질문의 지역이 화면의 기본 지역보다 우선합니다. query와 request_text는 보내지 마세요. "
         "질문에 나온 방문 시각만 UTC 오프셋이 붙은 ISO 8601로 전달하세요. "
         "서로 다른 메뉴는 orders의 별개 항목에 넣으세요. 공통 태그 이름이나 ID를 사용하세요. "
         "제외 조건과 메뉴 중 하나만 고르는 조건을 임의로 긍정 조건으로 바꾸지 마세요. "
         "예산 상한·하한이나 필수 범위는 budget_mode REQUIRE, 대략 예산은 PREFER를 사용하세요. "
+        "가성비나 저렴한 곳은 prefer_lower_budget=true를 사용하세요. 질문에 금액이 없으면 budget은 비우세요. "
+        "혼술, 혼카페, 단체 모임, 데이트는 각각 visit_solo_drink, visit_solo_cafe, visit_group, visit_date를 "
+        "visit_purposes에 넣으세요. 2차·3차나 밥 먹고 한 잔 더는 visit_second_round를 사용하세요. "
+        "2차 카페는 CAFE로 유지하세요. 혼술만 요청한 경우 분위기 조건을 추가하지 마세요. "
         "필수 분위기와 선호 분위기를 각각 required_moods, preferred_moods로 전달하세요. "
         "잔잔한 술집, 조용한 술집은 PUB과 필수 mood_calm입니다. 아늑함을 차분함으로 대신하지 마세요. "
         "기본 limit은 5이며 요청에 명시된 수는 도구의 범위 내에서 반영하세요. "
@@ -97,7 +106,7 @@ def instructions(region):
         "식이 제한, 영업시간 등은 unverified_conditions에 원문의 표현과 종류를 보존하세요. "
         "만남이나 회식 전 커피처럼 방문 배경만 말한 경우에는 이를 매장 조건으로 추가하지 마세요. "
         "헌팅, 소개팅, 낯선 사람과 어울리기 같은 조건을 일반 업종이나 활기찬 분위기로 바꾸지 마세요. "
-        "매장·메뉴·가격·근거는 도구 응답만 사용하세요. 파일, 셸, 웹은 사용하지 마세요."
+        "입력에 나온 조건만 사용하세요. 파일, 셸, 웹은 사용하지 마세요."
     )
 
 
@@ -179,6 +188,36 @@ def codex_model_overrides():
     return overrides
 
 
+def cli_output_schema(node):
+    """Adapt the MCP schema to the CLI's strict structured output format."""
+    schema = {key: node[key] for key in ("type", "description", "enum", "const", "$ref") if key in node}
+    if "$defs" in node:
+        schema["$defs"] = {key: cli_output_schema(value) for key, value in node["$defs"].items()}
+    if "anyOf" in node:
+        schema["anyOf"] = [cli_output_schema(value) for value in node["anyOf"]]
+    if "items" in node:
+        schema["items"] = cli_output_schema(node["items"])
+    if node.get("type") == "object":
+        properties = {}
+        for name, value in node["properties"].items():
+            field = cli_output_schema(value)
+            if name not in node.get("required", ()) and not any(
+                option.get("type") == "null" for option in field.get("anyOf", [field])
+            ):
+                field = {"anyOf": [field, {"type": "null"}]}
+            properties[name] = field
+        schema.update(properties=properties, required=list(properties), additionalProperties=False)
+    return schema
+
+
+def omit_null_fields(value):
+    if isinstance(value, dict):
+        return {key: omit_null_fields(item) for key, item in value.items() if item is not None}
+    if isinstance(value, list):
+        return [omit_null_fields(item) for item in value]
+    return value
+
+
 def cli_events(stdout):
     if len(stdout) > MAX_CLI_OUTPUT:
         raise VenueLlmError("LLM_INVALID_RESPONSE")
@@ -187,35 +226,19 @@ def cli_events(stdout):
         if any(not isinstance(event, dict) for event in events):
             raise ValueError("CLI event must be an object")
         items = [event["item"] for event in events if event.get("type") == "item.completed"]
-        if any(item.get("type") in {"command_execution", "file_change", "web_search"} for item in items):
-            raise ValueError("CLI used a different tool")
-        calls = [item for item in items if item.get("type") == "mcp_tool_call"]
-        call, = calls
-        if call.get("server") != "venue" or call.get("tool") != TOOL_NAME:
-            raise ValueError("Unexpected CLI MCP event")
-        if call.get("status") == "failed":
-            raise VenueLlmError("MCP_REQUEST_REJECTED")
-        if call.get("status") != "completed":
-            raise ValueError("Unexpected CLI MCP event")
-        result = call["result"]
-        if result.get("is_error") or result.get("isError"):
-            raise VenueLlmError("MCP_REQUEST_REJECTED")
-        structured = result.get("structured_content", result.get("structuredContent"))
-        if structured is None:
-            # Older CLI events may wrap the MCP result in a text content block.
-            block, = result["content"]
-            if block.get("type") != "text":
-                raise ValueError("Unexpected MCP content")
-            structured = json.loads(block["text"])
-        if not isinstance(structured, dict) or not isinstance(call["arguments"], dict):
-            raise ValueError("Unexpected MCP argument or result shape")
+        if any(item.get("type") in {"command_execution", "file_change", "web_search", "mcp_tool_call"} for item in items):
+            raise ValueError("Unexpected CLI tool execution")
+        message, = [item for item in items if item.get("type") == "agent_message"]
+        arguments = json.loads(message["text"])
+        if not isinstance(arguments, dict):
+            raise ValueError("Unexpected search condition shape")
     except (ValueError, TypeError, KeyError, AttributeError):
         raise VenueLlmError("LLM_INVALID_RESPONSE") from None
     # Some CLI versions emit no model metadata; leave it unset in that case.
     model = next((event["model"] for event in reversed(events)
                   if event.get("type") in {"turn.started", "turn.completed"}
                   and isinstance(event.get("model"), str) and event["model"]), None)
-    return VenueToolCall(TOOL_NAME, call["arguments"], structured, model)
+    return VenueToolCall(TOOL_NAME, omit_null_fields(arguments), model=model)
 
 
 class CodexCliVenueProvider:
@@ -226,20 +249,19 @@ class CodexCliVenueProvider:
 
     def __init__(self, mcp_client):
         self.executable = shutil.which(os.environ.get("VENUE_CODEX_CLI") or ("codex.exe" if os.name == "nt" else "codex"))
-        self.mcp_command = getattr(mcp_client, "command", None)
-        if not settings.LOCAL_DEMO or not self.executable or not self.mcp_command:
+        if not settings.LOCAL_DEMO or not self.executable or not getattr(mcp_client, "command", None):
             raise VenueLlmError("LLM_NOT_CONFIGURED")
 
     def call(self, message, region, schema):
         if not CLI_SLOTS.acquire(blocking=False):
             raise VenueLlmError("LLM_BUSY")
         try:
-            return self._call(message, region)
+            return self._call(message, region, schema)
         finally:
             CLI_SLOTS.release()
 
-    def _call(self, message, region):
-        # Preserve the existing local ChatGPT login without forwarding API keys to the CLI or MCP child.
+    def _call(self, message, region, schema):
+        # Preserve the existing local ChatGPT login with a limited environment.
         environment = {
             name: value for name, value in os.environ.items() if name.upper() in {
                 "PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "SYSTEMDRIVE", "COMSPEC", "TEMP", "TMP",
@@ -247,12 +269,10 @@ class CodexCliVenueProvider:
                 "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "SSL_CERT_FILE", "SSL_CERT_DIR",
             }
         }
-        environment["VENUE_MCP_REQUEST_TEXT"] = message
         process_options = {
             "capture_output": True, "text": True, "encoding": "utf-8", "errors": "replace",
             "env": environment, "shell": False, "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0),
         }
-        executable, *mcp_args = self.mcp_command
         try:
             with TemporaryDirectory(prefix="venue-codex-cli-") as directory:
                 auth = subprocess.run(
@@ -260,22 +280,19 @@ class CodexCliVenueProvider:
                 )
                 if auth.returncode or "Logged in using ChatGPT" not in auth.stdout + auth.stderr:
                     raise VenueLlmError("LLM_AUTH_FAILED")
+                schema_path = Path(directory) / "search-conditions.json"
+                schema_path.write_text(json.dumps(cli_output_schema(schema), ensure_ascii=False), encoding="utf-8")
                 result = subprocess.run([
                     self.executable, "exec", "--ephemeral", "--ignore-user-config", "--skip-git-repo-check",
                     "--json", "--color", "never", "--sandbox", "read-only", "--cd", directory,
+                    "--output-schema", str(schema_path),
                     *codex_model_overrides(),
                     "-c", 'forced_login_method="chatgpt"', "-c", 'approval_policy="never"',
                     "-c", "features.shell_tool=false", "-c", "features.apps=false",
                     "-c", "features.view_image=false", "-c", "features.skill_mcp_dependency_install=false",
                     "-c", 'web_search="disabled"', "-c", "project_doc_max_bytes=0",
-                    "-c", f"mcp_servers.venue.command={json.dumps(executable)}",
-                    "-c", f"mcp_servers.venue.args={json.dumps(mcp_args)}",
-                    "-c", f'mcp_servers.venue.enabled_tools=["{TOOL_NAME}"]',
-                    "-c", 'mcp_servers.venue.env_vars=["VENUE_MCP_REQUEST_TEXT"]',
-                    "-c", 'mcp_servers.venue.env={PYTHONUTF8="1", PYTHONIOENCODING="utf-8", NO_PROXY="127.0.0.1,localhost"}',
-                    "-c", "mcp_servers.venue.required=true", "-c", "mcp_servers.venue.startup_timeout_sec=12",
-                    "-c", "mcp_servers.venue.tool_timeout_sec=15", "-",
-                ], input=instructions(region) + "\n\n사용자 질문:\n" + message,
+                    "-",
+                ], input=instructions(region, plan_only=True) + "\n\n사용자 질문:\n" + message,
                     cwd=directory, timeout=CLI_TIMEOUT_SECONDS, **process_options)
         except subprocess.TimeoutExpired:
             raise VenueLlmError("LLM_TIMEOUT") from None
@@ -368,20 +385,19 @@ def run_venue_llm_concierge(message, *, mcp_client, region=None, provider=None):
         if (
             not isinstance(plan, VenueToolCall) or plan.name != TOOL_NAME or not isinstance(plan.arguments, dict)
             or not Draft202012Validator(schema).is_valid(plan.arguments)
-            or (provider_name == "codex_cli" and plan.result is None)
         ):
             raise VenueLlmError("LLM_INVALID_RESPONSE")
 
         arguments = dict(plan.arguments)
-        if plan.result is None:
-            if region and not arguments.get("region"):
-                arguments["region"] = region
-            arguments.setdefault("limit", 5)
+        if region and not arguments.get("region"):
+            arguments["region"] = region
+        arguments.setdefault("limit", 5)
         if not any(arguments.get(key) for key in (
             "region", "venue_category", "orders", "budget", "required_moods", "preferred_moods", "unverified_conditions",
+            "visit_purposes", "prefer_lower_budget",
         )):
             raise VenueLlmError("LLM_INVALID_RESPONSE")
-        result = plan.result if plan.result is not None else mcp_client.recommend({
+        result = mcp_client.recommend({
             **arguments, "request_text": message.strip(),
         })
         validate_result(result, arguments)
@@ -394,7 +410,8 @@ def run_venue_llm_concierge(message, *, mcp_client, region=None, provider=None):
     else:
         llm["model"] = plan.model
         interpreted = arguments.copy()
-        for key in ("region", "venue_category", "required_moods", "preferred_moods", "budget", "budget_mode", "orders"):
+        for key in ("region", "venue_category", "required_moods", "preferred_moods", "budget", "budget_mode", "orders",
+                    "visit_purposes", "prefer_lower_budget"):
             if key in result["request"]:
                 value = result["request"][key]
                 if value:
@@ -404,7 +421,7 @@ def run_venue_llm_concierge(message, *, mcp_client, region=None, provider=None):
         llm["interpreted_conditions"] = interpreted
         llm["tool_calls"].append({
             "name": TOOL_NAME, "arguments": arguments,
-            "source": "CODEX_CLI_MCP_EVENT" if plan.result is not None else "MCP_STDIO",
+            "source": "MCP_STDIO",
         })
         if result["status"] == "NEEDS_CHECK":
             llm["status"] = "NEEDS_CONFIRMATION"
@@ -419,7 +436,10 @@ def run_venue_llm_concierge(message, *, mcp_client, region=None, provider=None):
             llm["message"] = NO_MATCH_MESSAGES.get(reason, "조건에 맞는 매장을 찾지 못했습니다.")
         else:
             llm["status"] = "OK"
-            llm["message"] = "조건에 맞는 매장을 찾았습니다."
+            llm["message"] = (
+                "자료에 기재된 1인 예산을 비교했습니다. 실제 주문 금액은 매장에서 확인해 주세요."
+                if result["request"].get("prefer_lower_budget") else "조건에 맞는 매장을 찾았습니다."
+            )
         return {"success": True, "mcp": result, "llm": llm}
 
     return {"success": False, "code": code, "mcp": None, "llm": {**llm, "message": ERROR_MESSAGES[code]}}

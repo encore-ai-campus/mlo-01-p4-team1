@@ -12,7 +12,7 @@ from typing import Annotated, Any, Literal
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StringConstraints, model_validator
 
 from venue_csv_catalog import add_csv_venues
 from venue_forecast import KST, fetch_forecasts, project_endpoint, timestamp
@@ -20,9 +20,10 @@ from venue_nearby import PROVINCE_LABELS, RADIUS_M, SeoulPlaceIndex, display_dis
 from venue_public_catalog import PublicCatalogReader
 from venue_search_intent import (
     APPROXIMATE_BUDGET, BudgetBand, CALM_WORDS, UnverifiedCondition, VenueCategory, budget_from_text,
-    compile_menu_words, explicit_menu_tags, per_person_budget, query_tags, required_mood_tags,
-    unverified_venue_conditions, venue_categories,
+    compile_menu_words, explicit_menu_tags, has_budget_amount, per_person_budget, query_tags,
+    required_mood_tags, unverified_venue_conditions, venue_categories, wants_lower_budget,
 )
+from venue_visit_purposes import VISIT_PURPOSES, VisitPurpose, requested_visit_purposes, second_round_menu_names
 from verify_tag_weather import expand, match_venues, normalize, read_tags, resolve, verify_pilot
 
 
@@ -179,8 +180,8 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
     read_only = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True)
 
     @server.tool(annotations=read_only)
-    def list_venue_tags(kind: Literal["MOOD", "CUISINE", "MENU_TYPE"] | None = None) -> dict[str, Any]:
-        """점주와 손님이 함께 쓰는 분위기·요리 계열·메뉴 유형 및 검색 지역을 조회합니다."""
+    def list_venue_tags(kind: Literal["MOOD", "CUISINE", "MENU_TYPE", "VISIT_PURPOSE"] | None = None) -> dict[str, Any]:
+        """분위기·요리·메뉴·방문 목적 태그와 검색 지역을 조회합니다."""
         catalog, locations = current_catalog()
         available_regions = set(place_index.region_labels)
         available_regions.update(station_label(rows[0]["name"]) for rows in place_index.stations.values())
@@ -203,6 +204,12 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
                     "aliases": [alias for alias in tag["aliases"].split("|") if alias],
                 }
                 for tag in tags.values() if kind is None or tag["kind"] == kind
+            ] + [
+                {
+                    "id": purpose, "kind": "VISIT_PURPOSE", "label": definition.label,
+                    "parent_id": None, "aliases": list(definition.aliases),
+                }
+                for purpose, definition in VISIT_PURPOSES.items() if kind in (None, "VISIT_PURPOSE")
             ],
         }
 
@@ -224,12 +231,19 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
         budget_mode: Annotated[Literal["PREFER", "REQUIRE"], Field(
             description="PREFER는 예산에 가까운 순서, REQUIRE는 확인된 금액이 범위에 드는 매장만 반환.",
         )] = "PREFER",
+        prefer_lower_budget: Annotated[StrictBool, Field(
+            description="가성비·저렴한 곳을 원하면 true. 금액이 없을 때 임의의 상한을 추가하지 않습니다.",
+        )] = False,
+        visit_purposes: Annotated[list[VisitPurpose], Field(
+            max_length=len(VisitPurpose), description="혼술 visit_solo_drink, 혼카페 visit_solo_cafe, "
+            "단체 모임 visit_group, 데이트 visit_date, 2차 visit_second_round.",
+        )] | None = None,
         query: RequestText | None = None,
         unverified_conditions: Annotated[list[UnverifiedCondition], Field(
             max_length=8, description="매장 데이터에서 확인할 수 없는 조건을 원문대로 전달. 예: 헌팅, 소개팅, 휠체어 접근.",
         )] | None = None,
         request_text: Annotated[RequestText | None, Field(
-            description="호스트가 전달하는 원문. 명시한 지역·업종·메뉴·1인 예산과 미확인 조건을 보존합니다.",
+            description="호스트가 전달하는 원문. 명시한 지역·업종·메뉴·예산·방문 목적을 보존합니다.",
         )] = None,
     ) -> dict[str, Any]:
         """날씨와 업종·분위기·메뉴·예산 조건으로 매장을 추천합니다.
@@ -280,6 +294,8 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
         allow_pairing = query is None
         remaining = original_place.remaining_text
         phrase = normalize(remaining)
+        lower_budget_text = wants_lower_budget(remaining)
+        prefer_lower_budget = prefer_lower_budget or lower_budget_text
         if query is not None:
             inferred_category, inferred_moods, inferred_menus, allow_pairing = query_tags(
                 remaining, labels["MOOD"], menu_words, menu_pattern, ancestors,
@@ -295,7 +311,17 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
             if len(categories) == 1:
                 venue_category = next(iter(categories))
             required.update(required_mood_tags(phrase, labels["MOOD"], honor_preference=True))
-        if host_text or (orders is not None and query is not None):
+        purposes = set(visit_purposes or ()) | requested_visit_purposes(remaining, venue_category)
+        second_round = VisitPurpose.SECOND_ROUND in purposes
+        review_required = purposes - {VisitPurpose.SECOND_ROUND}
+        if venue_category is None:
+            purpose_categories = {VISIT_PURPOSES[purpose].category for purpose in purposes} - {None}
+            if len(purpose_categories) == 1:
+                venue_category = purpose_categories.pop()
+            elif second_round:
+                venue_category = "PUB"
+        only_menu = False
+        if host_text or (query is not None and (orders is not None or second_round)):
             requested, only_menu = explicit_menu_tags(phrase, menu_words, menu_pattern)
             menu_orders = preserve_menu_orders(menu_orders, requested, only_menu, labels, ancestors)
             allow_pairing = allow_pairing and not only_menu
@@ -312,9 +338,12 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
                 budget, strict_budget = original_budget, explicit_limit
             elif budget is None:
                 budget = original_budget
+        if host_text and lower_budget_text and not has_budget_amount(host_text):
+            budget, strict_budget = None, False
         preferred.difference_update(required)
         spatial_search = bool(search_location and search_location.points)
-        if query is not None and not (venue_category or required or preferred or menu_orders or budget
+        if query is not None and not (venue_category or required or preferred or menu_orders or budget or purposes
+                                      or prefer_lower_budget
                                       or original_place.area or spatial_search or empty_reason):
             raise ValueError("찾는 지역이나 원하는 업종·분위기를 입력해 주세요.")
         if strict_budget and budget is None:
@@ -363,11 +392,19 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
             scoped_venues = [row for row in scoped_venues if required <= expand(row["mood_tag_ids"], ancestors)]
             if not scoped_venues:
                 empty_reason = "NO_MOOD"
+        if scoped_venues and review_required:
+            scoped_venues = [row for row in scoped_venues if review_required.issubset(row.get("visit_purposes", ()))]
+            if not scoped_venues:
+                empty_reason = "NO_VISIT_PURPOSE"
         if scoped_venues and strict_budget:
             scoped_venues = [
                 row for row in scoped_venues if (price := listed_budget(row)) is not None
                 and budget.distance(price) == 0
             ]
+            if not scoped_venues:
+                empty_reason = "NO_BUDGET"
+        if scoped_venues and prefer_lower_budget:
+            scoped_venues = [row for row in scoped_venues if listed_budget(row) is not None]
             if not scoped_venues:
                 empty_reason = "NO_BUDGET"
         pairing_types = ()
@@ -394,6 +431,24 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
         for menu_id, menu in menus.items():
             menu_ids_by_venue.setdefault(menu["venue_id"], []).append(menu_id)
             expanded_menu_types[menu_id] = expand(menu["menu_type_tag_ids"], ancestors)
+        second_round_menu_matches = {}
+        if second_round and base:
+            eligible = []
+            for venue, matched in base:
+                if VisitPurpose.SECOND_ROUND in venue.get("visit_purposes", ()):
+                    eligible.append((venue, matched))
+                    continue
+                if only_menu:
+                    continue
+                venue_id = venue["venue_id"]
+                if names := second_round_menu_names(
+                    venue, (menus[menu_id] for menu_id in menu_ids_by_venue.get(venue_id, ())), expanded_menu_types,
+                ):
+                    second_round_menu_matches[venue_id] = names
+                    eligible.append((venue, matched))
+            base = eligible
+            if not base:
+                empty_reason = "NO_SECOND_ROUND"
         by_venue = await fetch_forecasts(
             {venue["venue_id"]: locations.get(venue["venue_id"]) for venue, _ in base}, visit,
             project_url=project_url, demo_open_meteo=demo_open_meteo,
@@ -408,6 +463,7 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
             budget_example = venue.get("budget_example")
             price = listed_budget(venue)
             budget_distance = budget.distance(price) if budget and price is not None else None
+            round_menus = second_round_menu_matches.get(venue_id)
 
             requested_items = {menu_id for group in matched["matched_menu_groups"] for menu_id in group}
             paired_menu = None
@@ -458,6 +514,12 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
                 **({"weather_match": weather_match} if weather_match else {}),
                 "matched_moods": [{"id": tag_id, "label": tags[tag_id]["label_ko"]}
                                   for tag_id in matched["matched_mood_ids"]],
+                **({"matched_purposes": [
+                    {
+                        "id": purpose, "label": VISIT_PURPOSES[purpose].label,
+                        **({"menu_names": round_menus} if purpose == VisitPurpose.SECOND_ROUND and round_menus else {}),
+                    } for purpose in sorted(purposes)
+                ]} if purposes else {}),
                 "matched_orders": [
                     [{"menu_id": menu_id, "name": menus[menu_id]["name"],
                       "cuisine_tag_ids": menus[menu_id]["cuisine_tag_ids"],
@@ -476,10 +538,12 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
             # Missing budgets follow known budgets within the same relevance tier.
             tie_breakers = (
                 budget is not None and budget_distance is None, budget_distance or 0,
+                price if prefer_lower_budget else 0,
                 distance if distance is not None else 0, venue_id,
             )
             mood_priority = -len(result["matched_moods"])
-            rank = (paired_menu is None, pairing_priority != 0, -weather_score, mood_priority, *tie_breakers)
+            rank = (paired_menu is None, pairing_priority != 0, -weather_score, bool(round_menus),
+                    mood_priority, *tie_breakers)
             ranked.append((rank, result))
 
         counts = {"ranked": len(ranked), "pending": 0, "excluded": 0}
@@ -501,6 +565,8 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
                 "region": region, "visit_at": visit.isoformat(),
                 "venue_category": venue_category, "required_moods": sorted(required),
                 "preferred_moods": sorted(preferred),
+                **({"visit_purposes": sorted(purposes)} if purposes else {}),
+                **({"prefer_lower_budget": True} if prefer_lower_budget else {}),
                 **({"orders": menu_orders} if menu_orders else {}),
                 "budget": budget.model_dump() if budget else None,
                 **({"budget_mode": "REQUIRE" if strict_budget else "PREFER"} if budget else {}),

@@ -41,6 +41,21 @@ class TeamCatalogTests(unittest.TestCase):
         self.directory = Path(self.temporary.name)
         self.addCleanup(self.temporary.cleanup)
 
+    def test_excludes_mislabeled_facility_and_its_menu_without_editing_csv(self):
+        facility = {**venue("daycare"), "매장명": "단비 어린이집 (본원)",
+                    "업종구분": "술집", "세부카테고리": "생맥주 전문"}
+        cafe = {**venue("cafe"), "매장명": "어린이집 앞 카페"}
+        pair(self.directory, "서울", [facility, cafe], [menu(facility, "m1"), menu(cafe, "m2")])
+        originals = {path: path.read_bytes() for path in self.directory.glob("*.csv")}
+
+        data = prepare(self.directory)
+
+        self.assertEqual([row["venue_id"] for row in data["venues"]], ["cafe"])
+        self.assertEqual([row["menu_id"] for row in data["menus"]], ["m2"])
+        self.assertEqual(data["audit"]["서울"]["excluded_venues"], {"out_of_scope_facility": 1})
+        self.assertEqual(data["audit"]["서울"]["excluded_menus"], {"out_of_scope_facility": 1})
+        self.assertEqual({path: path.read_bytes() for path in originals}, originals)
+
     def test_new_csv_pairs_preserve_ids_and_capital_provinces(self):
         rows = [
             venue("seoul"),
