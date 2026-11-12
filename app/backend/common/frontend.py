@@ -17,7 +17,11 @@ def index(request):
         return HttpResponse('사용자 화면 빌드를 준비하고 있습니다.', status=503, content_type='text/plain; charset=utf-8')
     response = FileResponse((Path(settings.FRONTEND_DIST)/'index.html').open('rb'), content_type='text/html; charset=utf-8')
     response['Cache-Control'] = 'no-store'
-    response['Referrer-Policy'] = 'no-referrer'
+    # Keep account/recovery/passkey routes strictly no-referrer, while allowing origin referrer for map tile CDNs on venue routes.
+    if request.path in ('/venues', '/platform/consumer'):
+        response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    else:
+        response['Referrer-Policy'] = 'no-referrer'
     return response
 
 

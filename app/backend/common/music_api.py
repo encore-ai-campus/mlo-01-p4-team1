@@ -15,6 +15,7 @@ from backend.music.models import Track, Album, Tag, TrackTag
 from backend.music.catalog import publish
 from backend.recommendation.policy import THEMES, groups
 from backend.recommendation.models import Catalog
+from backend.recommendation.service import current_catalog
 from pipeline.music.normalize import convert, RAW_SCHEMA, RESULT_SCHEMA, FIELDS
 from .identity import admin
 from .models import AdminAction, Review, ReviewChange, MusicSource, TrackOrigin
@@ -179,9 +180,11 @@ class Readiness(Endpoint):
             if not eligible(track,options,list(GENRES),list(SPEEDS),[]):continue
             common_count+=1;duration+=track['duration_ms']
             for code in weather_counts:weather_counts[code]+=weather_fit(track,code) is not None
+        active_catalog = current_catalog()
         return Response({'registered_count':registered_count,'approved_review_count':Review.objects.filter(status='approved').count(),
                          'common_eligible_count':common_count,'duration_ms':duration,
                          'weather_counts':weather_counts,
+                         'active_catalog_version':active_catalog.version if active_catalog else None,
                          'catalog_versions':list(Catalog.objects.order_by('-publication__id').values('version','ready','is_test')[:10]),
                          'is_test':settings.LOCAL_DEMO,'as_of':timezone.now().isoformat().replace('+00:00','Z')})
 

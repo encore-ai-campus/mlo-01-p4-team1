@@ -86,13 +86,15 @@ class DemoContext(Endpoint):
 
 class Weather(Endpoint):
     def get(self,request):
+        region_id = (request.query_params.get('region_id') or '').strip()
+        require(region_id, 'VALIDATION_ERROR', '지역을 선택해 주세요.')
         if settings.WEATHER_PROVIDER == 'backend.weather.live.obtain':
             from backend.weather.live import display
-            return Response(display(request.query_params.get('region_id'),timezone.now()))
+            return Response(display(region_id, timezone.now()))
         if settings.INTEGRATION_ENABLED and settings.WEATHER_PROVIDER == 'backend.weather.adapter.obtain':
             from backend.weather.adapter import display
-            return Response(display(request.query_params.get('region_id'),timezone.now()))
-        return Response(obtain(request.query_params.get('region_id'),timezone.now()))
+            return Response(display(region_id, timezone.now(), request_id=request.request_id))
+        return Response(obtain(region_id, timezone.now()))
 
 
 class Jobs(Endpoint):

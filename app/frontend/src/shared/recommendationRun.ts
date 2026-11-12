@@ -1,8 +1,14 @@
 import {api,ApiError,key} from './api';
 
-export type JobIntent={path:string;body:unknown;id:string};
+export type JobIntent={path:string;body:unknown;id:string;jobId?:string};
 export type JobState={job_id:string;status:string;playlist_id:string|null;error?:{message:string}|null};
 type Accepted={job_id?:string};
+
+export function isDefiniteSubmissionRejection(error:unknown):boolean{
+  if(!(error instanceof ApiError))return false;
+  return (error.status>=400&&error.status<500&&error.status!==408)||
+    (error.status===503&&['POLICY_NOT_READY','FORECAST_UNAVAILABLE'].includes(error.code));
+}
 
 // Cancelling a fetch alone cannot cancel a job already accepted by the server.
 export class RecommendationRun {
@@ -11,7 +17,7 @@ export class RecommendationRun {
   private cancelKey=key();
   private submission:Promise<Accepted>;
   constructor(readonly intent:JobIntent,private transport:typeof api=api){
-    this.submission=this.submit();
+    this.submission=intent.jobId?Promise.resolve({job_id:intent.jobId}):this.submit();
   }
   private submit(){
     return this.transport<Accepted>(this.intent.path,'POST',this.intent.body,this.intent.id,this.lifetime.signal);
@@ -23,7 +29,7 @@ export class RecommendationRun {
     this.polling.abort();
     const accepted=await this.submission.catch(error=>{
       // A definite registration rejection created no job; do not leave the UI locked.
-      if(error instanceof ApiError&&error.status>=400&&error.status<500)return {job_id:undefined};
+      if(isDefiniteSubmissionRejection(error))return {job_id:undefined};
       // An uncertain POST is replayed with its original idempotency key.
       this.submission=this.submit();return this.submission;
     });

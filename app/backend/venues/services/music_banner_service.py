@@ -17,10 +17,47 @@ def get_owner_bridges(venue_ids: List[str]) -> Dict[str, Any]:
     return bridges
 
 
+def expand_venue_id_aliases(venue_ids: Any) -> list[str]:
+    """VN_SL_xxxx <-> venue_seoul_xxxx 별칭 ID를 포함해 중복 없이 확장."""
+    expanded: list[str] = []
+    seen: set[str] = set()
+    for vid in venue_ids:
+        if not vid:
+            continue
+        candidates = [vid]
+        if vid.startswith('VN_SL_') and vid[6:].isdigit():
+            candidates.append(f"venue_seoul_{int(vid[6:]):04d}")
+        elif vid.startswith('venue_seoul_') and vid[12:].isdigit():
+            candidates.append(f"VN_SL_{int(vid[12:]):04d}")
+        for candidate in candidates:
+            if candidate not in seen:
+                seen.add(candidate)
+                expanded.append(candidate)
+    return expanded
+
+
+def _build_approved_banner(
+    playlist_id: Any,
+    playlist_title: str,
+    curator_note: str,
+    music_mood: str,
+) -> Dict[str, Any]:
+    return {
+        'has_music_banner': True,
+        'banner_type': 'APPROVED_PLAYLIST',
+        'playlist_id': playlist_id,
+        'playlist_title': playlist_title,
+        'curator_note': curator_note,
+        'music_mood': music_mood,
+        'badge_text': '🎵 매장 공식 선곡표',
+    }
+
+
 def get_venue_music_banner(
     venue: Dict[str, Any],
     current_weather: str = 'CLEAR',
     bridge: Any = _LOOKUP,
+    applied_playlist: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     방문객 대상 매장 분위기 및 오늘 날씨 맞춤 추천 음악(BGM 플레이리스트 큐레이션) 배너 데이터를 바인딩.
@@ -37,15 +74,22 @@ def get_venue_music_banner(
     if bridge is _LOOKUP:
         bridge = VenueOwnerBridge.objects.filter(venue_id=venue_id).first()
     if bridge and bridge.track1_partner_music_id:
-        return {
-            'has_music_banner': True,
-            'banner_type': 'APPROVED_PLAYLIST',
-            'playlist_id': bridge.track1_partner_music_id,
-            'playlist_title': f"{venue_name} 공식 추천 플레이리스트",
-            'curator_note': "매장 점주가 승인한 공식 선곡표입니다.",
-            'music_mood': music_mood,
-            'badge_text': '🎵 매장 공식 선곡표',
-        }
+        return _build_approved_banner(
+            playlist_id=bridge.track1_partner_music_id,
+            playlist_title=f"{venue_name} 공식 추천 플레이리스트",
+            curator_note="매장 점주가 승인한 공식 선곡표입니다.",
+            music_mood=music_mood,
+        )
+
+    # 1.5순위: Option A 파트너 워크스페이스에 적용된 공식 플레이리스트
+    if applied_playlist and applied_playlist.get('id'):
+        playlist_name = applied_playlist.get('name') or f"{venue_name} 공식 추천 플레이리스트"
+        return _build_approved_banner(
+            playlist_id=applied_playlist.get('id'),
+            playlist_title=playlist_name,
+            curator_note="매장 파트너 워크스페이스에서 연동한 공식 선곡표입니다.",
+            music_mood=music_mood,
+        )
 
     # 2순위: 매장 분위기·업종 기반 추천음악 스타일 & 동네 날씨 맞춤 선곡 큐레이션 배너
     weather_upper = current_weather.upper()

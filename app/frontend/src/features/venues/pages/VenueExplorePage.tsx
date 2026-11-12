@@ -18,11 +18,34 @@ import { OwnerVenueClaimModal } from '../components/OwnerVenueClaimModal';
 import { OwnerEventPublishModal } from '../components/OwnerEventPublishModal';
 import { MenuItem, VenueEventSummary } from '../types/venue.types';
 import { api } from '../../../shared/api';
-import { weatherLabel, type Weather } from '../../region-weather/WeatherPanel';
+import { forecastHours, weatherLabel, type Weather } from '../../region-weather/WeatherPanel';
 import type { RegionOption } from '../../region-weather/RegionPicker';
 
-export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommendations?: boolean; showServiceHeader?: boolean; enableAi?: boolean }> = ({
+const INCHEON_DISTRICTS = new Set(['강화군', '계양구', '남동구', '동구', '미추홀구', '부평구', '연수구', '옹진군']);
+
+export function findRegionOptionForDistrict(items: RegionOption[], gu: string): RegionOption | undefined {
+  const trimmed = gu.trim();
+  const target = trimmed.startsWith('인천 ') ? trimmed.slice(3).trim() : trimmed;
+  const province =
+    trimmed.startsWith('인천 ') || INCHEON_DISTRICTS.has(trimmed)
+      ? '인천'
+      : trimmed.endsWith('구')
+        ? '서울'
+        : '경기';
+  return items.find((item) => {
+    const itemProvince = item.province?.trim() || '';
+    const itemDistrict = item.district?.trim() || '';
+    const itemName = item.name?.trim() || '';
+    return (
+      (itemProvince.startsWith(province) || itemName.startsWith(province)) &&
+      (itemDistrict === target || itemDistrict.startsWith(`${target} `) || itemDistrict.endsWith(` ${target}`))
+    );
+  });
+}
+
+export const VenueExplorePage: React.FC<{ readOnly?: boolean; allowFeedback?: boolean; showVisitRecommendations?: boolean; showServiceHeader?: boolean; enableAi?: boolean }> = ({
   readOnly = false,
+  allowFeedback = false,
   showVisitRecommendations = false,
   showServiceHeader = false,
   enableAi = false,
@@ -85,6 +108,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
     totalCount,
     loading,
     error,
+    errorStatus,
     reload: reloadVenues,
   } = useVenueList('강남구');
   const conciergeRegion = hasSelectedDistrict ? gu : undefined;
@@ -95,21 +119,19 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
     setLiveWeather(null);
     setWeatherLoading(true);
     setWeather('');
-    const target = gu.startsWith('인천 ') ? gu.slice(3) : gu;
-    const province = gu.startsWith('인천 ') || ['강화군','계양구','남동구','동구','미추홀구','부평구','연수구','옹진군'].includes(gu) ? '인천' : gu.endsWith('구') ? '서울' : '경기';
     const refresh = async () => {
       try {
         const regions = await api<{items: RegionOption[]}>('/api/regions/tree', 'GET', undefined, undefined, controller.signal);
-        const region = regions.items.find(item => item.province?.startsWith(province) && (item.district === target || item.district?.startsWith(`${target} `)));
+        const region = findRegionOptionForDistrict(regions.items || [], gu);
         if (!region) throw new Error('지역 없음');
         const result = await api<Weather>(`/api/weather?region_id=${encodeURIComponent(region.region_id)}`, 'GET', undefined, undefined, controller.signal);
-        const current = result.current;
-        if (result.is_test || !current || current.status === 'stale' || current.status === 'missing' || current.pty === undefined) throw new Error('현재 날씨 없음');
-        const label = weatherLabel(current.pty, current.sky);
+        const slot = forecastHours(result)[0];
+        if (result.is_test || !slot || slot.pty === undefined) throw new Error('현재 날씨 없음');
+        const label = weatherLabel(slot.pty, slot.sky);
         if (label === '확인 불가') throw new Error('현재 날씨 없음');
         if (!controller.signal.aborted) {
-          setLiveWeather({label, area: region.locality || region.name, temperature: typeof current.temperature === 'number' && Number.isFinite(current.temperature) ? current.temperature : null});
-          setWeather([3,7].includes(current.pty) ? 'SNOW' : current.pty > 0 ? 'RAIN' : 'CLEAR');
+          setLiveWeather({label, area: region.locality || region.name, temperature: typeof slot.temperature === 'number' && Number.isFinite(slot.temperature) ? slot.temperature : null});
+          setWeather([3,7].includes(slot.pty) ? 'SNOW' : slot.pty > 0 ? 'RAIN' : 'CLEAR');
         }
       } catch { if (!controller.signal.aborted) { setLiveWeather(null); setWeather(''); } }
       finally { if (!controller.signal.aborted) setWeatherLoading(false); }
@@ -257,8 +279,13 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
           )}
 
           {error && (
-            <div style={{ textAlign: 'center', padding: '30px', color: '#ef4444' }}>
-              ⚠️ {error}
+            <div style={{ textAlign: 'center', padding: '30px', color: '#ef4444' }} role="alert">
+              <p>⚠️ {error}</p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
+                {errorStatus === 401 && <a href="/platform/login">로그인하기</a>}
+                {errorStatus === 403 && <a href="/platform/account">사용자 이용 유형 확인</a>}
+                <button type="button" onClick={() => void reloadVenues()}>다시 불러오기</button>
+              </div>
             </div>
           )}
 
@@ -270,6 +297,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
                 venue={venue}
                 userId={currentUserId}
                 readOnly={readOnly}
+        allowFeedback={allowFeedback}
                 onSelectVenue={handleOpenDetail}
                 onSelectMenu={handleSelectMenu}
               />
@@ -318,7 +346,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
 
           <p className="fp-map-hint">핀을 선택하면 매장 상세를 확인해요.</p>
           <VenueInteractiveMap
-            temperature={null}
+            temperature={liveWeather?.temperature ?? null}
             weather={weather}
             gu={gu}
             venues={venues}
@@ -342,6 +370,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
         isOpen={detailVenueId !== null}
         onClose={() => setDetailVenueId(null)}
         readOnly={readOnly}
+        allowFeedback={allowFeedback}
         onOpenEventModal={handleOpenEvent}
         userId={currentUserId}
         currentWeather={weather}
@@ -373,15 +402,18 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
           <OwnerVenueClaimModal
             isOpen={isClaimModalOpen}
             onClose={() => setIsClaimModalOpen(false)}
-            onSuccess={() => reloadVenues()}
+            onSuccess={(venueId) => {
+              reloadVenues();
+              if (venueId) handleOpenDetail(venueId);
+            }}
           />
 
           {/* 점주 이벤트 발행 모달 */}
           <OwnerEventPublishModal
             isOpen={isPublishEventOpen}
             onClose={() => setIsPublishEventOpen(false)}
-            venueId={venues[0]?.venue_id || 'venue_seoul_0001'}
-            venueName={venues[0]?.venue_name || '대표 매장'}
+            venueId={detailVenue?.venue_id || venues[0]?.venue_id || 'venue_seoul_0001'}
+            venueName={detailVenue?.venue_name || venues[0]?.venue_name || '대표 매장'}
             onSuccess={() => reloadVenues()}
           />
         </>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ensureVenueCsrfHeaders } from '../api/venues.api';
 
 interface ClosureItem {
   venue_id: string;
@@ -17,7 +18,7 @@ export const VenueClosureAdminPage: React.FC = () => {
 
   const loadClosures = () => {
     setLoading(true);
-    fetch('/api/admin/venues/closures')
+    fetch('/api/admin/venues/closures', { credentials: 'same-origin' })
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
@@ -38,9 +39,11 @@ export const VenueClosureAdminPage: React.FC = () => {
     if (!window.confirm(confirmMsg)) return;
 
     try {
+      const csrf = await ensureVenueCsrfHeaders();
       const res = await fetch(`/api/admin/venues/closures/${venueId}/resolve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...csrf },
         body: JSON.stringify({ decision, notes: `관리자 ${decision} 판정` }),
       });
       const data = await res.json();
