@@ -1,6 +1,7 @@
 import {describe,expect,it} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {PlatformAdminHome,type PlatformAdmin} from '../src/features/platform/PlatformSupport';
+import {PlatformSidebar} from '../src/features/platform/Platform';
 import {AdminLayout} from '../src/features/admin/AdminLayout';
 import {AdsAdmin} from '../src/features/admin-ads/AdsAdmin';
 
@@ -129,5 +130,40 @@ describe('legacy muther administrator headers are removed',()=>{
     expect(html).not.toContain(operations);
     expect(html).not.toContain(behavior);
     expect(html).toContain('href="/platform/admin/login"');
+  });
+});
+
+describe('platform administrator sidebar navigation and Kibana guidance',()=>{
+  it('renders /platform/admin and both configured Kibana dashboards in sidebar for authorized admins',()=>{
+    const html=renderToStaticMarkup(<PlatformSidebar path="/platform/review" account={null} admin={admin()}/>);
+    expect(html).toContain('href="/platform/admin"');
+    expect(html).toContain('관리자 대시보드');
+    expect(html).toContain('href="/platform/review"');
+    expect(html).toContain('href="'+operations+'"');
+    expect(html).toContain('운영 대시보드 (Kibana)');
+    expect(html).toContain('href="'+behavior+'"');
+    expect(html).toContain('사용자 행동 분석 (Kibana)');
+    expect(html).toContain('href="/admin/ads"');
+  });
+
+  it('hides sidebar dashboards while passkey step-up is pending or for anonymous visitors',()=>{
+    expect(renderToStaticMarkup(<PlatformSidebar path="/platform" account={null} admin={null}/>)).toBe('');
+    const pendingHtml=renderToStaticMarkup(<PlatformSidebar path="/platform/admin" account={null} admin={admin({passkey_required:true})}/>);
+    expect(pendingHtml).toContain('href="/platform/admin"');
+    expect(pendingHtml).not.toContain('href="'+operations+'"');
+    expect(pendingHtml).not.toContain('href="'+behavior+'"');
+    expect(pendingHtml).not.toContain('href="/admin/ads"');
+    expect(pendingHtml).not.toContain('href="/platform/review"');
+  });
+
+  it('shows Kibana env-var setup guidance when unconfigured and preserves closure shortcut',()=>{
+    const html=render(admin({
+      allowed_menus:[],
+      operations_dashboard:access(operations,{configured:false,path:null}),
+      log_dashboard:access(behavior,{allowed:false,configured:false,path:null}),
+      venue_closure_allowed:true,
+    }));
+    expect(html).toContain('ADMIN_OPERATIONS_DASHBOARD_URL');
+    expect(html).toContain('/platform/review?tab=closures');
   });
 });

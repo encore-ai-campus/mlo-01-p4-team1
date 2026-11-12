@@ -3,7 +3,7 @@ import {call,type Policy} from './api';
 import {passwordValid,PASSWORD_HELP} from '../../shared/accountPolicy';
 
 type DashboardAccess={allowed:boolean;configured:boolean;path:string|null};
-export type PlatformAdmin={role?:string;admin_role?:string|null;passkey_required?:boolean;platform_enabled?:boolean;private_demo_review_allowed?:boolean;csrf_token:string;allowed_menus:{path:string;label:string}[];operations_dashboard?:DashboardAccess;log_dashboard?:DashboardAccess};
+export type PlatformAdmin={role?:string;admin_role?:string|null;passkey_required?:boolean;platform_enabled?:boolean;private_demo_review_allowed?:boolean;csrf_token:string;allowed_menus:{path:string;label:string}[];operations_dashboard?:DashboardAccess;log_dashboard?:DashboardAccess;workspace_review_allowed?:boolean;venue_closure_allowed?:boolean;venue_metrics_allowed?:boolean};
 const LEGACY_DASHBOARD_ROUTES=new Set(['/api/admin/operations/kibana','/api/admin/operations/dashboard','/api/admin/operations/logs']);
 const OPERATIONS_PATH='/api/admin/operations/dashboard';
 const BEHAVIOR_PATH='/api/admin/operations/logs';
@@ -27,14 +27,16 @@ export function PlatformAdminHome({admin}:{admin:PlatformAdmin|null}){
   const remaining=admin.allowed_menus.filter(menu=>menu.path!=='/admin/ads'&&!LEGACY_DASHBOARD_ROUTES.has(menu.path)
     &&(menu.path!=='/platform/review'||canReview));
   const hasDashboards=ads||!!behavior||!!operations;
+  const hasUnconfiguredKibana=Boolean((behavior&&(!behavior.configured||behavior.path!==BEHAVIOR_PATH))||(operations&&(!operations.configured||operations.path!==OPERATIONS_PATH)));
+  const hasOtherTasks=remaining.length>0||Boolean(admin.venue_closure_allowed)||Boolean(admin.venue_metrics_allowed);
   return <section className="p-card p-admin-overview"><h2>메인 플랫폼 관리자</h2><p>이 계정에 허용된 관리자 업무만 표시합니다.</p>
     {hasDashboards&&<><h3>대시보드</h3><div className="p-admin-dashboard-grid" aria-label="관리자 전용 대시보드">
       {ads&&<article className="p-admin-dashboard-tile"><h4>광고 대시보드</h4><p>광고 등록·게시 관리와 노출·클릭 현황을 확인합니다.</p><a className="p-admin-dashboard-link" href="/admin/ads">광고 대시보드 열기 →</a></article>}
       {behavior&&<DashboardTile label="사용자 행동 분석" description="Kibana 사용자 행동 분석 대시보드입니다." expected={BEHAVIOR_PATH} access={behavior}/>}
       {operations&&<DashboardTile label="운영 대시보드" description="Kibana 서비스 운영 지표 대시보드입니다." expected={OPERATIONS_PATH} access={operations}/>}
-    </div></>}
-    {remaining.length>0&&<><h3>기타 관리 업무</h3><div className="p-admin-menu">{remaining.map(menu=><a key={menu.path} href={menu.path}>{menu.label} →</a>)}</div></>}
-    {!hasDashboards&&remaining.length===0&&<p>허용된 관리자 메뉴가 없습니다. 운영 권한을 확인해 주세요.</p>}
+    </div>{hasUnconfiguredKibana&&<p className="p-muted">Kibana 대시보드가 ‘연결 준비 중’으로 표시된다면 서버 환경변수(ADMIN_OPERATIONS_DASHBOARD_URL, ADMIN_LOG_DASHBOARD_URL, ADMIN_KIBANA_ALLOWED_HOSTS) 설정을 확인해 주세요.</p>}</>}
+    {hasOtherTasks&&<><h3>기타 관리 업무</h3><div className="p-admin-menu">{remaining.map(menu=><a key={menu.path} href={menu.path}>{menu.label} →</a>)}{(admin.venue_closure_allowed||admin.venue_metrics_allowed)&&<a href="/platform/review?tab=closures">폐업 제보 검수 · 현황 →</a>}</div></>}
+    {!hasDashboards&&!hasOtherTasks&&<p>허용된 관리자 메뉴가 없습니다. 운영 권한을 확인해 주세요.</p>}
   </section>;
 }
 

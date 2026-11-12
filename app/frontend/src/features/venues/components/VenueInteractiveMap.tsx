@@ -97,7 +97,7 @@ function pinLabel(venue: VenueItem) {
   return '지도에서 ' + category + ' ' + venue.venue_name + event + ' 상세 보기';
 }
 
-function CoordinatePins({ venues, onSelectVenue }: Pick<VenueInteractiveMapProps, 'venues' | 'onSelectVenue'>) {
+function CoordinatePins({ venues, onSelectVenue, notice = '지도 타일 연결 대기 · 매장 위치 핀' }: Pick<VenueInteractiveMapProps, 'venues' | 'onSelectVenue'> & { notice?: string }) {
   const pins = venues.filter(({ latitude, longitude }) => Number.isFinite(latitude) && Number.isFinite(longitude)).slice(0, 40);
   if (!pins.length) return null;
 
@@ -116,7 +116,7 @@ function CoordinatePins({ venues, onSelectVenue }: Pick<VenueInteractiveMapProps
       backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)',
       backgroundSize: '36px 36px',
     }}>
-      <p style={{ margin: '12px', fontSize: '12px', color: '#334155' }}>지도 타일 연결 대기 · 매장 위치 핀</p>
+      <p style={{ margin: '12px', fontSize: '12px', color: '#334155' }}>{notice}</p>
       {pins.map((venue) => (
         <button
           key={venue.venue_id}
@@ -156,6 +156,7 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
   const [locationError, setLocationError] = useState('');
   const [leafletReady, setLeafletReady] = useState(Boolean(window.L));
   const [leafletUnavailable, setLeafletUnavailable] = useState(false);
+  const [tileBlocked, setTileBlocked] = useState(false);
   const cameraTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [pendingBounds, setPendingBounds] = useState<{ bounds: MapBounds; nearestGu: string } | null>(null);
 
@@ -213,11 +214,56 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
         zoomControl: false,
       });
 
-      // OpenStreetMap 공식 한글 도로명 타일 레이어 (API 키 불필요, 무제한 무료)
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 19,
-      }).addTo(map);
+      // 기본 타일은 CARTO Voyager CDN을 사용하고, 오류 시 OSM 타일 -> 좌표 기반 핀으로 순차 폴백한다.
+      const tileSources = [
+        {
+          url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+          options: {
+            subdomains: 'abcd',
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            maxZoom: 19,
+            referrerPolicy: 'strict-origin-when-cross-origin',
+          },
+        },
+        {
+          url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          options: {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+            referrerPolicy: 'strict-origin-when-cross-origin',
+          },
+        },
+      ];
+
+      let activeLayer: any = null;
+      const attachTileLayer = (sourceIndex: number) => {
+        if (activeLayer) {
+          map.removeLayer(activeLayer);
+          activeLayer = null;
+        }
+        const cfg = tileSources[sourceIndex];
+        if (!cfg) {
+          setTileBlocked(true);
+          return;
+        }
+        let loaded = 0;
+        let errors = 0;
+        let switched = false;
+        const layer = L.tileLayer(cfg.url, cfg.options);
+        layer.on('tileload', () => {
+          loaded += 1;
+          setTileBlocked(false);
+        });
+        layer.on('tileerror', () => {
+          errors += 1;
+          if (!switched && loaded === 0 && errors >= 4) {
+            switched = true;
+            attachTileLayer(sourceIndex + 1);
+          }
+        });
+        activeLayer = layer.addTo(map);
+      };
+      attachTileLayer(0);
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
       markersLayerRef.current = L.layerGroup().addTo(map);
@@ -336,8 +382,14 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
 
   return (
     <div className="fitplace-map" style={{ position: 'relative', width: '100%', height: '520px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
-      <div ref={mapContainerRef} role="region" aria-label="매장 지도" style={{ width: '100%', height: '100%' }} />
-      {!leafletReady && leafletUnavailable && <CoordinatePins venues={venues} onSelectVenue={onSelectVenue} />}
+      <div ref={mapContainerRef} role="region" aria-label="매장 지도" style={{ width: '100%', height: '100%', backgroundColor: '#e8eef5' }} />
+      {((!leafletReady && leafletUnavailable) || tileBlocked) && (
+        <CoordinatePins
+          venues={venues}
+          onSelectVenue={onSelectVenue}
+          notice={tileBlocked ? '외부 지도 타일 서버 응답 제한 · 매장 위치 좌표 뷰' : '지도 타일 연결 대기 · 매장 위치 핀'}
+        />
+      )}
       <button className="fitplace-location" type="button" aria-label="내 위치로 이동" onClick={() => {
         if (!navigator.geolocation) { setLocationError('위치 기능을 사용할 수 없습니다.'); return; }
         navigator.geolocation.getCurrentPosition((position) => { setLocationError(''); mapInstanceRef.current?.setView([position.coords.latitude, position.coords.longitude], 15); }, () => setLocationError('위치를 확인할 수 없습니다. 위치 권한을 확인해 주세요.'));

@@ -19,7 +19,7 @@ def account_data_for_user(user):
     menus = []
     if active:
         if (
-            getattr(settings, 'PLATFORM_ENABLED', False) and user.has_perm('workspaces.review_workspace')
+            getattr(settings, 'PLATFORM_ENABLED', False) and (user.has_perm('workspaces.review_workspace') or permitted(user, 'manage_venues'))
             or private_demo.available() and private_demo.reviewer_allowed(user)
         ):
             menus.append({'path':'/platform/review','label':'매장 권한 심사'})
@@ -53,6 +53,9 @@ def account_data(request):
             'member_login_enabled':True,
             'allowed_menus':account_data_for_user(user) if active else [], 'csrf_token':get_token(raw_request(request)),
             'private_demo_review_allowed':bool(active and private_demo.review_available_to(user)),
+            'workspace_review_allowed':bool(active and user.has_perm('workspaces.review_workspace')),
+            'venue_closure_allowed':bool(active and permitted(user, 'manage_venues')),
+            'venue_metrics_allowed':bool(active and (permitted(user, 'manage_venues') or permitted(user, 'view_operations'))),
             'admin_role':role_for(user),
             'sso_enabled':settings.ADMIN_SSO_ENABLED,
             'local_login_enabled':settings.ADMIN_LOCAL_LOGIN_ENABLED,

@@ -18,7 +18,8 @@ class Guest(models.Model):
         permissions = [('manage_ads', 'Manage advertisements'),
                        ('manage_music', 'Import and review music'),
                        ('view_feedback', 'Read feedback history'),
-                       ('view_operations', 'Access operations dashboards')]
+                       ('view_operations', 'Access operations dashboards'),
+                       ('manage_venues', 'Manage venue closures and operations')]
 
 
 class AdminSSOIdentity(models.Model):

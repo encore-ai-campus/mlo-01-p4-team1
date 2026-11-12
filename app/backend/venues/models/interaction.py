@@ -7,6 +7,7 @@ class VenueInteraction(models.Model):
         ('LIKE', '찜하기'),
         ('REVIEW', '날씨 스냅샷 한줄평'),
         ('REPORT_CLOSURE', '폐업 제보'),
+        ('REPORT_FALSE_EVENT', '허위 이벤트 신고'),
         ('VIEW', '상세 조회'),
     ]
 

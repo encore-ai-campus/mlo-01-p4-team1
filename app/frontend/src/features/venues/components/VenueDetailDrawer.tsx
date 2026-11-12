@@ -13,6 +13,7 @@ interface VenueDetailDrawerProps {
   userId?: string;
   currentWeather?: string;
   readOnly?: boolean;
+  allowFeedback?: boolean;
 }
 
 type Section = 'info' | 'menu' | 'reviews' | 'events';
@@ -27,7 +28,8 @@ const sections: { id: Section; label: string }[] = [
   { id: 'reviews', label: '리뷰' }, { id: 'events', label: '이벤트' },
 ];
 
-export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isOpen, onClose, onOpenEventModal, userId = 'guest_anonymous', currentWeather = 'CLEAR', readOnly = false }) => {
+export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isOpen, onClose, onOpenEventModal, userId = 'guest_anonymous', currentWeather = 'CLEAR', readOnly = false, allowFeedback = false }) => {
+  const feedbackEnabled = !readOnly || allowFeedback;
   const [active, setActive] = useState<Section>('info');
   const [bookmarked, setBookmarked] = useState(false);
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
@@ -44,12 +46,12 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isO
     if (!isOpen || !venue) return;
     let cancelled = false;
     setActive('info'); setBookmarked(false); setMessage(''); setShowReport(false); setReason(''); setReviewContent('');
-    if (readOnly) return;
+    if (!feedbackEnabled) return;
     fetchMySummary(userId).then(data => {
       if (!cancelled && data.success) setBookmarked(data.summary.bookmarked_venues.some(item => item.venue_id === venue.venue_id));
     }).catch(() => { if (!cancelled) setMessage('찜 상태를 불러오지 못했습니다.'); });
     return () => { cancelled = true; };
-  }, [isOpen, venue?.venue_id, userId, readOnly]);
+  }, [isOpen, venue?.venue_id, userId, feedbackEnabled]);
   useEffect(() => {
     if (!isOpen) return;
     const listener = (event: KeyboardEvent) => { if (event.key === 'Escape') { if (showReport) setShowReport(false); else onClose(); } };
@@ -69,7 +71,9 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isO
       const result = await toggleBookmark(venue.venue_id, userId);
       if (!result.success) throw new Error(result.message || '찜을 변경하지 못했습니다.');
       setBookmarked(result.is_bookmarked);
-    } catch { setMessage('찜을 변경하지 못했습니다. 다시 시도해 주세요.'); }
+    } catch (err) {
+      setMessage(err instanceof Error && err.message ? err.message : '찜을 변경하지 못했습니다. 다시 시도해 주세요.');
+    }
     finally { setBookmarkBusy(false); }
   };
   const handleReview = async (event: React.FormEvent) => {
@@ -79,7 +83,9 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isO
       const result = await postReview(venue.venue_id, { content: reviewContent.trim(), rating: reviewRating, weather_condition: currentWeather, user_id: userId });
       if (!result.success) throw new Error(result.message);
       setReviewContent(''); setMessage('리뷰가 등록되었습니다. 다시 열면 확인할 수 있습니다.');
-    } catch { setMessage('리뷰를 등록하지 못했습니다. 다시 시도해 주세요.'); }
+    } catch (err) {
+      setMessage(err instanceof Error && err.message ? err.message : '리뷰를 등록하지 못했습니다. 다시 시도해 주세요.');
+    }
     finally { setReviewBusy(false); }
   };
   const handleReport = async () => {
@@ -89,7 +95,9 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isO
       const result = await postClosureReport(venue.venue_id, reason.trim(), userId);
       if (!result.success) throw new Error(result.message);
       setShowReport(false); setReason(''); setMessage('폐업 제보가 접수되었습니다.');
-    } catch { setMessage('폐업 제보를 접수하지 못했습니다. 다시 시도해 주세요.'); }
+    } catch (err) {
+      setMessage(err instanceof Error && err.message ? err.message : '폐업 제보를 접수하지 못했습니다. 다시 시도해 주세요.');
+    }
     finally { setReportBusy(false); }
   };
   const event = venue.curated_listing ? null : (venue.active_events?.find(item => !item.is_ended) || venue.active_event);
@@ -125,7 +133,7 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isO
             {'applied_playlist' in venue && venue.applied_playlist && <div><dt>점주 적용 선곡표</dt><dd>{venue.applied_playlist.name}</dd></div>}
             {!venue.curated_listing && venue.music_banner?.playlist_title && <div><dt>음악</dt><dd>{venue.music_banner.playlist_title}</dd></div>}
           </dl>
-          {!readOnly && !venue.curated_listing && <button type="button" className="fitplace-detail-report-link" onClick={() => setShowReport(true)}>폐업·정보 오류 제보</button>}
+          {feedbackEnabled && !venue.curated_listing && <button type="button" className="fitplace-detail-report-link" onClick={() => setShowReport(true)}>폐업·정보 오류 제보</button>}
         </section>
         {hasResearch && research && <section className="fitplace-detail-section" aria-label="방문 후기 기반 매장 정보">
           <h3>방문 후기 기반 매장 정보</h3>
@@ -153,7 +161,7 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isO
           <h3>리뷰</h3>
           <p className="fitplace-detail-muted">자체 평점 준비 중</p>
           {!venue.curated_listing && venue.recent_reviews?.length ? venue.recent_reviews.map(review => <article className="fitplace-detail-review" key={review.interaction_id}><strong>{review.user_id} · <span className="fp-review-stars" role="img" aria-label={`별점 ${review.rating}점`}>{Array.from({ length: Math.max(0, Math.min(5, Math.round(review.rating))) }, (_, index) => <img key={index} className="fp-rating-star" src="/venue-rating-star.svg" alt="" />)}</span></strong><p>{review.content}</p></article>) : <p className="fitplace-detail-muted">아직 등록된 리뷰가 없습니다.</p>}
-          {!readOnly && !venue.curated_listing && <form className="fitplace-detail-review-form" onSubmit={handleReview}>
+          {feedbackEnabled && !venue.curated_listing && <form className="fitplace-detail-review-form" onSubmit={handleReview}>
             <label>별점 <select value={reviewRating} onChange={e => setReviewRating(Number(e.target.value))}>{[5,4,3,2,1].map(rating => <option key={rating} value={rating}>{rating}점</option>)}</select></label>
             <label>리뷰 <input value={reviewContent} onChange={e => setReviewContent(e.target.value)} placeholder="방문 소감을 남겨주세요" /></label>
             <button type="submit" disabled={reviewBusy || !reviewContent.trim()}>{reviewBusy ? '등록 중' : '리뷰 등록'}</button>
@@ -162,7 +170,7 @@ export const VenueDetailDrawer: React.FC<VenueDetailDrawerProps> = ({ venue, isO
         <section className="fitplace-detail-section" data-detail-section="events"><h3>이벤트</h3>{event ? <><p><strong>{event.title}</strong></p><p>{event.discount_info}</p>{!readOnly && <button type="button" className="fitplace-detail-event" onClick={() => onOpenEventModal?.(event)}>이벤트 참여하기</button>}</> : <p className="fitplace-detail-muted">진행 중인 이벤트가 없습니다.</p>}</section>
         {message && <p className="fitplace-detail-message" role="status">{message}</p>}
       </div>
-      <footer className="fitplace-detail-actions">{!readOnly && !venue.curated_listing && <button type="button" disabled={bookmarkBusy} aria-pressed={bookmarked} onClick={handleBookmark}><span className="fitplace-bookmark-icon" aria-hidden="true">{bookmarked ? '♥' : '♡'}</span> {bookmarked ? '찜 해제' : '찜하기'}</button>}<button type="button" onClick={showOnMap}>지도에서 보기</button></footer>
+      <footer className="fitplace-detail-actions">{feedbackEnabled && !venue.curated_listing && <button type="button" disabled={bookmarkBusy} aria-pressed={bookmarked} onClick={handleBookmark}><span className="fitplace-bookmark-icon" aria-hidden="true">{bookmarked ? '♥' : '♡'}</span> {bookmarked ? '찜 해제' : '찜하기'}</button>}<button type="button" onClick={showOnMap}>지도에서 보기</button></footer>
     </section>
     {showReport && <div className="fitplace-report-overlay" onClick={e => e.stopPropagation()}><div className="fitplace-report" role="dialog" aria-modal="true" aria-labelledby="fitplace-report-title"><h3 id="fitplace-report-title">폐업·정보 오류 제보</h3><p>제보 내용을 확인한 뒤 처리합니다.</p><textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="제보 사유를 입력해 주세요" rows={4}/><div><button type="button" onClick={() => setShowReport(false)}>취소</button><button type="button" disabled={reportBusy || !reason.trim()} onClick={handleReport}>{reportBusy ? '접수 중' : '제보하기'}</button></div></div></div>}
   </div>;

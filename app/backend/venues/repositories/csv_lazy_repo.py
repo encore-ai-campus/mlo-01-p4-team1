@@ -467,6 +467,10 @@ class CsvLazyRepository:
         self._gu_last_stat_at: Dict[str, float] = {}
         self._global_overlay_sigs: tuple = ()
         self._global_last_stat_at: float = 0.0
+        self._reload_count: int = 0
+        self._reload_error_count: int = 0
+        self._last_reload_at: Optional[float] = None
+        self._last_reload_error: str = ''
         # 네이버 플레이스 실시간 수집 메뉴 오버레이 캐시 (venue_id 및 (자치구, 매장명) 키 지원)
         self._live_menus_by_vid: Dict[str, List[Dict[str, Any]]] = {}
         self._live_menus_by_name: Dict[tuple[str, str], List[Dict[str, Any]]] = {}
@@ -497,7 +501,24 @@ class CsvLazyRepository:
             self._venue_menus_cache.clear()
             self._gu_menus_loaded.clear()
             self._fallback_venues_loaded = False
+            self._fallback_venues_by_gu = None
             self._fallback_menus_loaded = False
+            self._venue_region_index = None
+
+    def invalidate_gu(self, gu_name: str) -> None:
+        """특정 구/시 캐시만 무효화하여 신규 등록·제휴 변경을 즉시 반영"""
+        if not gu_name:
+            return
+        with self._lock:
+            self._gu_venues_cache.pop(gu_name, None)
+            stale_keys = [
+                k for k, v in self._venue_map.items()
+                if v.get('gu_name') == gu_name
+            ]
+            for key in stale_keys:
+                self._venue_map.pop(key, None)
+            if hasattr(self, '_gu_menus_loaded'):
+                self._gu_menus_loaded.pop(gu_name, None)
             self._venue_region_index = None
 
     def refresh_source_data(self) -> None:
@@ -667,14 +688,31 @@ class CsvLazyRepository:
             self._gu_file_sigs.clear()
             self._gu_last_stat_at.clear()
             self._fallback_venues_loaded = False
+            self._fallback_venues_by_gu = None
             self._fallback_menus_loaded = False
+            self._reload_count = getattr(self, '_reload_count', 0) + 1
+            self._last_reload_at = time.time()
+            self._last_reload_error = ''
             logger.info("[LazyRepo] Hot-reloaded global menu & research overlays")
             return True
         except Exception as e:
             self._live_menus_by_vid = prev_vid
             self._live_menus_by_name = prev_name
             self._research_overlay_by_vid = prev_research
+            self._reload_error_count = getattr(self, '_reload_error_count', 0) + 1
+            self._last_reload_error = type(e).__name__[:80]
             logger.warning(f"[LazyRepo] Keep previous overlays due to transient reload error: {e}")
+            from backend.venues.streaming.observability import emit_observation
+            emit_observation(
+                dataset='mlo.service',
+                action='venue-overlay-reload',
+                outcome='failure',
+                pipeline_name='venues-catalog',
+                stage='hot-reload',
+                state='RETRYING',
+                error_code='OVERLAY_RELOAD_FALLBACK',
+                retryable=True,
+            )
             return False
 
     def _refresh_gu_if_stale(self, gu_name: str) -> bool:
@@ -713,10 +751,15 @@ class CsvLazyRepository:
         if reloaded and menus_ok:
             self._gu_venues_cache[gu_name] = reloaded
             self._gu_file_sigs[gu_name] = new_sig
+            self._reload_count = getattr(self, '_reload_count', 0) + 1
+            self._last_reload_at = time.time()
+            self._last_reload_error = ''
             logger.info(f"[LazyRepo] Hot-reloaded {len(reloaded)} venues and menus for {gu_name}")
             return True
 
         # 수집 스크립트가 파일을 쓰는 도중이면 직전 유효 캐시를 유지하고 다음 주기(2초 후)에 재시도
+        self._reload_error_count = getattr(self, '_reload_error_count', 0) + 1
+        self._last_reload_error = f'PARTIAL_READ:{gu_name}'
         if prev_cached is not None:
             self._gu_venues_cache[gu_name] = prev_cached
         if prev_disk_v is not None:
@@ -1179,12 +1222,120 @@ class CsvLazyRepository:
             except Exception as e:
                 logger.warning(f"[LazyRepo] Failed to read {gu_venues_file}: {e}, falling back.")
 
-        return self._load_fallback_venues_for_gu(gu_name)
+        fallback = self._load_fallback_venues_for_gu(gu_name)
+        if fallback:
+            return fallback
+        return self._load_gu_venues_from_db(gu_name)
+
+    def _catalog_record_to_dict(self, record: Any) -> Dict[str, Any]:
+        """VenueCatalogRecord 행을 매장 dict로 변환하고 메뉴 캐시를 채움"""
+        venue = dict(record.venue_payload) if isinstance(record.venue_payload, dict) else {}
+        venue.setdefault('venue_id', record.venue_id)
+        venue.setdefault('venue_name', record.venue_name)
+        venue.setdefault('gu_name', record.gu_name)
+        venue.setdefault('dong_name', record.dong_name)
+        venue.setdefault('road_address', record.road_address)
+        venue.setdefault('category', record.category)
+        venue.setdefault('sub_category', record.sub_category)
+        venue.setdefault('store_type', record.store_type)
+        venue.setdefault('brand_name', record.brand_name)
+        venue.setdefault('price_tier', record.price_tier)
+        venue.setdefault('avg_price', record.avg_price)
+        venue.setdefault('latitude', record.latitude)
+        venue.setdefault('longitude', record.longitude)
+        venue.setdefault('is_partner', record.is_partner)
+        if record.is_partner:
+            venue['is_partner'] = True
+        venue.setdefault('is_open_now', record.is_open_now)
+        venue.setdefault('primary_weather_affinity', record.primary_weather_affinity)
+        menus = list(record.menus_payload) if isinstance(record.menus_payload, list) else []
+        menus_cache = getattr(self, '_venue_menus_cache', None)
+        if menus_cache is not None:
+            menus_cache[record.venue_id] = menus
+            if record.venue_id.startswith('VN_SL_'):
+                num_part = record.venue_id.replace('VN_SL_', '')
+                if num_part.isdigit():
+                    menus_cache[f"venue_seoul_{int(num_part):04d}"] = menus
+        return venue
+
+    def _load_gu_venues_from_db(self, gu_name: str) -> List[Dict[str, Any]]:
+        """CSV 파일이 없는 컨테이너 환경에서 DB 카탈로그 미러로 안전 폴백"""
+        if not gu_name:
+            return []
+        try:
+            from backend.venues.models.catalog import VenueCatalogRecord
+
+            rows = list(VenueCatalogRecord.objects.filter(gu_name=gu_name).order_by('venue_id'))
+            if not rows:
+                return []
+            venues_list: List[Dict[str, Any]] = []
+            for idx, record in enumerate(rows, start=1):
+                venue = self._catalog_record_to_dict(record)
+                self._register_alias_ids(idx, venue)
+                venues_list.append(venue)
+            if hasattr(self, '_gu_menus_loaded'):
+                self._gu_menus_loaded[gu_name] = True
+            return venues_list
+        except Exception:
+            return []
+
+    def _merge_owner_direct_venues(self, gu_name: str, venues: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """점주 직접 신규 등록 매장(owner_direct)을 CSV 기반 구 목록에 병합 (Option A)"""
+        if not gu_name:
+            return venues
+        try:
+            from backend.venues.models.catalog import VenueCatalogRecord
+
+            owner_rows = list(
+                VenueCatalogRecord.objects.filter(gu_name=gu_name, dataset_version='owner_direct')
+                .order_by('venue_id')
+            )
+            if not owner_rows:
+                return venues
+
+            merged = list(venues)
+            seen_ids = {v.get('venue_id') for v in merged if v.get('venue_id')}
+            for idx, record in enumerate(owner_rows, start=len(merged) + 1):
+                if record.venue_id in seen_ids:
+                    continue
+                venue = self._catalog_record_to_dict(record)
+                self._register_alias_ids(idx, venue)
+                merged.append(venue)
+                seen_ids.add(record.venue_id)
+            return merged
+        except Exception:
+            return venues
+
+    def _lookup_db_venue_gu(self, venue_id: str) -> Optional[str]:
+        if not venue_id:
+            return None
+        try:
+            from backend.venues.models.catalog import VenueCatalogRecord
+
+            return (
+                VenueCatalogRecord.objects.filter(venue_id=venue_id)
+                .values_list('gu_name', flat=True)
+                .first()
+            )
+        except Exception:
+            return None
+
+    def _safe_db_regions(self) -> List[str]:
+        try:
+            from backend.venues.models.catalog import VenueCatalogRecord
+
+            return [
+                gu for gu in VenueCatalogRecord.objects.values_list('gu_name', flat=True).distinct()
+                if gu
+            ]
+        except Exception:
+            return []
 
     def _load_fallback_venues_for_gu(self, gu_name: str) -> List[Dict[str, Any]]:
         """데모 샘플 CSV에서 특정 구의 매장 로드"""
         if not self._fallback_venues_loaded:
             self._load_fallback_menus()
+            fallback_by_gu: Dict[str, List[tuple[int, Dict[str, Any]]]] = {}
             fallback_path = next((p for p in FALLBACK_VENUES_CANDIDATES if p.exists()), None)
             if fallback_path:
                 with open(fallback_path, 'r', encoding='utf-8-sig') as f:
@@ -1197,13 +1348,21 @@ class CsvLazyRepository:
                         self._apply_research_overlay(v)
                         self._enrich_venue_menus_and_budget(v)
                         self._register_alias_ids(idx, v)
-                        self._gu_venues_cache.setdefault(v['gu_name'], []).append(v)
+                        fallback_by_gu.setdefault(v['gu_name'], []).append((idx, v))
+                self._fallback_venues_by_gu = fallback_by_gu
                 self._fallback_venues_loaded = True
                 logger.info(f"[LazyRepo] Loaded fallback venues from {fallback_path}")
             else:
+                self._fallback_venues_by_gu = {}
                 logger.error("[LazyRepo] No fallback venues CSV found.")
 
-        return self._gu_venues_cache.get(gu_name, [])
+        by_gu = getattr(self, '_fallback_venues_by_gu', None)
+        if by_gu is None:
+            return self._gu_venues_cache.get(gu_name, [])
+        items = by_gu.get(gu_name, [])
+        for idx, v in items:
+            self._register_alias_ids(idx, v)
+        return [v for _, v in items]
 
     def _load_gu_menus_from_disk(self, gu_name: str) -> None:
         """특정 구/시의 메뉴 CSV 파일 지연 로딩 (PK: venue_id 기준 매핑)"""
@@ -1269,6 +1428,7 @@ class CsvLazyRepository:
                 return self._gu_venues_cache[gu_name]
 
             venues = self._load_gu_venues_from_disk(gu_name)
+            venues = self._merge_owner_direct_venues(gu_name, venues)
             self._gu_venues_cache[gu_name] = venues
             return venues
 
@@ -1364,6 +1524,11 @@ class CsvLazyRepository:
                 self.get_venues_by_gu(region)
                 return self._venue_map.get(venue_id)
 
+            db_gu = self._lookup_db_venue_gu(canonical_id) or self._lookup_db_venue_gu(venue_id)
+            if db_gu:
+                self.get_venues_by_gu(db_gu)
+                return self._venue_map.get(venue_id) or self._venue_map.get(canonical_id)
+
             return None
 
     def get_menus_by_venue(self, venue_id: str) -> List[Dict[str, Any]]:
@@ -1416,6 +1581,22 @@ class CsvLazyRepository:
                     break
         return matched[:limit]
 
+    def get_observability_snapshot(self) -> Dict[str, Any]:
+        """어드민 운영 모니터링용 카탈로그·핫리로드 상태 요약"""
+        with self._lock:
+            loaded_venues = sum(len(rows) for rows in getattr(self, '_gu_venues_cache', {}).values())
+            return {
+                'available_regions_count': len(self.get_all_available_gus()),
+                'loaded_regions_count': len(getattr(self, '_gu_venues_cache', {})),
+                'loaded_venues_count': loaded_venues,
+                'live_menu_overlay_venues': len(getattr(self, '_live_menus_by_vid', {})),
+                'research_overlay_venues': len(getattr(self, '_research_overlay_by_vid', {})),
+                'reload_count': getattr(self, '_reload_count', 0),
+                'reload_error_count': getattr(self, '_reload_error_count', 0),
+                'last_reload_at': getattr(self, '_last_reload_at', None),
+                'last_reload_error': getattr(self, '_last_reload_error', ''),
+            }
+
     def get_all_available_gus(self) -> List[str]:
         """지원 가능한 서울 25개 자치구, 경기도 30개 시·군, 인천광역시 10개 구·군 전체 목록 반환"""
         with self._lock:
@@ -1427,6 +1608,9 @@ class CsvLazyRepository:
                     if is_incheon and gu in ('중구', '서구'):
                         gu = f"인천 {gu}"
                     gus.add(gu)
+            db_gus = self._safe_db_regions()
+            if db_gus:
+                gus.update(db_gus)
             if not gus:
                 return list(METRO_CENTER_COORDS.keys())
             return sorted(list(gus))

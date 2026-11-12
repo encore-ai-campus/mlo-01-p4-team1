@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ensureVenueCsrfHeaders } from '../api/venues.api';
 
 interface OwnerEventPublishModalProps {
   isOpen: boolean;
@@ -30,9 +31,11 @@ export const OwnerEventPublishModal: React.FC<OwnerEventPublishModalProps> = ({
     e.preventDefault();
     setLoading(true);
     try {
+      const csrf = await ensureVenueCsrfHeaders();
       const res = await fetch(`/api/owner/venues/${venueId}/events`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...csrf },
         body: JSON.stringify({
           owner_id: ownerId,
           title,
