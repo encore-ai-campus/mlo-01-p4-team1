@@ -24,6 +24,11 @@ def configuration():
         checks[name]=bool(os.environ.get(name))
     checks['shared_mapping_configured']=bool(os.environ.get('WEATHER_MAPPING_DSN') or os.environ.get('PGHOST'))
     checks['integration_enabled']=settings.INTEGRATION_ENABLED
+    try:
+        from backend.venues.repositories.csv_lazy_repo import get_venue_repo
+        checks['venues_catalog_configured']=bool(get_venue_repo().get_all_available_gus())
+    except Exception:
+        checks['venues_catalog_configured']=False
     from backend.recommendation.dispatch import configuration as recommendation_configuration
     checks.update(recommendation_configuration())
     return checks
@@ -46,7 +51,12 @@ def connections():
         from backend.common.admin_roles import permitted
         users=list(get_user_model().objects.filter(is_active=True,is_staff=True))
         return all(any(permitted(user,permission) for user in users)
-                   for permission in ('manage_ads','manage_music','view_feedback'))
+                   for permission in ('manage_ads','manage_music','view_feedback','manage_venues'))
+    def venues_catalog():
+        from backend.venues.models.status_overlay import VenueStatusOverlay
+        from backend.venues.repositories.csv_lazy_repo import get_venue_repo
+        VenueStatusOverlay.objects.exists()
+        return bool(get_venue_repo().get_all_available_gus())
     def regions():return bool(load_regions().get('entries'))
     def elasticsearch():
         base,index=es_configuration()
@@ -69,7 +79,7 @@ def connections():
                            config=Config(connect_timeout=5,read_timeout=5,retries={'max_attempts':0}))
         return client.get_bucket_versioning(Bucket=settings.MUSIC_S3_BUCKET).get('Status')=='Enabled'
     report={}
-    for name,check in [('postgres_migrations',database),('administrator_permissions',administrators),('active_catalog',catalog),('weather_regions',regions),
+    for name,check in [('postgres_migrations',database),('administrator_permissions',administrators),('active_catalog',catalog),('venues_catalog',venues_catalog),('weather_regions',regions),
                        ('weather_es_schema',elasticsearch),('feedback_topic',kafka),('music_archive_versioning',archive)]:
         if name=='music_archive_versioning' and settings.MUSIC_S3_ARCHIVE_DEFERRED:
             report[name]={'ok':None,'status':'DEFERRED'}

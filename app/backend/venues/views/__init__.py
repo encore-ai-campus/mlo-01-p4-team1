@@ -24,6 +24,7 @@ from .owner_bridge_view import (
 from .admin_closure_view import (
     admin_closure_list_api,
     admin_resolve_closure_api,
+    admin_venues_metrics_api,
 )
 
 __all__ = [
@@ -46,4 +47,5 @@ __all__ = [
     'owner_register_venue_api',
     'admin_closure_list_api',
     'admin_resolve_closure_api',
+    'admin_venues_metrics_api',
 ]

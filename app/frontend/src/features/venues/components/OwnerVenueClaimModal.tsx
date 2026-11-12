@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
+import { ensureVenueCsrfHeaders } from '../api/venues.api';
 
 interface OwnerVenueClaimModalProps {
   isOpen: boolean;
   onClose: () => void;
   ownerId?: string;
-  onSuccess?: () => void;
+  onSuccess?: (venueId?: string) => void;
 }
 
 export const OwnerVenueClaimModal: React.FC<OwnerVenueClaimModalProps> = ({
@@ -33,15 +34,17 @@ export const OwnerVenueClaimModal: React.FC<OwnerVenueClaimModalProps> = ({
         ? { owner_id: ownerId, venue_id: venueId, business_number: bizNumber }
         : { owner_id: ownerId, venue_name: venueName, gu_name: guName, road_address: roadAddress, category, business_number: bizNumber };
 
+      const csrf = await ensureVenueCsrfHeaders();
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...csrf },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (data.success) {
         alert(data.message);
-        if (onSuccess) onSuccess();
+        if (onSuccess) onSuccess(data.venue_id);
         onClose();
       } else {
         alert(data.message || '등록에 실패했습니다.');

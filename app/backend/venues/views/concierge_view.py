@@ -1,9 +1,10 @@
 import json
 import os
+import time
 
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
-from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 from backend.venues.services.ranking_service import filter_and_rank_venues
 from backend.venues.services.gemini_concierge_service import generate_concierge_briefing
@@ -15,6 +16,8 @@ from backend.venues.services.venue_llm_concierge import (
     VenueLlmError,
     run_venue_llm_concierge,
 )
+from backend.venues.streaming.observability import emit_observation
+from .access import consumer_post, ensure_request_id, parse_json_body
 
 
 def _llm_availability(mcp_client):
@@ -109,25 +112,23 @@ def visit_recommendation_api(request):
     return _mcp_recommendation(request, body['mcp'])
 
 
-@csrf_exempt
-@require_POST
-def ai_concierge_api(request):
+@consumer_post
+def ai_concierge_api(request, *, consumer):
     """
     POST /api/venues/ai-concierge
-    - Gemini 3.8 Flash (gemini-3.8-flash) 기반 AI 컨시어지 추천 브리핑 API
+    - Gemini 3.8 Flash 기반 AI 컨시어지 추천 브리핑 API (consumer 세션/CSRF 적용 + 관측 로깅)
     """
-    try:
-        body = json.loads(request.body.decode('utf-8')) if request.body else {}
-    except Exception:
-        body = {}
+    t0 = time.monotonic()
+    body, _ = parse_json_body(request, required=False)
+    body = body or {}
 
     if isinstance(body, dict) and "mcp" in body:
         return _mcp_recommendation(request, body["mcp"])
 
-    query = body.get('query', '').strip()
-    gu = body.get('gu', '강남구').strip()
-    weather = body.get('weather', 'CLEAR').strip().upper()
-    time_slot = body.get('time_slot', 'AFTERNOON').strip().upper()
+    query = str(body.get('query', '') or '').strip()
+    gu = str(body.get('gu', '강남구') or '강남구').strip()
+    weather = str(body.get('weather', 'CLEAR') or 'CLEAR').strip().upper()
+    time_slot = str(body.get('time_slot', 'AFTERNOON') or 'AFTERNOON').strip().upper()
     budget_tier = body.get('budget_tier')
     category = body.get('category', 'ALL')
 
@@ -147,6 +148,19 @@ def ai_concierge_api(request):
         current_weather=weather,
         gu_name=gu,
         budget_tier=budget_tier,
+    )
+
+    duration_ms = int((time.monotonic() - t0) * 1000)
+    emit_observation(
+        dataset='mlo.service',
+        action='venue-ai-concierge',
+        outcome='success',
+        pipeline_name='venue-concierge',
+        stage='recommend',
+        state='SUCCEEDED',
+        duration_ms=duration_ms,
+        records_out=len(top_venues),
+        request_id=ensure_request_id(request),
     )
 
     return JsonResponse({

@@ -4,7 +4,11 @@ from typing import Any, Dict, List, Optional, Union
 from backend.venues.repositories.csv_lazy_repo import get_venue_repo
 from backend.venues.models.status_overlay import VenueStatusOverlay
 from backend.venues.services.open_hours_service import is_venue_open_now
-from backend.venues.services.music_banner_service import get_owner_bridges, get_venue_music_banner
+from backend.venues.services.music_banner_service import (
+    expand_venue_id_aliases,
+    get_owner_bridges,
+    get_venue_music_banner,
+)
 from backend.venues.services.event_service import get_visible_events_for_venue, get_visible_events_for_venues
 from backend.venues.dl_engine.feature_encoder_18d import get_feature_encoder, is_chain_venue
 from backend.venues.dl_engine.micro_two_tower import get_micro_two_tower
@@ -13,7 +17,49 @@ from backend.venues.dl_engine.realtime_user_memory import get_user_memory
 
 def _prefetch_venue_side_data(venue_ids: List[str]) -> tuple[Dict[str, Any], Dict[str, Any]]:
     """매장별 이벤트·점주 선곡 브릿지를 일괄 조회 (매장당 쿼리 2건씩 나가던 N+1 제거)"""
-    return get_visible_events_for_venues(venue_ids), get_owner_bridges(venue_ids)
+    expanded_ids = expand_venue_id_aliases(venue_ids)
+    return get_visible_events_for_venues(expanded_ids), get_owner_bridges(expanded_ids)
+
+
+def _venue_lookup_ids(venue: Dict[str, Any]) -> List[str]:
+    base = [val for key in ('venue_id', 'normalized_id') if (val := venue.get(key))]
+    return expand_venue_id_aliases(base)
+
+
+def _find_for_venue(venue: Dict[str, Any], mapping: Dict[str, Any]) -> Any:
+    for vid in _venue_lookup_ids(venue):
+        if vid in mapping:
+            return mapping[vid]
+    return None
+
+
+def _prefetch_partner_workspaces(venue_ids: List[str]) -> tuple[set[str], Dict[str, Any]]:
+    """승인·활성 파트너 워크스페이스 및 공개 적용 플레이리스트 일괄 조회 (Option A)"""
+    if not venue_ids:
+        return set(), {}
+    expanded_ids = expand_venue_id_aliases(venue_ids)
+    location_keys = [f"catalog:{vid}" for vid in expanded_ids]
+    try:
+        from backend.workspaces.models import Workspace
+        from backend.workspaces.music import public_applied_playlist
+
+        active_keys = list(
+            Workspace.objects.filter(status='ACTIVE', location_key__in=location_keys)
+            .values_list('location_key', flat=True)
+        )
+        active_vids = {
+            key.split('catalog:', 1)[1]
+            for key in active_keys
+            if isinstance(key, str) and key.startswith('catalog:')
+        }
+        applied_playlists: Dict[str, Any] = {}
+        for vid in sorted(active_vids):
+            pl = public_applied_playlist(vid)
+            if pl:
+                applied_playlists[vid] = pl
+        return active_vids, applied_playlists
+    except Exception:
+        return set(), {}
 
 
 def filter_and_rank_venues(
@@ -95,6 +141,7 @@ def filter_and_rank_venues(
         if category_upper == 'ALL' or v.get('category', '').upper() == category_upper
     ]
     events_by_vid, bridges_by_vid = _prefetch_venue_side_data(side_data_ids)
+    active_workspace_vids, applied_playlists_by_vid = _prefetch_partner_workspaces(side_data_ids)
 
     for v in raw_venues:
         v_id = v['venue_id']
@@ -152,8 +199,17 @@ def filter_and_rank_venues(
         # 평점 가산점 (4.0 ~ 5.0 -> 0.0 ~ 0.2)
         rating = float(v.get('rating', 4.5))
         rule_score += max(0.0, (rating - 4.0) * 0.2)
+        bridge = _find_for_venue(v, bridges_by_vid)
+        applied_playlist = _find_for_venue(v, applied_playlists_by_vid)
+        has_workspace = any(vid in active_workspace_vids for vid in _venue_lookup_ids(v))
+        is_partner = bool(
+            v.get('is_partner', False)
+            or (bridge and bridge.is_verified)
+            or has_workspace
+        )
+
         # 파트너 매장 및 이벤트 가산점
-        if v.get('is_partner'):
+        if is_partner:
             rule_score += 0.1
         if has_active_event:
             rule_score += 0.15
@@ -172,7 +228,10 @@ def filter_and_rank_venues(
 
         # 파트너 음악 배너
         music_banner = get_venue_music_banner(
-            v, current_weather=weather, bridge=bridges_by_vid.get(v_id)
+            v,
+            current_weather=weather,
+            bridge=bridge,
+            applied_playlist=applied_playlist,
         )
 
         candidate = {
@@ -191,7 +250,7 @@ def filter_and_rank_venues(
             'avg_price': v.get('avg_price'),
             'rating': v.get('rating'),
             'review_count': v.get('review_count'),
-            'is_partner': v.get('is_partner', False),
+            'is_partner': is_partner,
             'mood_tags': v.get('mood_tags', []),
             'music_mood': v.get('music_mood'),
             'recommendation_style': v.get('recommendation_style', ''),

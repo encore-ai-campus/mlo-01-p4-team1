@@ -8,6 +8,61 @@ import {
   VenueCategory,
   StoreType,
 } from '../types/venue.types';
+import { csrfHeaders, setCsrf } from '../../../shared/api';
+
+export async function ensureVenueCsrfHeaders(): Promise<Record<string, string>> {
+  const existing = csrfHeaders();
+  if (existing['X-CSRFToken']) return existing;
+  try {
+    const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    if (res.ok) {
+      const data = await res.json();
+      if (typeof data?.csrf_token === 'string' && data.csrf_token) {
+        setCsrf(data.csrf_token);
+        return { 'X-CSRFToken': data.csrf_token };
+      }
+    }
+  } catch {
+    // Fall back to any existing cookie token cleanly
+  }
+  return csrfHeaders();
+}
+
+export class VenueApiError extends Error {
+  status: number;
+  code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'VenueApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+export async function readApiResponse<T = any>(res: Response, fallbackLabel: string): Promise<T> {
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const detail = data?.message || data?.detail || res.statusText || `HTTP ${res.status}`;
+    throw new VenueApiError(`${fallbackLabel}: ${detail}`, res.status, data?.code);
+  }
+  return data as T;
+}
+
+export async function venuePostJson<T = any>(
+  url: string,
+  body: unknown,
+  extraHeaders: Record<string, string> = {},
+): Promise<T> {
+  const csrf = await ensureVenueCsrfHeaders();
+  const res = await fetch(url, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', ...csrf, ...extraHeaders },
+    body: JSON.stringify(body),
+  });
+  return readApiResponse<T>(res, '요청을 처리하지 못했습니다');
+}
 
 export interface VenueSearchParams {
   sigungu?: string;
@@ -51,55 +106,31 @@ export async function fetchVenues(params: VenueSearchParams): Promise<{ success:
     query.set('max_lng', String(params.max_lng));
   }
 
-  const res = await fetch(`/api/venues?${query.toString()}`);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch venues: ${res.statusText}`);
-  }
-  return res.json();
+  const res = await fetch(`/api/venues?${query.toString()}`, { credentials: 'same-origin' });
+  return readApiResponse(res, '매장 목록을 불러오지 못했습니다');
 }
 
 export async function fetchVenueDetail(venueId: string, weather: string = 'CLEAR', signal?: AbortSignal): Promise<{ success: boolean; venue: VenueDetail }> {
   const path = '/api/venues/' + encodeURIComponent(venueId);
-  const res = await fetch(path + '?weather=' + encodeURIComponent(weather), { signal });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch venue detail: ${res.statusText}`);
-  }
-  return res.json();
+  const res = await fetch(path + '?weather=' + encodeURIComponent(weather), { signal, credentials: 'same-origin' });
+  return readApiResponse(res, '매장 상세 정보를 불러오지 못했습니다');
 }
 
 export async function fetchActiveEvents(gu: string = '강남구'): Promise<{ success: boolean; gu: string; events: VenueEventSummary[] }> {
-  const res = await fetch(`/api/venues/events/active?gu=${encodeURIComponent(gu)}`);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch active events: ${res.statusText}`);
-  }
-  return res.json();
+  const res = await fetch(`/api/venues/events/active?gu=${encodeURIComponent(gu)}`, { credentials: 'same-origin' });
+  return readApiResponse(res, '진행 중인 이벤트를 불러오지 못했습니다');
 }
 
 export async function postEventIntent(eventId: number, userId: string): Promise<any> {
-  const res = await fetch(`/api/venues/events/${eventId}/intent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: userId }),
-  });
-  return res.json();
+  return venuePostJson(`/api/venues/events/${eventId}/intent`, { user_id: userId });
 }
 
 export async function postVerifyQr(eventId: number, userId: string, qrAuthCode?: string): Promise<any> {
-  const res = await fetch(`/api/venues/events/${eventId}/verify-qr`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: userId, qr_auth_code: qrAuthCode }),
-  });
-  return res.json();
+  return venuePostJson(`/api/venues/events/${eventId}/verify-qr`, { user_id: userId, qr_auth_code: qrAuthCode });
 }
 
 export async function toggleBookmark(venueId: string, userId: string): Promise<{ success: boolean; is_bookmarked: boolean; message: string }> {
-  const res = await fetch(`/api/venues/${venueId}/bookmark`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: userId }),
-  });
-  return res.json();
+  return venuePostJson(`/api/venues/${venueId}/bookmark`, { user_id: userId });
 }
 
 export async function postReview(venueId: string, reviewData: {
@@ -109,29 +140,16 @@ export async function postReview(venueId: string, reviewData: {
   weather_temp?: number;
   user_id?: string;
 }): Promise<any> {
-  const res = await fetch(`/api/venues/${venueId}/reviews`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(reviewData),
-  });
-  return res.json();
+  return venuePostJson(`/api/venues/${venueId}/reviews`, reviewData);
 }
 
 export async function postClosureReport(venueId: string, reason: string, userId: string): Promise<any> {
-  const res = await fetch(`/api/venues/${venueId}/closure-report`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ venue_id: venueId, reason, user_id: userId }),
-  });
-  return res.json();
+  return venuePostJson(`/api/venues/${venueId}/closure-report`, { venue_id: venueId, reason, user_id: userId });
 }
 
 export async function fetchMySummary(userId: string): Promise<{ success: boolean; summary: MySummaryData }> {
-  const res = await fetch(`/api/venues/my/summary?user_id=${encodeURIComponent(userId)}`);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch my summary: ${res.statusText}`);
-  }
-  return res.json();
+  const res = await fetch(`/api/venues/my/summary?user_id=${encodeURIComponent(userId)}`, { credentials: 'same-origin' });
+  return readApiResponse(res, '마이페이지 정보를 불러오지 못했습니다');
 }
 
 export async function postAiConcierge(payload: {
@@ -142,13 +160,5 @@ export async function postAiConcierge(payload: {
   budget_tier?: BudgetTier | '';
   category?: VenueCategory;
 }): Promise<{ success: boolean; briefing: ConciergeBriefing; candidate_venues: VenueItem[] }> {
-  const res = await fetch('/api/venues/ai-concierge', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to query AI concierge: ${res.statusText}`);
-  }
-  return res.json();
+  return venuePostJson('/api/venues/ai-concierge', payload);
 }

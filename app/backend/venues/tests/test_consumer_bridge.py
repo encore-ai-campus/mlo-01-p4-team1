@@ -1,8 +1,11 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, override_settings
 from unittest.mock import patch
 
 from backend.accounts.models import MemberProfile
+from backend.venues.models.bridge import VenueOwnerBridge
+from backend.venues.models.interaction import VenueInteraction
 from backend.workspaces.models import ServiceMembership, Workspace
 from backend.workspaces.tests.test_platform import Helpers, TEST_CONFIG
 
@@ -55,15 +58,95 @@ class ConsumerVenueTests(TestCase):
         self.assertEqual({menu["venue_id"] for menu in menus}, {self.venue_id})
         self.assertIn("에스프레소", {menu["menu_name"] for menu in menus})
 
-    def test_integrated_browse_never_exposes_demo_writes(self):
-        self.client.force_login(self.consumer)
-        for method, path in (
-            ("post", "/api/owner/venues/claim"),
-            ("post", f"/api/venues/{self.venue_id}/reviews"),
-            ("post", f"/api/venues/{self.venue_id}/bookmark"),
-            ("get", "/api/venues/notifications"),
-        ):
-            self.assertEqual(getattr(self.client, method)(path).status_code, 404)
+    def test_released_venue_endpoints_enforce_role_and_csrf_guards(self):
+        # 1. Unauthenticated access fails closed
+        anon = Client(enforce_csrf_checks=True)
+        self.assertEqual(anon.get("/api/venues/notifications").status_code, 401)
+        self.assertEqual(anon.post(f"/api/venues/{self.venue_id}/bookmark").status_code, 403)
+
+        # 2. Consumer: CSRF token fetched from GET, cross-role write blocked, review/bookmark enforced as platform user
+        consumer_client = Client(enforce_csrf_checks=True)
+        consumer_client.force_login(self.consumer)
+        self.assertEqual(consumer_client.get("/api/venues/notifications").status_code, 200)
+        consumer_client.get("/api/auth/me")
+        csrf_token = consumer_client.cookies[settings.CSRF_COOKIE_NAME].value
+
+        # Missing CSRF token fails closed with 403
+        self.assertEqual(
+            consumer_client.post(
+                f"/api/venues/{self.venue_id}/reviews",
+                {"content": "무인증 시도", "rating": 5},
+                content_type="application/json",
+                HTTP_ORIGIN="http://testserver",
+            ).status_code,
+            403,
+        )
+
+        # Consumer cannot invoke business-only claim API
+        self.assertEqual(
+            consumer_client.post(
+                "/api/owner/venues/claim",
+                {"venue_id": self.venue_id, "owner_id": "spoofed"},
+                content_type="application/json",
+                HTTP_ORIGIN="http://testserver",
+                HTTP_X_CSRFTOKEN=csrf_token,
+            ).status_code,
+            403,
+        )
+
+        review_res = consumer_client.post(
+            f"/api/venues/{self.venue_id}/reviews",
+            {"user_id": "spoofed_user", "content": "날씨에 딱 맞는 분위기입니다.", "rating": 5},
+            content_type="application/json",
+            HTTP_ORIGIN="http://testserver",
+            HTTP_X_CSRFTOKEN=csrf_token,
+        )
+        self.assertEqual(review_res.status_code, 200)
+        created_review = VenueInteraction.objects.get(interaction_id=review_res.json()["review_id"])
+        self.assertEqual(created_review.user_id, f"platform:{self.consumer.pk}")
+
+        bookmark_res = consumer_client.post(
+            f"/api/venues/{self.venue_id}/bookmark",
+            {"user_id": "spoofed_user"},
+            content_type="application/json",
+            HTTP_ORIGIN="http://testserver",
+            HTTP_X_CSRFTOKEN=csrf_token,
+        )
+        self.assertEqual(bookmark_res.status_code, 200)
+        self.assertTrue(
+            VenueInteraction.objects.filter(
+                user_id=f"platform:{self.consumer.pk}",
+                venue_id=self.venue_id,
+                interaction_type="LIKE",
+            ).exists()
+        )
+
+        # 3. Business: cannot invoke consumer endpoints, can invoke owner claim with server owner_id
+        business_client = Client(enforce_csrf_checks=True)
+        business_client.force_login(self.business)
+        self.assertEqual(business_client.get("/api/venues/notifications").status_code, 403)
+        me_res = business_client.get("/api/auth/me")
+        biz_csrf = me_res.cookies[settings.CSRF_COOKIE_NAME].value
+        self.assertEqual(
+            business_client.post(
+                f"/api/venues/{self.venue_id}/bookmark",
+                {},
+                content_type="application/json",
+                HTTP_ORIGIN="http://testserver",
+                HTTP_X_CSRFTOKEN=biz_csrf,
+            ).status_code,
+            403,
+        )
+        claim_res = business_client.post(
+            "/api/owner/venues/claim",
+            {"venue_id": self.venue_id, "owner_id": "spoofed_owner", "business_number": "123-45-67890"},
+            content_type="application/json",
+            HTTP_ORIGIN="http://testserver",
+            HTTP_X_CSRFTOKEN=biz_csrf,
+        )
+        self.assertEqual(claim_res.status_code, 200)
+        bridge = VenueOwnerBridge.objects.get(venue_id=self.venue_id)
+        self.assertEqual(bridge.owner_id, f"platform:{self.business.pk}")
 
     def test_mcp_chat_requires_consumer_session_and_csrf(self):
         client = Client(enforce_csrf_checks=True)

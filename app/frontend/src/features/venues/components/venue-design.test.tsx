@@ -16,7 +16,11 @@ const noop=()=>{};
 describe('매장 탐색 디자인',()=>{
  it('API 매장명·영업 상태·메뉴를 유지하고 미확인 평점은 노출하지 않는다',()=>{
   const html=renderToStaticMarkup(<VenueCard venue={venue} selected/>);
-  expect(html).toContain('실제 매장'); expect(html).toContain('영업 중'); expect(html).toContain('아주 긴 실제 메뉴 이름도 잘리지 않고 표시됩니다'); expect(html).toContain('평점 준비 중'); expect(html).not.toContain('4.9'); expect(html).toContain('is-selected');
+  expect(html).toContain('실제 매장'); expect(html).toContain('영업 중'); expect(html).toContain('아주 긴 실제 메뉴 이름도 잘리지 않고 표시됩니다'); expect(html).toContain('평점 준비 중'); expect(html).not.toContain('4.9'); expect(html).not.toContain('제휴 매장'); expect(html).toContain('is-selected');
+ });
+ it('점주 인증 또는 신규 등록된 제휴 매장은 카드에 제휴 매장 배지를 표시한다',()=>{
+  const html=renderToStaticMarkup(<VenueCard venue={{...venue,is_partner:true}}/>);
+  expect(html).toContain('제휴 매장');
  });
  it('대표 사진을 먼저 두고 중복 및 잘못된 URL은 제외한다',()=>{
   expect(venuePhotoUrls(' https://example.com/a.jpg ', ['https://example.com/b.jpg','https://example.com/a.jpg','', 'javascript:alert(1)'])).toEqual(['https://example.com/a.jpg','https://example.com/b.jpg']);

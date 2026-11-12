@@ -21,6 +21,14 @@ class FrontendServingTests(TestCase):
             self.assertEqual(response.status_code,200)
             self.assertIn(b'id="root"',b''.join(response.streaming_content))
             self.assertEqual(response['Cache-Control'],'no-store')
+            self.assertEqual(response['Referrer-Policy'],'no-referrer')
+            response.close()
+        for map_path in ('/venues','/platform/consumer'):
+            map_response = self.client.get(map_path)
+            self.assertEqual(map_response.status_code,200)
+            b''.join(map_response.streaming_content)
+            self.assertEqual(map_response['Referrer-Policy'],'strict-origin-when-cross-origin')
+            map_response.close()
         self.assertEqual(self.client.get('/api/no-such-route').status_code,404)
         self.assertEqual(self.client.post('/signup',{}).status_code,405)
 

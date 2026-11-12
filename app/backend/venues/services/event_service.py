@@ -134,7 +134,7 @@ def register_event_intent(
         user_id=event.owner_id,
         title=f"🔥 [방문 예정] {event.title}",
         message=f"새 유저가 방문을 약속했어요! 현재 방문 예정: {intended_cnt}명 (남은 재고: {event.remaining_quantity}개)",
-        link_url=f"/admin/venues/events/{event_id}",
+        link_url="/platform/business",
     )
 
     return {

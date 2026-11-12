@@ -147,6 +147,12 @@ YOUTUBE_SEARCH_CACHE_SECONDS = int(os.environ.get('YOUTUBE_SEARCH_CACHE_SECONDS'
 LOGGING = {
     'version': 1, 'disable_existing_loggers': False,
     'handlers': {'recommendation_console': {'class': 'logging.StreamHandler'}},
-    'loggers': {'recommendation.worker': {
-        'handlers': ['recommendation_console'], 'level': 'INFO', 'propagate': False}},
+    'loggers': {
+        'recommendation.worker': {
+            'handlers': ['recommendation_console'], 'level': 'INFO', 'propagate': False},
+        'backend.venues': {
+            'handlers': ['recommendation_console'], 'level': 'INFO', 'propagate': False},
+        'backend.workspaces': {
+            'handlers': ['recommendation_console'], 'level': 'INFO', 'propagate': False},
+    },
 }

@@ -16,7 +16,7 @@ def account_data_for_user(user):
     active = user.is_authenticated and user.is_active and user.is_staff
     menus = []
     if active:
-        if getattr(settings, 'PLATFORM_ENABLED', False) and user.has_perm('workspaces.review_workspace'):
+        if getattr(settings, 'PLATFORM_ENABLED', False) and (user.has_perm('workspaces.review_workspace') or permitted(user, 'manage_venues')):
             menus.append({'path':'/platform/review','label':'매장 권한 심사'})
         for permission, path, label in [('manage_ads','/admin/ads','광고 관리'),
                 ('manage_music','/admin/music','음악 관리'),
@@ -46,6 +46,9 @@ def account_data(request):
             'passkey_enrolled':bool(primary and AdminPasskey.objects.filter(user=user).exists()),
             'member_login_enabled':True,
             'allowed_menus':account_data_for_user(user) if active else [], 'csrf_token':get_token(raw_request(request)),
+            'workspace_review_allowed':bool(active and user.has_perm('workspaces.review_workspace')),
+            'venue_closure_allowed':bool(active and permitted(user, 'manage_venues')),
+            'venue_metrics_allowed':bool(active and (permitted(user, 'manage_venues') or permitted(user, 'view_operations'))),
             'admin_role':role_for(user),
             'sso_enabled':settings.ADMIN_SSO_ENABLED,
             'local_login_enabled':settings.ADMIN_LOCAL_LOGIN_ENABLED,

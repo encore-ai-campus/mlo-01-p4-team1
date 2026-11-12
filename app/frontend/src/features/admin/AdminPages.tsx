@@ -22,7 +22,7 @@ export function Login(){
         const response=await api<{role:string;landing_path:string;allowed_menus:Menu[];passkey_required?:boolean}>('/api/auth/login','POST',{username,password,remember});
         if(response.role==='USER'&&response.landing_path==='/playlist'){location.assign('/playlist');return;}
         if(response.passkey_required&&response.landing_path==='/admin/passkey'){location.assign('/admin/passkey');return;}
-        if(response.role!=='ADMIN'||!['/admin/ads','/admin/music','/admin/music/youtube','/admin/feedback/exclusions','/api/admin/operations/kibana'].includes(response.landing_path)||!response.allowed_menus.some(menu=>menu.path===response.landing_path))throw new Error('계정 권한을 확인해 주세요.');
+        if(response.role!=='ADMIN'||!['/platform/admin','/platform/review','/admin/ads','/admin/music','/admin/music/youtube','/admin/feedback/exclusions','/api/admin/operations/kibana'].includes(response.landing_path)||!response.allowed_menus.some(menu=>menu.path===response.landing_path))throw new Error('계정 권한을 확인해 주세요.');
         location.assign(response.landing_path);
       }catch(error){setError((error as Error).message);}
       finally{setBusy(false);setPassword('');}
