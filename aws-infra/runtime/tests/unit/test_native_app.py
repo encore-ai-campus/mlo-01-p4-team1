@@ -11,17 +11,21 @@ from mlo_runtime.native_app import prepare
 from mlo_runtime.native_control_stage import stage, verify
 
 
+WEATHER_FEEDBACK_FIXTURE = "f0b132c029836f604edb16953ca222e46c876d0c"
+VENUES_DELTA_FIXTURE = "c3c3d58be96b04e2df1fb8c2af5ec093c6a67d1b"
+
+
 class NativeAppReview(unittest.TestCase):
-    def get_shared_develop(self):
-        git = subprocess.run(["git", "-C", str(ROOT), "rev-parse",
-                              "--verify", "refs/remotes/origin/develop^{commit}"],
+    def source_fixture(self, sha=WEATHER_FEEDBACK_FIXTURE):
+        # Use fixed Git inputs: the supported two-query snapshot and the later
+        # venue pipeline require different native dependency reviews.
+        git = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--verify", sha + "^{commit}"],
                              capture_output=True, text=True, check=False, timeout=15)
-        if git.returncode:
-            self.skipTest("no pinned team develop Git ref in this offline checkout")
+        self.assertEqual(git.returncode, 0, "full shared Git history is required for native source fixtures")
         return git.stdout.strip()
 
     def test_reviewed_team_git_snapshot_excludes_legacy_wrapper_and_is_repeatable(self):
-        ref = self.get_shared_develop()
+        ref = self.source_fixture()
         with tempfile.TemporaryDirectory(prefix="mlo-control-lab-review-") as folder:
             root = Path(folder).resolve()
             first = prepare(ROOT, ref, root / "review-1")
@@ -48,8 +52,16 @@ class NativeAppReview(unittest.TestCase):
                 self.assertIn("backend/requirements.lock", source.namelist())
                 self.assertNotIn("pipeline/weather/submit_spark.py", source.namelist())
 
+    def test_venue_delta_requires_separate_native_dependency_review(self):
+        ref = self.source_fixture(VENUES_DELTA_FIXTURE)
+        with tempfile.TemporaryDirectory(prefix="mlo-native-venues-review-") as folder:
+            output = Path(folder).resolve() / "review"
+            with self.assertRaisesRegex(ValueError, "unreviewed Unity Catalog/Delta"):
+                prepare(ROOT, ref, output)
+            self.assertFalse(output.exists())
+
     def test_staged_lab_candidate_is_immutable_and_production_disallowed(self):
-        ref = self.get_shared_develop()
+        ref = self.source_fixture()
         with tempfile.TemporaryDirectory(prefix="mlo-control-lab-staging-") as folder:
             root = Path(folder).resolve()
             source = root / "source"
@@ -69,7 +81,7 @@ class NativeAppReview(unittest.TestCase):
                 stage(source, Path("/"))
 
     def test_staging_rejects_unapproved_dependency_lock_identity(self):
-        ref = self.get_shared_develop()
+        ref = self.source_fixture()
         with tempfile.TemporaryDirectory(prefix="mlo-control-lab-lock-", dir=None) as folder:
             root = Path(folder).resolve()
             source = root / "source"
@@ -82,7 +94,7 @@ class NativeAppReview(unittest.TestCase):
                 stage(source, root)
 
     def test_staging_refuses_modified_review_source(self):
-        ref = self.get_shared_develop()
+        ref = self.source_fixture()
         with tempfile.TemporaryDirectory(prefix="mlo-control-lab-modified-") as folder:
             root = Path(folder).resolve()
             source = root / "source"
