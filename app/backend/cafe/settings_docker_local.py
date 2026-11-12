@@ -18,6 +18,7 @@ DEBUG = True
 # This override is not imported by the AWS/production DJANGO_SETTINGS_MODULE.
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False
+PHASE4_ALLOW_INSECURE_WORKER_LOCAL = os.environ.get('PHASE4_ALLOW_INSECURE_WORKER_LOCAL') == '1'
 
 # Synthetic local membership policy; never inherited by the production settings.
 MEMBER_LOCAL_PREVIEW = True

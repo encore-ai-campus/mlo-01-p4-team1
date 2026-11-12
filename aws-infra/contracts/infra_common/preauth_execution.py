@@ -230,7 +230,7 @@ def receipt(path, value):
 
 
 def deploy_runtime(
-    gate, clients, receipt_path, *, clock=time.monotonic, pause=time.sleep
+    gate, clients, receipt_path, *, clock=time.monotonic, pause=time.sleep, web_release=None
 ):
     """Fixed SSM Document and exact instances; no retry of an uncertain SendCommand.
 
@@ -269,9 +269,10 @@ def deploy_runtime(
         "exact instance IDs required",
     )
     document, artifact = payload["document"], payload["artifact"]
+    document_name = "p4-runtime-artifact" if web_release is None else "p4-control-web-" + web_release[0]
     require(
         set(document) == {"name", "version", "sha256"}
-        and document["name"] == "p4-runtime-artifact"
+        and document["name"] == document_name
         and re.fullmatch(r"[1-9][0-9]*", document["version"])
         and re.fullmatch(r"[a-f0-9]{64}", document["sha256"]),
         "immutable SSM Document required",
@@ -313,16 +314,27 @@ def deploy_runtime(
     require(
         set(targets) <= set(names), "runtime instance not in accepted account inventory"
     )
+    if web_release is not None:
+        require(
+            account == "encore1"
+            and operation == "deploy"
+            and document["version"] == "1"
+            and artifact["bucket"] == inventory["storage"]["transfer_bucket_ref"]
+            and artifact["key"] == "artifacts/web/" + web_release[0] + ".tar.gz"
+            and [names[target] for target in targets] == ["control-b", "control-a"],
+            "main web rollout requires the exact release and ordered Control targets",
+        )
     # Factory is invoked only after every local acceptance/shape gate passed.
     sts, ssm, s3 = clients(account)
     identity = sts.get_caller_identity()
+    role = "p4-controller-" + account if web_release is None else "p4-ci-web-deploy"
     require(
         identity["Account"] == review["account_ids"][account]
         and re.fullmatch(
             r"arn:aws:sts::"
             + identity["Account"]
-            + r":assumed-role/p4-controller-"
-            + account
+            + r":assumed-role/"
+            + role
             + r"/[A-Za-z0-9+=,.@_-]+",
             identity["Arn"],
         ),
@@ -392,6 +404,13 @@ def deploy_runtime(
                 manifest.get("fixture", False) is False,
                 "lab artifact cannot be deployed",
             )
+            if web_release is not None:
+                expected_release, expected_image = web_release
+                require(
+                    manifest["artifact_version"] == expected_release
+                    and manifest["image_digests"].get("web") == expected_image,
+                    "signed runtime artifact differs from published main web release",
+                )
             node = names[target]
             role = next(n["role"] for n in inventory["nodes"] if n["name"] == node)
             native = (

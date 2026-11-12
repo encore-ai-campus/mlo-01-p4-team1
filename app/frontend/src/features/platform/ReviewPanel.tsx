@@ -87,6 +87,7 @@ export interface ReviewPanelProps {
   canClosures?: boolean;
   canMetrics?: boolean;
   initialTab?: ReviewTab;
+  claimId?: string;
 }
 
 const CLOSURE_FILTERS = [
@@ -126,6 +127,7 @@ export function ReviewPanel({
   canClosures = false,
   canMetrics = false,
   initialTab,
+  claimId,
 }: ReviewPanelProps) {
   const hasClosuresTab = canClosures || canMetrics;
   const [activeTab, setActiveTab] = useState<ReviewTab>(() =>
@@ -143,6 +145,11 @@ export function ReviewPanel({
   const [message, setMessage] = useState('');
 
   async function refreshWorkspace() {
+    if (claimId) {
+      const claim = await call<Claim>(`/admin/workspace-claims/${encodeURIComponent(claimId)}`);
+      setClaims([claim]);
+      return;
+    }
     setClaims((await call<{ items: Claim[] }>('/admin/workspace-claims')).items);
   }
 
@@ -188,7 +195,7 @@ export function ReviewPanel({
     } else if (activeTab === 'closures' && hasClosuresTab) {
       void run(() => refreshClosuresAndMetrics(statusFilter, guFilter));
     }
-  }, [admin, activeTab, canWorkspace, hasClosuresTab]);
+  }, [admin, activeTab, canWorkspace, hasClosuresTab, claimId]);
 
   function selectTab(nextTab: ReviewTab) {
     setError('');
@@ -254,7 +261,7 @@ export function ReviewPanel({
           <h2>관리자 인증이 필요합니다</h2>
           <p>별도 매장 심사 권한과 최근 5분 이내 패스키 인증을 확인합니다.</p>
           <div className="p-actions">
-            <a className="p-link-button" href="/platform/login">
+            <a className="p-link-button" href="/platform/admin/login">
               심사 관리자 로그인
             </a>
             <a href="/admin/passkey">패스키 인증</a>
@@ -288,7 +295,7 @@ export function ReviewPanel({
           {activeTab === 'workspace' && canWorkspace && (
             <section className="p-card" role="tabpanel" aria-label="매장 관리권한 심사">
               <div className="p-card-heading">
-                <h2>승인 대기 신청</h2>
+                <h2>{claimId ? '매장 권한 신청' : '승인 대기 신청'}</h2>
                 <button disabled={busy} onClick={() => void run(refreshWorkspace)}>
                   새로고침
                 </button>
@@ -310,33 +317,35 @@ export function ReviewPanel({
                       합성 확인 {claim.match_result} / {claim.business_status} · 내용 v{claim.content_revision}
                     </p>
                   </div>
-                  <div className="p-actions">
-                    {[
-                      ['APPROVE', 'DEMO_SCENARIO_CONFIRMED', '승인'],
-                      ['REQUEST_MORE', 'CORRECTION_REQUIRED', '보완 요청'],
-                      ['REJECT', 'AUTHORITY_UNCONFIRMED', '거절'],
-                    ].map(([decision, reason_code, label]) => (
-                      <button
-                        key={decision}
-                        disabled={busy}
-                        className={decision === 'APPROVE' ? 'p-primary' : ''}
-                        onClick={() =>
-                          void run(async () => {
-                            await call(
-                              `/admin/workspace-claims/${claim.id}/decisions`,
-                              'POST',
-                              { decision, reason_code },
-                              etag(claim.revision),
-                            );
-                            await refreshWorkspace();
-                            setMessage('심사 결과를 저장했습니다.');
-                          })
-                        }
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                  {claim.state === 'SUBMITTED' && (
+                    <div className="p-actions">
+                      {[
+                        ['APPROVE', 'DEMO_SCENARIO_CONFIRMED', '승인'],
+                        ['REQUEST_MORE', 'CORRECTION_REQUIRED', '보완 요청'],
+                        ['REJECT', 'AUTHORITY_UNCONFIRMED', '거절'],
+                      ].map(([decision, reason_code, label]) => (
+                        <button
+                          key={decision}
+                          disabled={busy}
+                          className={decision === 'APPROVE' ? 'p-primary' : ''}
+                          onClick={() =>
+                            void run(async () => {
+                              await call(
+                                `/admin/workspace-claims/${claim.id}/decisions`,
+                                'POST',
+                                { decision, reason_code },
+                                etag(claim.revision),
+                              );
+                              await refreshWorkspace();
+                              setMessage('심사 결과를 저장했습니다.');
+                            })
+                          }
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </article>
               ))}
             </section>

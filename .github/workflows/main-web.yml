@@ -1,0 +1,209 @@
+name: Main web image pipeline
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verify:
+    name: Verify web image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    outputs:
+      revision: ${{ steps.build.outputs.revision }}
+      config-digest: ${{ steps.archive.outputs.config-digest }}
+      archive-digest: ${{ steps.archive.outputs.archive-digest }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check source inputs
+        run: python3 app/docker/check_git_candidates.py
+      - name: Check frontend
+        run: |
+          docker build --platform linux/amd64 --target frontend \
+            --file app/docker/api.Dockerfile --tag mlo-web-frontend:ci app
+          docker run --rm --platform linux/amd64 --network none mlo-web-frontend:ci pnpm test
+      - name: Build and verify the production image
+        id: build
+        run: |
+          revision="$(python3 -c 'from scripts.build_app_images import source_manifest; print(source_manifest()[1])')"
+          docker buildx build --load --provenance=false --platform linux/amd64 --target production \
+            --build-arg "APP_REVISION=$revision" \
+            --file app/docker/api.Dockerfile --tag "mlo-web:$GITHUB_SHA" app
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "mlo-web:$GITHUB_SHA")" = linux/amd64
+          docker run --rm --platform linux/amd64 --network none --env C_LOCAL_DEMO=1 --env C_LOCAL_DATABASE=/tmp/mlo-ci.sqlite3 \
+            --env PHASE4_OWNER_PORTAL_ENABLED=1 \
+            "mlo-web:$GITHUB_SHA" python -m backend.manage test --noinput \
+            backend.common.test_frontend backend.common.test_phase4_deployment backend.phase4_ops
+          printf 'revision=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+      - name: Save the verified image for publication
+        id: archive
+        if: github.event_name == 'push' && vars.WEB_ECR_PUBLISH_ENABLED == 'true'
+        run: |
+          image="mlo-web:$GITHUB_SHA"
+          archive="$RUNNER_TEMP/mlo-web.tar"
+          docker save --output "$archive" "$image"
+          config_path="$(tar -xOf "$archive" manifest.json | jq -er --arg tag "$image" '
+            select(length == 1) | .[0]
+            | select(.RepoTags == [$tag] or .RepoTags == ["docker.io/library/" + $tag]) | .Config
+          ')"
+          [[ "$config_path" =~ ^(blobs/sha256/)?[a-f0-9]{64}(\.json)?$ ]]
+          config_digest="$(tar -xOf "$archive" "$config_path" | sha256sum | cut -d ' ' -f 1)"
+          gzip -1 "$archive"
+          archive_digest="$(sha256sum "$archive.gz" | cut -d ' ' -f 1)"
+          printf 'config-digest=sha256:%s\narchive-digest=%s\n' "$config_digest" "$archive_digest" >> "$GITHUB_OUTPUT"
+      - name: Upload the verified image
+        if: github.event_name == 'push' && vars.WEB_ECR_PUBLISH_ENABLED == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: mlo-web-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/mlo-web.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
+          retention-days: 1
+
+  publish:
+    name: Publish verified image to ECR
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.WEB_ECR_PUBLISH_ENABLED == 'true'
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      image: ${{ steps.registry.outputs.image }}
+    concurrency:
+      group: mlo-web-ecr-${{ github.sha }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.WEB_ECR_REGION }}
+      ECR_ACCOUNT: ${{ vars.WEB_ECR_ACCOUNT_ID }}
+      ECR_REPOSITORY: mlo-p4/api
+      EXPECTED_CONFIG_DIGEST: ${{ needs.verify.outputs.config-digest }}
+      EXPECTED_ARCHIVE_DIGEST: ${{ needs.verify.outputs.archive-digest }}
+      PUBLISH_ROLE: ${{ vars.WEB_ECR_PUBLISH_ROLE_ARN }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: mlo-web-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}
+      - name: Validate registry scope and verified image
+        run: |
+          [[ "$ECR_ACCOUNT" =~ ^[0-9]{12}$ ]]
+          [[ "$AWS_REGION" =~ ^[a-z]{2}-[a-z]+-[0-9]+$ ]]
+          [[ "$EXPECTED_CONFIG_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          [[ "$PUBLISH_ROLE" =~ ^arn:aws:iam::${ECR_ACCOUNT}:role/[A-Za-z0-9+=,.@_/-]+$ ]]
+          [[ "$EXPECTED_ARCHIVE_DIGEST" =~ ^[a-f0-9]{64}$ ]]
+          actual_digest="$(sha256sum "$RUNNER_TEMP/mlo-web.tar.gz" | cut -d ' ' -f 1)"
+          test "$actual_digest" = "$EXPECTED_ARCHIVE_DIGEST"
+          docker load --input "$RUNNER_TEMP/mlo-web.tar.gz"
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "mlo-web:$GITHUB_SHA")" = linux/amd64
+      - uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708
+        with:
+          role-to-assume: ${{ env.PUBLISH_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+          allowed-account-ids: ${{ env.ECR_ACCOUNT }}
+          role-session-name: web-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Publish and verify the immutable manifest
+        id: registry
+        run: |
+          repository="$(aws ecr describe-repositories --registry-id "$ECR_ACCOUNT" \
+            --repository-names "$ECR_REPOSITORY" --output json)"
+          registry="$ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com"
+          uri="$registry/$ECR_REPOSITORY"
+          jq -e --arg uri "$uri" '
+            .repositories | length == 1 and
+            .[0].repositoryUri == $uri and .[0].imageTagMutability == "IMMUTABLE"
+          ' <<< "$repository" > /dev/null
+
+          # Keep main tags distinct from images already published from develop.
+          tag="main-$GITHUB_SHA"
+          read_manifest() {
+            aws ecr batch-get-image --registry-id "$ECR_ACCOUNT" --repository-name "$ECR_REPOSITORY" \
+              --image-ids "imageTag=$tag" --output json
+          }
+          response="$(read_manifest)"
+          if jq -e '(.images // []) == [] and (.failures | map(.failureCode)) == ["ImageNotFound"]' \
+            <<< "$response" > /dev/null; then
+            export DOCKER_CONFIG="$(mktemp -d "$RUNNER_TEMP/mlo-ecr.XXXXXX")"
+            trap 'rm -r -- "$DOCKER_CONFIG"' EXIT
+            aws ecr get-login-password | docker login --username AWS --password-stdin "$registry"
+            docker tag "mlo-web:$GITHUB_SHA" "$uri:$tag"
+            docker push --platform linux/amd64 "$uri:$tag"
+            response="$(read_manifest)"
+          fi
+          digest="$(jq -er --arg config "$EXPECTED_CONFIG_DIGEST" --arg tag "$tag" \
+            --arg registry "$ECR_ACCOUNT" --arg repository "$ECR_REPOSITORY" '
+            select((.failures // []) == [] and (.images | length == 1))
+            | .images[0] | select(.imageId.imageTag == $tag and .registryId == $registry and .repositoryName == $repository)
+            | select((.imageManifest | fromjson | .config.digest) == $config)
+            | .imageId.imageDigest | select(test("^sha256:[a-f0-9]{64}$"))
+          ' <<< "$response")"
+          manifest_digest="$(jq -jr '.images[0].imageManifest' <<< "$response" | sha256sum | cut -d ' ' -f 1)"
+          test "$digest" = "sha256:$manifest_digest"
+          printf 'image=%s@%s\n' "$uri" "$digest" >> "$GITHUB_OUTPUT"
+          printf 'Published verified image `%s@%s`\n' "$uri" "$digest" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: Deploy the signed web release
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      vars.WEB_SSM_DEPLOY_ENABLED == 'true' &&
+      vars.WEB_DEPLOY_REVIEW_SHA256 != '' &&
+      vars.INFRA_APPROVAL_PUBLIC_KEY_SHA256 != '' &&
+      vars.INFRA_PRIVATE_REVIEW_ROOT != ''
+    needs: [verify, publish]
+    runs-on: [self-hosted, Linux, X64, mlo-main-web]
+    timeout-minutes: 60
+    environment: infra-runtime
+    concurrency:
+      group: mlo-infra-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          clean: true
+          persist-credentials: false
+      - name: Validate the signed release and deploy its pinned image
+        env:
+          MLO_PURPOSE: runtime
+          MLO_REVIEW_SHA256: ${{ vars.WEB_DEPLOY_REVIEW_SHA256 }}
+          MLO_APPROVAL_KEY_SHA256: ${{ vars.INFRA_APPROVAL_PUBLIC_KEY_SHA256 }}
+          MLO_REVIEW_ROOT: ${{ vars.INFRA_PRIVATE_REVIEW_ROOT }}
+          MLO_REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+          MLO_WEB_IMAGE: ${{ needs.publish.outputs.image }}
+          MLO_WEB_DEPLOY: 'true'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: /opt/mlo/runtime-venv/bin/python scripts/run_reviewed_workflow.py
+      - name: Check the deployed revision through CloudFront
+        env:
+          VIEWER_HOST: ${{ vars.WEB_VIEWER_HOST }}
+          EXPECTED_REVISION: ${{ needs.verify.outputs.revision }}
+        run: |
+          [[ "$VIEWER_HOST" =~ ^[a-z0-9]+\.cloudfront\.net$ ]]
+          [[ "$EXPECTED_REVISION" =~ ^[a-f0-9]{64}$ ]]
+          for attempt in {1..12}; do
+            if curl --fail --silent --show-error --max-time 8 "https://$VIEWER_HOST/readyz" \
+              | jq -e --arg revision "$EXPECTED_REVISION" '. == {status: "ready", revision: $revision}' >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1

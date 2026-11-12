@@ -174,24 +174,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; allowFeedback?: bo
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       color: '#0f172a',
     }}>
-      {showServiceHeader && readOnly && <div className="fitplace-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap'}}>
-        <a className="fitplace-logo" href="/venues">핏플레이스</a>
-        <div><span className="fitplace-header-title">나에게 딱 맞는 하루</span></div>
-        <div className="fp-header-actions">
-          <a href={serviceAccount?.role === 'USER' ? '/platform/account' : '/platform/login'}>{serviceAccount?.role === 'USER' ? `${serviceAccount.nickname || '회원'} · 마이페이지` : '로그인'}</a>
-          <div className="fp-header-menu-wrap">
-            <button type="button" className="fp-header-menu-trigger" aria-label="전체 메뉴" aria-expanded={headerMenuOpen} aria-controls="fp-platform-header-menu" onClick={() => setHeaderMenuOpen(open => !open)}><span aria-hidden="true">☰</span></button>
-            {headerMenuOpen && <>
-              <div className="fp-header-menu-backdrop" aria-hidden="true" onClick={() => setHeaderMenuOpen(false)} />
-              <nav id="fp-platform-header-menu" className="fp-header-menu" aria-label="전체 메뉴">
-                <div className="fp-header-menu-title"><strong>전체 메뉴</strong><button type="button" aria-label="메뉴 닫기" onClick={() => setHeaderMenuOpen(false)}>×</button></div>
-                <a href="/">음악 큐레이션 <span aria-hidden="true">›</span></a>
-              </nav>
-            </>}
-          </div>
-        </div>
-      </div>}
-      {!readOnly && (
+      {(!readOnly || showServiceHeader) && (
         <>
           <div className="fitplace-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
             <a className="fitplace-logo" href="/venues">핏플레이스</a>
@@ -202,11 +185,12 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; allowFeedback?: bo
             <div className="fp-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {/* 알림 벨 팝오버 */}
               <NotificationPopover
+                unavailable={readOnly}
                 userId={currentUserId}
                 onSelectLink={(url) => window.location.href = url}
               />
 
-              <button type="button" className="fp-header-icon fp-profile-button" aria-label="마이페이지" onClick={() => setIsMyPageOpen(true)}>
+              <button type="button" className="fp-header-icon fp-profile-button" aria-label="마이페이지" onClick={() => { if (readOnly) window.location.href = serviceAccount?.role === 'USER' ? '/platform/account' : '/platform/login'; else setIsMyPageOpen(true); }}>
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="7.5" r="3.5"/><path d="M4.5 20v-2.2a4.3 4.3 0 0 1 4.3-4.3h6.4a4.3 4.3 0 0 1 4.3 4.3V20"/></svg>
               </button>
               <div className="fp-header-menu-wrap">
@@ -215,16 +199,22 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; allowFeedback?: bo
                   <div className="fp-header-menu-backdrop" aria-hidden="true" onClick={() => setHeaderMenuOpen(false)} />
                   <nav id="fp-header-menu" className="fp-header-menu" aria-label="전체 메뉴">
                     <div className="fp-header-menu-title"><strong>전체 메뉴</strong><button type="button" aria-label="메뉴 닫기" onClick={() => setHeaderMenuOpen(false)}>×</button></div>
-                    <a href="/">음악 큐레이션 <span aria-hidden="true">›</span></a>
+                    <details className="fp-owner-menu">
+                      <summary>관련 서비스 <span aria-hidden="true">⌄</span></summary>
+                      <div className="fp-owner-submenu">
+                        <a href="/platform">itda <span aria-hidden="true">›</span></a>
+                        <a href="/muther">muther <span aria-hidden="true">›</span></a>
+                      </div>
+                    </details>
                     <details className="fp-owner-menu">
                       <summary>사장님 페이지 <span aria-hidden="true">⌄</span></summary>
                       <div className="fp-owner-submenu">
                         <a href="/">매장 음악 관리 <span aria-hidden="true">›</span></a>
-                        <button type="button" onClick={() => { setHeaderMenuOpen(false); setIsClaimModalOpen(true); }}>사장님 등록 <span aria-hidden="true">›</span></button>
-                        <button type="button" onClick={() => { setHeaderMenuOpen(false); setIsPublishEventOpen(true); }}>이벤트 발행 <span aria-hidden="true">›</span></button>
+                        <button type="button" onClick={() => { setHeaderMenuOpen(false); readOnly ? window.alert('현재 플랫폼에서는 해당 기능을 사용할 수 없습니다.') : setIsClaimModalOpen(true); }}>사장님 등록 <span aria-hidden="true">›</span></button>
+                        <button type="button" onClick={() => { setHeaderMenuOpen(false); readOnly ? window.alert('현재 플랫폼에서는 해당 기능을 사용할 수 없습니다.') : setIsPublishEventOpen(true); }}>이벤트 발행 <span aria-hidden="true">›</span></button>
                       </div>
                     </details>
-                    <a href="/login">로그인 <span aria-hidden="true">›</span></a>
+                    <a href="/platform/login">로그인 <span aria-hidden="true">›</span></a>
                   </nav>
                 </>}
               </div>

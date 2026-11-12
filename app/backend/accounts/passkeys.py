@@ -138,10 +138,21 @@ class Verify(Endpoint):
                 error = True
             row.delete()  # Also consume a failed ceremony; failures cannot roll back the challenge deletion.
         require(not error, 'PASSKEY_FAILED', '패스키를 확인할 수 없습니다. 다시 시도해 주세요.', 403)
-        session.cycle_key()
-        session['admin_passkey_user'] = str(user.pk)
-        session['admin_passkey_verified_at'] = timezone.now().timestamp()
         from backend.common.api import account_data, account_data_for_user
         menus = account_data_for_user(user)
         require(menus, 'FORBIDDEN', '사용 가능한 관리자 메뉴가 없습니다.', 403)
-        return Response({**account_data(request), 'landing_path': menus[0]['path']})
+        if settings.ADMIN_LOCAL_LOGIN_ENABLED and settings.MEMBER_LOOKUP_KEY:
+            # Only a complete administrator sign-in resets the password attempt counter.
+            from .crypto import digest
+            from .models import AccountLimit
+            identifier = digest('rate', 'login:' + user.username.lower())
+            AccountLimit.objects.filter(pk=identifier).update(count=0)
+        session.cycle_key()
+        session['admin_passkey_user'] = str(user.pk)
+        session['admin_passkey_verified_at'] = timezone.now().timestamp()
+        from backend.workspaces import private_demo
+
+        account = account_data(request)
+        if private_demo.review_only_mode() and account['private_demo_review_allowed']:
+            return Response({**account, 'landing_path': '/platform/admin'})
+        return Response({**account, 'landing_path': menus[0]['path']})

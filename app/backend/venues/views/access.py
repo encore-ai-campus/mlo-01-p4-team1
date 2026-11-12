@@ -48,8 +48,16 @@ def _error_response(code: str, message: str, status: int) -> JsonResponse:
     return response
 
 
-def _require_member(request, kind: str, error_code: str, error_message: str):
-    authorization.enabled()
+def _require_member(
+    request,
+    kind: str,
+    error_code: str,
+    error_message: str,
+    *,
+    check_platform_enabled: bool = True,
+):
+    if check_platform_enabled:
+        authorization.enabled()
     user = authorization.account(request)
     require(
         ServiceMembership.objects.filter(user=user, kind=kind, status='ACTIVE').exists(),
@@ -97,18 +105,27 @@ def demo_only(view):
 
 
 def consumer_mcp(view):
-    """Allow the isolated preview and authenticated consumer platform preview."""
+    """Keep preview access and require an active consumer for operational MCP."""
     @never_cache
     @wraps(view)
     def checked(request, *args, **kwargs):
         if standalone_demo():
             return view(request, *args, **kwargs)
-        if not settings.MEMBER_LOCAL_PREVIEW or not settings.PLATFORM_ENABLED:
+        if not settings.MEMBER_LOCAL_PREVIEW and not settings.VENUE_MCP_SERVICE_ENABLED:
             return JsonResponse({"success": False, "code": "NOT_FOUND"}, status=404)
         try:
-            _require_member(request, 'CONSUMER', 'CONSUMER_MEMBERSHIP_REQUIRED', '사용자 이용 유형을 먼저 추가해 주세요.')
+            _require_member(
+                request,
+                'CONSUMER',
+                'CONSUMER_MEMBERSHIP_REQUIRED',
+                '사용자 이용 유형을 먼저 추가해 주세요.',
+                check_platform_enabled=False,
+            )
         except DomainError as error:
             return _error_response(error.code, error.message, error.status)
+        if not settings.MEMBER_LOCAL_PREVIEW and getattr(request, "scope", {}).get("venue_mcp_client") is None:
+            return JsonResponse({"success": False, "code": "VENUE_MCP_UNAVAILABLE",
+                                 "message": "매장 추천 연결을 확인해 주세요."}, status=503)
         return view(request, *args, **kwargs)
     return checked
 

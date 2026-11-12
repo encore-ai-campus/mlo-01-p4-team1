@@ -2,12 +2,14 @@
 import json
 import uuid
 from django.db import IntegrityError
+from django.contrib.auth import get_user
 from rest_framework.response import Response
 from rest_framework.exceptions import APIException
 from backend.recommendation.api import Endpoint
 from backend.accounts import services as account_services
+from backend.common.identity import raw_request
 from backend.recommendation.errors import DomainError, require
-from . import accounts, service, authorization as auth
+from . import accounts, private_demo, service, authorization as auth
 from .schema import validate, CONTRACT
 
 ACCOUNT_OPERATIONS={
@@ -17,6 +19,7 @@ ACCOUNT_OPERATIONS={
     'requestEmail':'email_add','removeEmail':'email_remove','verifyEmail':'email_verify',
     'changePassword':'password','requestRecovery':'recovery_request','completeRecovery':'recovery_complete','withdraw':'withdraw',
 }
+SONG_PORTAL_OPERATIONS = frozenset({'getPolicies', 'login', 'currentSession', 'logout'})
 
 
 class PlatformEndpoint(Endpoint):
@@ -24,7 +27,14 @@ class PlatformEndpoint(Endpoint):
 
     def initial(self,request,*args,**kwargs):
         super().initial(request,*args,**kwargs)
-        auth.enabled()
+        descriptor = self.operations.get(request.method.lower(), {})
+        self.song_portal_only = auth.song_portal_only()
+        operation = descriptor.get('operationId')
+        private_review = private_demo.review_only_mode() and operation in private_demo.PRIVATE_REVIEW_OPERATIONS
+        if not private_review and not (
+            self.song_portal_only and operation in (SONG_PORTAL_OPERATIONS | private_demo.REVIEW_OPERATIONS)
+        ):
+            auth.enabled()
         require(account_services.limit('platform-ip:'+request.META.get('REMOTE_ADDR',''),maximum=2000),
                 'RATE_LIMITED','요청이 많습니다. 잠시 후 다시 시도해 주세요.',429)
 
@@ -59,6 +69,13 @@ class PlatformEndpoint(Endpoint):
             body={}
         if operation in ACCOUNT_OPERATIONS:
             data,status=accounts.execute(ACCOUNT_OPERATIONS[operation],request,body)
+            if operation == 'currentSession' and self.song_portal_only:
+                from backend.phase4_ops.access import owner_workspaces
+
+                user = get_user(raw_request(request))
+                data.update(song_requests_only=True, can_request_songs=bool(
+                    data['authenticated'] and owner_workspaces(user.pk).exists()
+                ))
         elif operation in ('issueInvitationReceiver','reauthenticateIntent'):
             data,status=service.secret(operation,request,body)
         elif request.method=='GET':

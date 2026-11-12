@@ -116,17 +116,22 @@ export function SignupForm({policy}:{policy:Policy|null}){
   </form>;
 }
 
-export function LoginForm({administrator=false}:{administrator?:boolean}){
+export function LoginForm({administrator=false,songPortal=false}:{administrator?:boolean;songPortal?:boolean}){
   const [username,setUsername]=useState(''),[password,setPassword]=useState(''),[remember,setRemember]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
   async function submit(event:FormEvent){event.preventDefault();setBusy(true);setError('');
     try{
       if(administrator){
-        const result=await raw<{passkey_required:boolean;role:string;allowed_menus:{path:string}[]}>('/api/auth/login','POST',{username,password,remember:false});
-        if(!result.passkey_required&&result.role!=='ADMIN')throw new Error('플랫폼 관리자 계정을 확인해 주세요.');
+        const result=await raw<{passkey_required:boolean;role:string;landing_path:string}>('/api/auth/login','POST',{username,password,remember:false});
+        if(result.passkey_required){
+          if(result.landing_path!=='/admin/passkey')throw new Error('관리자 추가 인증 경로를 확인해 주세요.');
+          location.assign(result.landing_path);
+          return;
+        }
+        if(result.role!=='ADMIN')throw new Error('플랫폼 관리자 계정을 확인해 주세요.');
         location.assign('/platform/admin');
       }else{
         const result=await call<{next_action:{path:string}}>('/sessions','POST',{username,password,remember});
-        location.assign(result.next_action.path);
+        location.assign(songPortal?'/platform/business':result.next_action.path);
       }
     }catch(e){setError((e as Error).message);setPassword('');}finally{setBusy(false);}
   }
@@ -138,7 +143,7 @@ export function LoginForm({administrator=false}:{administrator?:boolean}){
       {!administrator&&<label className="p-check"><input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)}/>로그인 유지 (7일)</label>}
       <button className="p-primary" disabled={busy}>{busy?'로그인 중…':'로그인'}</button>
     </fieldset>
-    <p className="p-muted">{administrator?'메인 플랫폼 운영자 계정입니다. 1차 로그인 후 추가 인증 상태를 안내합니다.':'사용자·사업자 공통 로그인입니다. 가입된 이용 유형을 확인해 이동합니다.'}</p>
-    {!administrator&&<><div className="p-auth-links"><a href="/platform/account/recovery">아이디·비밀번호 찾기</a><a href="/platform/signup">회원가입</a></div><p className="p-admin-entry"><a href="/platform/admin/login">플랫폼 관리자 로그인</a></p></>}
+    <p className="p-muted">{administrator?'메인 플랫폼 운영자 계정입니다. 1차 로그인 후 추가 인증 상태를 안내합니다.':songPortal?'승인된 매장의 점주 계정으로 로그인해 주세요.':'사용자·사업자 공통 로그인입니다. 가입된 이용 유형을 확인해 이동합니다.'}</p>
+    {!administrator&&<>{!songPortal&&<div className="p-auth-links"><a href="/platform/account/recovery">아이디·비밀번호 찾기</a><a href="/platform/signup">회원가입</a></div>}<p className="p-admin-entry"><a href="/platform/admin/login">플랫폼 관리자 로그인</a></p></>}
   </form>;
 }

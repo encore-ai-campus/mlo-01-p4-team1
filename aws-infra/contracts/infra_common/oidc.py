@@ -15,6 +15,13 @@ import urllib.request
 
 from .coordination import require
 
+ENVIRONMENTS = {
+    "plan": "infra-plan",
+    "apply": "infra-apply",
+    "runtime": "infra-runtime",
+    "web-deploy": "infra-runtime",
+}
+
 
 def validate_claims(
     token,
@@ -31,12 +38,13 @@ def validate_claims(
     require(
         re.fullmatch(r"[0-9]{12}", account)
         and re.fullmatch(
-            r"arn:aws:iam::" + account + r":role/p4-ci-(plan|apply|runtime)", role
+            r"arn:aws:iam::" + account + r":role/p4-ci-(plan|apply|runtime|web-deploy)", role
         ),
         "exact CI role required",
     )
     require(
-        environment == "infra-" + role.rsplit("-", 1)[1], "CI role/environment mismatch"
+        environment == ENVIRONMENTS[role.split(":role/p4-ci-", 1)[1]],
+        "CI role/environment mismatch",
     )
     name = repository
     if repository_id is not None or owner_id is not None:
@@ -178,9 +186,9 @@ def credentials(account, role, repository, environment, *, request=None, sts=Non
 
 def write_config(path, account_ids, purpose, repository, environment):
     require(
-        purpose in {"plan", "apply", "runtime"}
+        purpose in ENVIRONMENTS
         and re.fullmatch(r"[\w.-]+/[\w.-]+", repository)
-        and environment == "infra-" + purpose,
+        and environment == ENVIRONMENTS[purpose],
         "CI scope mismatch",
     )
     require(
@@ -195,7 +203,8 @@ def write_config(path, account_ids, purpose, repository, environment):
     )
     launcher = Path(__file__).resolve().parents[3] / "scripts/infra_control.py"
     text = ""
-    for alias, account in sorted(account_ids.items()):
+    profiles = {"encore1": account_ids["encore1"]} if purpose == "web-deploy" else account_ids
+    for alias, account in sorted(profiles.items()):
         require(
             isinstance(account, str) and re.fullmatch(r"[0-9]{12}", account),
             "invalid OIDC account",

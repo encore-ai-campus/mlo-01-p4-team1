@@ -10,6 +10,7 @@ from backend.recommendation.youtube_queue_api import YoutubeQueue
 from backend.recommendation.youtube_audio_api import YoutubeAudio
 
 urlpatterns = [
+    path('api/phase4/', include('backend.phase4_ops.urls')),
     path('', include('backend.workspaces.urls')),
     path('', include('backend.accounts.urls')),
     path('', include('backend.venues.urls')),
@@ -75,5 +76,6 @@ urlpatterns = [
     path('muther/<path:name>', frontend.asset, {'prefix':'muther'}),
     path('ad-examples/<path:name>', frontend.asset, {'prefix':'ad-examples'}),
     path('default-cover.svg', frontend.asset, {'name':'default-cover.svg'}),
+    path('muther-wordmark.png', frontend.asset, {'name':'muther-wordmark.png'}),
     path('penguin-guide-first.png', frontend.asset, {'name':'penguin-guide-first.png'}),
 ]

@@ -3,7 +3,7 @@ import {call,type Policy} from './api';
 import {passwordValid,PASSWORD_HELP} from '../../shared/accountPolicy';
 
 type DashboardAccess={allowed:boolean;configured:boolean;path:string|null};
-export type PlatformAdmin={role?:string;admin_role?:string|null;passkey_required?:boolean;csrf_token:string;allowed_menus:{path:string;label:string}[];operations_dashboard?:DashboardAccess;log_dashboard?:DashboardAccess;workspace_review_allowed?:boolean;venue_closure_allowed?:boolean;venue_metrics_allowed?:boolean};
+export type PlatformAdmin={role?:string;admin_role?:string|null;passkey_required?:boolean;platform_enabled?:boolean;private_demo_review_allowed?:boolean;csrf_token:string;allowed_menus:{path:string;label:string}[];operations_dashboard?:DashboardAccess;log_dashboard?:DashboardAccess;workspace_review_allowed?:boolean;venue_closure_allowed?:boolean;venue_metrics_allowed?:boolean};
 const LEGACY_DASHBOARD_ROUTES=new Set(['/api/admin/operations/kibana','/api/admin/operations/dashboard','/api/admin/operations/logs']);
 const OPERATIONS_PATH='/api/admin/operations/dashboard';
 const BEHAVIOR_PATH='/api/admin/operations/logs';
@@ -18,12 +18,14 @@ function DashboardTile({label,description,expected,access}:{label:string;descrip
 }
 
 export function PlatformAdminHome({admin}:{admin:PlatformAdmin|null}){
-  if(admin?.passkey_required)return <section className="p-card p-admin-status"><span className="p-badge">추가 인증 대기</span><h2>관리자 1차 로그인을 완료했습니다</h2><p>메인 플랫폼의 관리자 계정이 확인되었습니다. 관리자 업무를 사용하려면 추가 인증을 마쳐야 합니다.</p><p className="p-alert">로컬 패스키 검증은 현재 보류 중입니다. 매장 심사 등 관리자 업무는 잠긴 상태로 유지합니다.</p><p className="p-muted">사업자·사용자 회원 로그인과 관리자 인증은 별도입니다. 이 계정은 muther. 한 서비스에만 한정된 계정이 아닙니다.</p><a href="/platform">메인 플랫폼으로</a></section>;
+  if(admin?.passkey_required)return <section className="p-card p-admin-status"><span className="p-badge">추가 인증 대기</span><h2>관리자 1차 로그인을 완료했습니다</h2><p>메인 플랫폼의 관리자 계정이 확인되었습니다. 관리자 업무를 사용하려면 추가 인증을 마쳐야 합니다.</p><a className="p-link-button" href="/admin/passkey">패스키 인증</a></section>;
   if(admin?.role!=='ADMIN')return <section className="p-card"><h2>플랫폼 관리자 로그인이 필요합니다</h2><p>공통 계정과 매장 관리권한 심사를 관리하는 운영자 전용 공간입니다.</p><a className="p-link-button" href="/platform/admin/login">플랫폼 관리자 로그인</a></section>;
   const ads=admin.allowed_menus.some(menu=>menu.path==='/admin/ads');
   const behavior=admin.log_dashboard?.allowed===true?admin.log_dashboard:null;
   const operations=admin.operations_dashboard?.allowed===true?admin.operations_dashboard:null;
-  const remaining=admin.allowed_menus.filter(menu=>menu.path!=='/admin/ads'&&!LEGACY_DASHBOARD_ROUTES.has(menu.path));
+  const canReview=admin.platform_enabled===true||admin.private_demo_review_allowed===true;
+  const remaining=admin.allowed_menus.filter(menu=>menu.path!=='/admin/ads'&&!LEGACY_DASHBOARD_ROUTES.has(menu.path)
+    &&(menu.path!=='/platform/review'||canReview));
   const hasDashboards=ads||!!behavior||!!operations;
   const hasUnconfiguredKibana=Boolean((behavior&&(!behavior.configured||behavior.path!==BEHAVIOR_PATH))||(operations&&(!operations.configured||operations.path!==OPERATIONS_PATH)));
   const hasOtherTasks=remaining.length>0||Boolean(admin.venue_closure_allowed)||Boolean(admin.venue_metrics_allowed);

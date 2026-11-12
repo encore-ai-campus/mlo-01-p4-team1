@@ -1,0 +1,63 @@
+.owner-song-requests {
+  container-type: inline-size;
+  margin-block: 18px;
+  scroll-margin-top: 16px;
+}
+
+.platform-page .p-link-button.owner-song-link { background: #fff; border-color: #d8e1ef; color: #385176; }
+.platform-page .p-link-button.owner-song-link:hover { background: #f1f5fc; }
+
+.owner-song-grid {
+  display: grid;
+  align-items: start;
+  gap: 18px;
+}
+
+.owner-song-grid .owner-song-card { min-width: 0; margin: 0; }
+.owner-song-card .owner-song-heading { gap: 8px 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.owner-song-card .owner-song-heading h2 { margin: 0; }
+.owner-song-card .owner-song-intro { margin: 0 0 12px; }
+.owner-song-card :is(.p-muted, .p-row small) { color: #596b85; }
+.owner-song-form { display: grid; gap: 12px; }
+.owner-song-form > label { margin: 0; }
+
+.owner-song-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+.owner-song-fields legend { padding: 0; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+.owner-song-fields legend span { margin-inline-start: 5px; color: #536d95; font-weight: 600; }
+.owner-song-entry { padding: 12px; border: 1px solid #e2e8f2; border-radius: 10px; background: #fafcff; }
+.owner-song-entry + .owner-song-entry { margin-top: 8px; }
+.owner-song-entry-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.owner-song-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 12px; }
+.owner-song-inputs label { min-width: 0; margin: 0; }
+.owner-song-inputs input { min-width: 0; }
+.owner-song-url { grid-column: 1 / -1; }
+.owner-song-add { margin-top: 8px; }
+.owner-song-submit { justify-content: flex-end; padding-top: 12px; border-top: 1px solid #edf0f6; }
+
+.owner-song-requests .p4-notice,
+.owner-song-card .p4-check-results { margin: 0; padding: 9px 12px; border-radius: 8px; background: #eff4fc; color: #536d95; font-size: 12px; }
+.owner-song-requests .p4-notice-error { background: #fff0f0; color: #a3474b; }
+.owner-song-requests :focus-visible { outline: 2px solid #a6b9f3; outline-offset: 2px; }
+.owner-song-card .p4-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.owner-song-card :is(.p4-empty, .p4-meta) { color: #536d95; font-size: 12px; }
+
+.owner-song-batch ul { list-style: none; margin: 0; padding: 0; }
+.owner-song-card .owner-song-batch h3 { margin: 12px 0 4px; color: #53627a; font-size: 12px; }
+.owner-song-card .owner-song-history-row { flex-wrap: wrap; padding: 8px 0; gap: 3px 8px; overflow-wrap: anywhere; }
+.owner-song-history-row > div:first-child { min-width: 0; }
+.owner-song-history-row strong { font-size: 13px; }
+.owner-song-history-row small { margin-top: 0; }
+.owner-song-card .owner-song-history-detail { flex-basis: 100%; margin: 0; }
+
+@container (min-width: 760px) {
+  .owner-song-grid { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); }
+}
+
+@container (min-width: 1040px) {
+  .owner-song-inputs { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr); }
+  .owner-song-url { grid-column: auto; }
+}
+
+@container (max-width: 300px) {
+  .owner-song-grid .owner-song-card { padding: 16px; }
+}
