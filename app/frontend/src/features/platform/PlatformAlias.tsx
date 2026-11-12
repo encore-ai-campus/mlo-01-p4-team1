@@ -10,3 +10,16 @@ export function PlatformAlias({to,children}:{to:string;children:ReactNode}){
   }).catch(()=>{if(active)setError('계정 화면 연결을 확인하지 못했습니다. 새로고침해 주세요.');});return()=>{active=false;};},[to]);
   return legacy?<>{children}</>:<main className="account-layout"><p role={error?'alert':'status'}>{error||'공통 계정 화면으로 연결하고 있습니다…'}</p></main>;
 }
+
+/** Public accounts can be released while the broader workspace platform stays closed. */
+export function PublicAccountRoute({children,fallback}:{children:ReactNode;fallback:ReactNode}){
+  const [standalone,setStandalone]=useState<boolean|null>(null);
+  useEffect(()=>{let active=true;void api<{platform_enabled:boolean}>('/api/auth/me').then(async me=>{
+    if(me.platform_enabled)return false;
+    const policy=await api<{ready:boolean}>('/api/accounts/policy');
+    return policy.ready;
+  }).then(value=>{if(active)setStandalone(value);}).catch(()=>{if(active)setStandalone(false);});
+  return()=>{active=false;};},[]);
+  if(standalone===null)return <main className="account-layout"><p role="status">계정 화면을 확인하고 있습니다…</p></main>;
+  return <>{standalone?fallback:children}</>;
+}
