@@ -8,7 +8,7 @@ from .occasion import general_eligible
 POLICY = 'WEATHER_CHOICE_20261016_V2'
 WEATHER_SCORE_VERSION = 'WEATHER_SCORE_PROPOSAL_20261016_V2'
 OFF_SCORE_VERSION = 'OFF_THEME_GENRE_20261016_V1'
-THEME_AFFINITY_VERSION = 'OFF_THEME_AFFINITY_20261016_V1'
+THEME_AFFINITY_VERSION = 'OFF_THEME_AFFINITY_20261112_V3'
 MAPPING = 'GENRE_THEME_V4_ON_OFF'
 OPTIONS = 'options-music-v4'
 DURATION_POLICY = 'phase3-duration-20261016.1'
@@ -29,6 +29,7 @@ GENRES = {
 }
 THEMES = dict(zip(['CALM','EMOTIONAL','PEACEFUL','DREAMY','ENERGETIC','BRIGHT','PARTY','GROOVY','INTENSE'],
                   ['잔잔한','감성적인','평화로운','몽환적인','활기찬','밝은','파티 분위기','그루브 있는','강렬한']))
+# Legacy stored values used by metadata validation, not recommendation scoring.
 SPEEDS = {'slow','medium','fast','fastest'}
 WEATHER_WEIGHTS = {
     'CLEAR': (40,25,30,5), 'CLOUDY': (30,35,30,5), 'OVERCAST': (25,40,30,5),
@@ -47,17 +48,17 @@ PATTERNS = {
     'SNOW': (((.05,.35),(.70,1),(.45,.80),1,(.25,.30,.30),100),
              ((.00,.50),(.00,1),(.50,1),1,(.15,.15,.15),80)),
 }
-# energy interval, mode, speed set, approved service genres.
+# energy interval, mode, approved service genres.
 OFF_THEMES = {
-    'CALM': ((0,4),None,('slow','medium'),('JAZZ','NEWAGE','CLASSICAL')),
-    'EMOTIONAL': ((0,4),None,('slow','medium'),('RNB_SOUL_FUNK','POP')),
-    'PEACEFUL': ((0,5),1,('slow','medium','fast'),('NEWAGE','CLASSICAL','FOLK_COUNTRY','JAZZ')),
-    'DREAMY': ((0,5),None,('slow','medium'),('NEWAGE',)),
-    'ENERGETIC': ((6,10),None,('fast',),('ELECTRONIC_DANCE','ROCK','HIPHOP','K-POP','J-POP','AFROBEAT')),
-    'BRIGHT': (None,1,None,('NEWAGE','POP','K-POP','J-POP')),
-    'PARTY': ((6,10),None,('fast','fastest'),('ELECTRONIC_DANCE','HIPHOP','LATIN','AFROBEAT','RNB_SOUL_FUNK')),
-    'GROOVY': (None,None,('medium',),('RNB_SOUL_FUNK','AFROBEAT','HIPHOP')),
-    'INTENSE': ((5,10),None,None,('METAL','ROCK','ELECTRONIC_DANCE')),
+    'CALM': ((0,4),None,('JAZZ','NEWAGE','CLASSICAL')),
+    'EMOTIONAL': ((0,4),None,('RNB_SOUL_FUNK','POP')),
+    'PEACEFUL': ((0,5),1,('NEWAGE','CLASSICAL','FOLK_COUNTRY','JAZZ')),
+    'DREAMY': ((0,5),None,('NEWAGE',)),
+    'ENERGETIC': ((6,10),None,('ELECTRONIC_DANCE','ROCK','HIPHOP','K-POP','J-POP','AFROBEAT')),
+    'BRIGHT': (None,1,('NEWAGE','POP','K-POP','J-POP')),
+    'PARTY': ((6,10),None,('ELECTRONIC_DANCE','HIPHOP','LATIN','AFROBEAT','RNB_SOUL_FUNK')),
+    'GROOVY': (None,None,('RNB_SOUL_FUNK','AFROBEAT','HIPHOP')),
+    'INTENSE': ((5,10),None,('METAL','ROCK','ELECTRONIC_DANCE')),
 }
 
 
@@ -73,23 +74,16 @@ def profile(pty, sky):
     return {1:'RAIN',2:'MIXED',3:'SNOW',5:'RAIN',6:'MIXED',7:'SNOW'}[pty]
 
 
-def initial_speeds(tempo, weather):
-    if tempo == 'slow':
-        return ['slow']
-    if tempo == 'fast':
-        return ['fast'] if weather in ('RAIN','SNOW') else ['fast','fastest']
-    return ['slow','medium'] if weather in ('RAIN','SNOW') else sorted(SPEEDS)
-
-
 def eligible(track, options, allowed_genres, allowed_speeds, excluded):
+    # Keep the legacy argument for callers holding older recommendation inputs.
     reviewed=track.get('instrumental_review_value')
     final=reviewed if type(reviewed) is bool else track.get('instrumental')
     return (general_eligible(track)
             and track['track_id'] not in excluded and type(track['duration_ms']) is int and track['duration_ms'] > 0
             and all(isinstance(track.get(key),str) and bool(track[key].strip()) for key in ('track_name','artists_name','album_name'))
-            and bool(track.get('genre_group_codes')) and track.get('speed') in SPEEDS
+            and bool(track.get('genre_group_codes'))
             and (options['weather_influence_mode']=='OFF' or
-                 (bool(set(track['genre_group_codes']) & set(allowed_genres)) and track.get('speed') in allowed_speeds))
+                 bool(set(track['genre_group_codes']) & set(allowed_genres)))
             and (options['vocal_option'] != 'instrumental_only' or final is True))
 
 
@@ -147,29 +141,33 @@ def weather_fit(track, weather):
     return fit_one(weather)
 
 
+def _has_reviewed_theme(track, theme):
+    # Published rows contain approved mood tags. Missing tags are not negative labels.
+    codes = track.get('theme_codes')
+    return isinstance(codes, (list, tuple)) and theme in THEMES and theme in codes
+
+
+def _preferred_themes(track, selected):
+    return [theme for theme in selected if _has_reviewed_theme(track, theme)] or selected
+
+
 def off_preference_details(track, options):
-    selected_themes=options['selected_theme_codes']
+    selected_themes=_preferred_themes(track, options['selected_theme_codes'])
     direct_genres=options['selected_genre_codes']
-    direct_speed=options['tempo_preference']
-    if not selected_themes and not direct_genres and direct_speed=='auto': return None
+    if not selected_themes and not direct_genres: return None
     genres=set(track['genre_group_codes'])
-    speed=track.get('speed')
     energy=track.get('energy')
     def measure(theme):
-        energy_range, mode, speeds, theme_genres = OFF_THEMES[theme] if theme else (None,None,None,())
+        tagged = _has_reviewed_theme(track, theme)
+        energy_range, mode, theme_genres = OFF_THEMES[theme] if theme and not tagged else (None,None,())
         criterion_genres=direct_genres or theme_genres
-        criterion_speeds=('slow',) if direct_speed=='slow' else ('fast','fastest') if direct_speed=='fast' else speeds
-        parts=[]
+        # The tag replaces the mood proxies, while a separately selected genre still counts.
+        parts=[('TAG',40,100)] if tagged else []
         if energy_range:
             if type(energy) is not int or not 0 <= energy <= 10: return None
             parts.append(('E',40,max(0,100-10*max(energy_range[0]-energy,0,energy-energy_range[1]))))
         if criterion_genres: parts.append(('G',40,100 if genres.intersection(criterion_genres) else 0))
         if mode is not None: parts.append(('M',5,100 if track.get('mode') is (mode == 1) else 0))
-        if criterion_speeds:
-            if speed not in SPEEDS: return None
-            order=('slow','medium','fast','fastest')
-            distance=min(abs(order.index(speed)-order.index(s)) for s in criterion_speeds)
-            parts.append(('T',15,100 if distance==0 else 50 if distance==1 else 0))
         return {'P':Fraction(sum(w*s for _,w,s in parts),sum(w for _,w,_ in parts)),
                 'theme':theme,'components':{name:{'weight':w,'score':s} for name,w,s in parts}} if parts else None
     values=[measure(theme) for theme in selected_themes] if selected_themes else [measure(None)]
@@ -194,7 +192,7 @@ def theme_affinity(track, theme):
     found,value=_stored_score(track,'theme',theme,THEME_AFFINITY_VERSION)
     if found:return value
     evidence=off_preference_details(track,{'selected_theme_codes':[theme],
-        'selected_genre_codes':[],'tempo_preference':'auto'})
+        'selected_genre_codes':[]})
     return evidence['P'] if evidence else None
 
 
@@ -213,8 +211,8 @@ def precompute_scores(track):
 
 def score(track, options, weather=None):
     if options['weather_influence_mode']=='OFF':
-        themes=options['selected_theme_codes']
-        if themes and not options['selected_genre_codes'] and options['tempo_preference']=='auto':
+        themes=_preferred_themes(track, options['selected_theme_codes'])
+        if themes and not options['selected_genre_codes']:
             values=[theme_affinity(track,theme) for theme in themes]
             p=max(values) if values and all(value is not None for value in values) else None
         else:p=off_preference(track,options)
@@ -243,7 +241,6 @@ def score(track, options, weather=None):
             if evidence is None: return None
             w=evidence['W']
     matches=[]
-    if options['tempo_preference']!='auto': matches.append(100)
     if options['selected_genre_codes']: matches.append(100)
     if options['selected_theme_codes']:
         affinities=[theme_affinity(track,theme) for theme in options['selected_theme_codes']]

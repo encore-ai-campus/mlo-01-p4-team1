@@ -49,7 +49,9 @@ Runtime은 node별 `service.json`을 읽기 전용으로 연결하고 private IP
 실제 값은 이미지·Compose·Git·검증 보고서에 넣지 않습니다.
 
 - 공통: Django secret, PG host/database/user/password, `PGSSLMODE=verify-full`과 CA 경로,
-  광고 내부 인증 및 수락된 SSO 설정을 매핑합니다.
+  광고 내부 인증 및 수락된 SSO 설정을 매핑합니다. GPT 선곡을 사용하는 공통 API와 추천 워커에는
+  `OPENAI_API_KEY`와 동일한 GPT 선곡 호출·큐 한도를 제공합니다. 추천 워커 환경 예시는
+  `app/config/environments/recommendation/`에 있습니다.
 - 광고: 별도 Django secret, PG 연결/TLS, Mongo URI·database·replica set, 공통 API 주소·내부 인증과
   delivery signing key를 매핑합니다. Mongo URI는 TLS CA·클라이언트 인증서 및 `replicaSet=ads-rs`를 지정합니다.
 - `/readyz`는 실제 DB 접속·적용된 Django migration과 불변 revision을 확인합니다. 광고는 MongoDB의

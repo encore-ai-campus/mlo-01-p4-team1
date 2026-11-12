@@ -49,7 +49,7 @@ def expected(rows, options, weather, allowed_genres, allowed_speeds, excluded):
             audit['weather_rejected_count'] += 1
             continue
         if (not on and values['P'] is None and (options['selected_theme_codes']
-                or options['selected_genre_codes'] or options['tempo_preference'] != 'auto')):
+                or options['selected_genre_codes'])):
             audit['off_missing_preference_count'] += 1
             continue
         candidates.append(dict(row, scores=values))
@@ -118,3 +118,21 @@ class CandidateIndexTests(TestCase):
         actual, audit = CandidateIndex(rows).candidates(options, None, [], [], set())
         self.assertEqual([row['track_id'] for row in actual], ['track-001'])
         self.assertEqual(audit['common_eligible_count'], 1)
+
+    def test_speed_values_and_legacy_restrictions_do_not_change_candidates(self):
+        base = precompute_scores({**track(0), 'energy': 6, 'raw_energy': '.6', 'raw_acousticness': '.5',
+                                  'raw_valence': '.7', 'mode': True})
+        rows = [{**base, 'track_id': str(index), 'speed': value}
+                for index, value in enumerate((None, 'slow', 'fastest', 'old-value'))]
+        rows[0].pop('speed')
+        index = CandidateIndex(rows)
+        for mode in ('ON', 'OFF'):
+            for themes in ([], ['CALM']):
+                with self.subTest(mode=mode, themes=themes):
+                    options = {**DEFAULTS, 'weather_influence_mode': mode, 'selected_theme_codes': themes}
+                    legacy = {**options, 'tempo_preference': 'slow'}
+                    candidates, audit = index.candidates(legacy, 'CLEAR', base['genre_group_codes'], ['slow'], ())
+                    self.assertEqual((candidates, audit), index.candidates(options, 'CLEAR', base['genre_group_codes'], (), ()))
+                    self.assertEqual([row['track_id'] for row in candidates], ['0', '1', '2', '3'])
+                    self.assertTrue(all(row['scores'] == candidates[0]['scores'] for row in candidates))
+                    self.assertEqual(index.common_count(legacy, base['genre_group_codes'], ['slow'], ()), 4)

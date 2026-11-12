@@ -22,8 +22,8 @@ from backend.recommendation.models import Catalog, DispatchControl, Family, Idem
 from backend.recommendation.worker import heartbeat
 
 
-@override_settings(LOCAL_DEMO=True, GEMINI_ENABLED=True, GEMINI_TIMEOUT_MS=60000,
-                   GEMINI_MAX_CANDIDATES=200, GEMINI_MAX_CONCURRENT=1, GEMINI_MIN_INTERVAL_SECONDS=2)
+@override_settings(LOCAL_DEMO=True, OPENAI_PLAYLIST_ENABLED=True, OPENAI_PLAYLIST_TIMEOUT_MS=60000,
+                   OPENAI_PLAYLIST_MAX_CANDIDATES=200, OPENAI_PLAYLIST_MAX_CONCURRENT=1, OPENAI_PLAYLIST_MIN_INTERVAL_SECONDS=2)
 class DispatchTests(TransactionTestCase):
     def setUp(self):
         self.catalog = Catalog.objects.create(version='dispatch-test', tracks=[], sha256='a'*64,
@@ -36,17 +36,19 @@ class DispatchTests(TransactionTestCase):
     def expire(self, job):
         Job.objects.filter(pk=job.pk).update(lease_expires_at=timezone.now()-timedelta(seconds=1))
 
-    def test_rule_lane_skips_gemini_and_compatibility_prefers_rule(self):
-        gemini = self.job('GEMINI_RECONFIGURE')
+    def test_rule_lane_skips_gpt_and_legacy_worker_can_drain_old_jobs(self):
+        legacy = self.job(dispatch.LEGACY_GEMINI_METHOD)
         rule = self.job()
         self.assertEqual(dispatch.claim('all', 'control-a:rule').pk, rule.pk)
         self.assertIsNone(dispatch.claim('rule', 'control-b:rule'))
-        self.assertEqual(dispatch.claim('gemini', 'control-a:gemini').pk, gemini.pk)
+        claimed = dispatch.claim('gemini', 'control-a:gpt')
+        self.assertEqual(claimed.pk, legacy.pk)
+        self.assertEqual(claimed.method, dispatch.GPT_METHOD)
 
-    def test_gemini_saturation_does_not_block_rule_lane(self):
-        self.job('GEMINI_RECONFIGURE'); self.job('GEMINI_RECONFIGURE')
-        self.assertIsNotNone(dispatch.claim('gemini', 'control-a:gemini'))
-        self.assertIsNone(dispatch.claim('gemini', 'control-b:gemini'))
+    def test_gpt_saturation_does_not_block_rule_lane(self):
+        self.job(dispatch.GPT_METHOD); self.job(dispatch.GPT_METHOD)
+        self.assertIsNotNone(dispatch.claim('gpt', 'control-a:gpt'))
+        self.assertIsNone(dispatch.claim('gpt', 'control-b:gpt'))
         rule = self.job()
         self.assertEqual(dispatch.claim('rule', 'control-b:rule').pk, rule.pk)
 
@@ -67,33 +69,33 @@ class DispatchTests(TransactionTestCase):
         original.refresh_from_db()
         self.assertEqual(original.error['code'], 'WORKER_RETRY_EXHAUSTED')
 
-    @patch.dict('os.environ', {'GEMINI_API_KEY': 'test-only'})
+    @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-only'})
     def test_ambiguous_call_is_not_retried_and_keeps_its_permit(self):
-        original = self.job('GEMINI_RECONFIGURE')
-        claimed = dispatch.claim('gemini', 'control-a:gemini')
+        original = self.job(dispatch.GPT_METHOD)
+        claimed = dispatch.claim('gpt', 'control-a:gpt')
         self.assertEqual(dispatch.begin_provider(claimed), 0)
         self.expire(claimed)
-        self.job('GEMINI_RECONFIGURE')
-        self.assertIsNone(dispatch.claim('gemini', 'control-b:gemini'))
+        self.job(dispatch.GPT_METHOD)
+        self.assertIsNone(dispatch.claim('gpt', 'control-b:gpt'))
         original.refresh_from_db()
         self.assertEqual(original.error['code'], 'PROVIDER_OUTCOME_UNKNOWN')
         self.assertGreater(original.provider_lease_until, timezone.now())
         self.assertEqual(dispatch.active_job(claimed).update(status='SUCCEEDED'), 0)
-        DispatchControl.objects.filter(pk='gemini').update(next_provider_at=timezone.now()-timedelta(seconds=1))
+        DispatchControl.objects.filter(pk=dispatch.PROVIDER_CONTROL).update(next_provider_at=timezone.now()-timedelta(seconds=1))
         Job.objects.filter(pk=original.pk).update(provider_lease_until=timezone.now()-timedelta(seconds=1))
-        self.assertIsNotNone(dispatch.claim('gemini', 'control-b:gemini'))
+        self.assertIsNotNone(dispatch.claim('gpt', 'control-b:gpt'))
 
-    @patch.dict('os.environ', {'GEMINI_API_KEY': 'test-only'})
+    @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-only'})
     def test_confirmed_response_releases_slot_but_interval_is_shared(self):
-        self.job('GEMINI_RECONFIGURE')
-        first = dispatch.claim('gemini', 'control-a:gemini')
+        self.job(dispatch.GPT_METHOD)
+        first = dispatch.claim('gpt', 'control-a:gpt')
         self.assertEqual(dispatch.begin_provider(first), 0)
         dispatch.end_provider(first)
         dispatch.active_job(first).update(status='SUCCEEDED')
-        self.job('GEMINI_RECONFIGURE')
-        self.assertIsNone(dispatch.claim('gemini', 'control-b:gemini'))
-        DispatchControl.objects.filter(pk='gemini').update(next_provider_at=timezone.now()-timedelta(seconds=1))
-        second = dispatch.claim('gemini', 'control-b:gemini')
+        self.job(dispatch.GPT_METHOD)
+        self.assertIsNone(dispatch.claim('gpt', 'control-b:gpt'))
+        DispatchControl.objects.filter(pk=dispatch.PROVIDER_CONTROL).update(next_provider_at=timezone.now()-timedelta(seconds=1))
+        second = dispatch.claim('gpt', 'control-b:gpt')
         self.assertEqual(dispatch.begin_provider(second), 0)
         self.assertEqual(Job.objects.filter(provider_lease_until__gt=timezone.now()).count(), 1)
 
@@ -102,7 +104,7 @@ class DispatchTests(TransactionTestCase):
         self.job()
         with transaction.atomic(), self.assertRaises(DomainError) as error: dispatch.admit('RULE_BASED')
         self.assertEqual(error.exception.code, 'RECOMMENDATION_QUEUE_FULL')
-        with transaction.atomic(): dispatch.admit('GEMINI_RECONFIGURE')
+        with transaction.atomic(): dispatch.admit(dispatch.GPT_METHOD)
         dispatch.claim('rule')
         with transaction.atomic(): dispatch.admit('RULE_BASED')
 
@@ -147,7 +149,7 @@ class QueueAdmissionApiTests(TransactionTestCase):
         self.assertEqual(post('retryable').status_code, 202)
 
 
-@override_settings(LOCAL_DEMO=True, GEMINI_ENABLED=False)
+@override_settings(LOCAL_DEMO=True, OPENAI_PLAYLIST_ENABLED=False)
 class WorkerCommandTests(SimpleTestCase):
     def test_once_forwards_lane_and_worker_identity(self):
         with patch('backend.recommendation.management.commands.run_recommendations.run_one', return_value=False) as run:
@@ -213,19 +215,19 @@ class PostgresDispatchTests(DispatchTests):
             with ThreadPoolExecutor(max_workers=1) as pool:
                 self.assertEqual(pool.submit(claim).result(timeout=5), second.pk)
 
-    def test_gemini_claim_limit_is_shared_across_sessions(self):
-        DispatchControl.objects.create(name='gemini')
-        for _ in range(4): self.job('GEMINI_RECONFIGURE')
+    def test_gpt_claim_limit_is_shared_across_sessions(self):
+        DispatchControl.objects.create(name=dispatch.PROVIDER_CONTROL)
+        for _ in range(4): self.job(dispatch.GPT_METHOD)
         def claim(index):
-            job = dispatch.claim('gemini', f'control-{index}:gemini')
+            job = dispatch.claim('gpt', f'control-{index}:gpt')
             return job.pk if job else None
         self.assertEqual(sum(value is not None for value in self.concurrent(claim, 4)), 1)
 
-    @override_settings(GEMINI_MAX_CONCURRENT=2)
-    @patch.dict('os.environ', {'GEMINI_API_KEY': 'test-only'})
+    @override_settings(OPENAI_PLAYLIST_MAX_CONCURRENT=2)
+    @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-only'})
     def test_provider_start_interval_is_atomic_across_sessions(self):
-        self.job('GEMINI_RECONFIGURE'); self.job('GEMINI_RECONFIGURE')
-        jobs = [dispatch.claim('gemini', f'control-{i}:gemini') for i in range(2)]
+        self.job(dispatch.GPT_METHOD); self.job(dispatch.GPT_METHOD)
+        jobs = [dispatch.claim('gpt', f'control-{i}:gpt') for i in range(2)]
         delays = self.concurrent(lambda index: dispatch.begin_provider(jobs[index]))
         self.assertEqual(delays.count(0), 1)
         self.assertEqual(sum(delay > 0 for delay in delays), 1)
@@ -255,7 +257,7 @@ class PostgresDispatchTests(DispatchTests):
         env = os.environ.copy()
         env.update(C_LOCAL_DEMO='0', INTEGRATION_ENABLED='0', DJANGO_SECRET_KEY='isolated-worker-process-test',
                    PGDATABASE=database['NAME'], PGHOST=database['HOST'], PGPORT=str(database['PORT']),
-                   PGUSER=database['USER'], PGPASSWORD=database['PASSWORD'], GEMINI_ENABLED='0',
+                   PGUSER=database['USER'], PGPASSWORD=database['PASSWORD'], OPENAI_PLAYLIST_ENABLED='0',
                    SEARCH_SECONDS='20', SEARCH_MAX_CANDIDATES='96', DJANGO_SETTINGS_MODULE='backend.cafe.settings')
         env['PGSSLMODE'] = database.get('OPTIONS', {}).get('sslmode', 'disable')
         snippet = '''

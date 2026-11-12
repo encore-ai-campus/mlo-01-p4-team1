@@ -1,7 +1,13 @@
+from django.conf import settings
+
 from .errors import require
 from .policy import GENRES, THEMES, OPTIONS
+from .tagged_preview import EXTRA_TAGGED_GENRES, is_full_tagged_preview
 
-DEFAULTS = {'vocal_option':'any', 'tempo_preference':'auto', 'weather_influence_mode':'ON', 'selected_theme_codes':[], 'selected_genre_codes':[], 'option_version':OPTIONS}
+GENRE_LABELS = {code: label for code, (label, _) in GENRES.items()}
+DEFAULTS = {'vocal_option':'any', 'weather_influence_mode':'ON', 'selected_theme_codes':[], 'selected_genre_codes':[], 'option_version':OPTIONS}
+# Accept the retired field from older clients, without saving or applying it.
+OPTION_FIELDS = (*DEFAULTS, 'tempo_preference')
 
 
 def shape(data, allowed, required=()):
@@ -23,14 +29,25 @@ def strings(value):
     return sorted(set(value))
 
 
-def options(data, inherited=None):
+def tagged_preview_enabled():
+    return settings.LOCAL_DEMO and not settings.INTEGRATION_ENABLED and settings.HOURLY_RECOMMENDATION_ENABLED
+
+
+def recommendation_genres(catalog=None):
+    if catalog is not None and tagged_preview_enabled() and is_full_tagged_preview(catalog):
+        return {**GENRE_LABELS, **EXTRA_TAGGED_GENRES}
+    return GENRE_LABELS
+
+
+def options(data, inherited=None, *, catalog=None):
     result = {**DEFAULTS,**(inherited or {})}
+    result.pop('tempo_preference', None)
     for key in DEFAULTS:
         if key in data: result[key] = data[key]
-    for key, choices in [('vocal_option',('any','instrumental_only')),('tempo_preference',('auto','slow','fast')),('weather_influence_mode',('ON','OFF'))]:
+    for key, choices in [('vocal_option',('any','instrumental_only')),('weather_influence_mode',('ON','OFF'))]:
         require(type(result[key]) is str)
         require(result[key] in choices,'OPTION_INVALID','선택 항목을 확인해 주세요.',400)
-    for key, choices in [('selected_theme_codes',THEMES),('selected_genre_codes',GENRES)]:
+    for key, choices in [('selected_theme_codes',THEMES),('selected_genre_codes',recommendation_genres(catalog))]:
         result[key] = strings(result[key])
         require(set(result[key]) <= choices.keys(),'OPTION_INVALID','선택 코드를 확인해 주세요.',400)
         if set(result[key]) == choices.keys(): result[key] = []

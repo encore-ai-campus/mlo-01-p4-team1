@@ -17,7 +17,6 @@ class CandidateIndex:
         byte_count = (self.size + 7) // 8
         keys = (('base', 'instrumental')
                 + tuple(f'genre:{code}' for code in policy.GENRES)
-                + tuple(f'speed:{code}' for code in sorted(policy.SPEEDS))
                 + tuple(f'weather:{code}' for code in WEATHERS))
         buffers = {key: bytearray(byte_count) for key in keys}
         by_id = {}
@@ -31,9 +30,6 @@ class CandidateIndex:
             if not policy.eligible(track, options, (), (), set()):
                 continue
             add('base', index)
-            speed = track.get('speed')
-            if speed in policy.SPEEDS:
-                add(f'speed:{speed}', index)
             for genre in track['genre_group_codes']:
                 if genre in policy.GENRES:
                     add(f'genre:{genre}', index)
@@ -68,17 +64,14 @@ class CandidateIndex:
             yield bit.bit_length() - 1
             mask ^= bit
 
-    def _common_mask(self, options, allowed_genres, allowed_speeds, excluded):
+    def _common_mask(self, options, allowed_genres, excluded):
         common = self.masks['base']
         on = options['weather_influence_mode'] == 'ON'
         if on:
             genre_mask = 0
             for code in allowed_genres:
                 genre_mask |= self.masks.get(f'genre:{code}', 0)
-            speed_mask = 0
-            for code in allowed_speeds:
-                speed_mask |= self.masks.get(f'speed:{code}', 0)
-            common &= genre_mask & speed_mask
+            common &= genre_mask
         if options['vocal_option'] == 'instrumental_only':
             common &= self.masks['instrumental']
         for track_id in excluded:
@@ -89,10 +82,10 @@ class CandidateIndex:
 
     def common_count(self, options, allowed_genres, allowed_speeds, excluded):
         """Return the bit-count after the worker's inherited common filters."""
-        return self._common_mask(options, allowed_genres, allowed_speeds, excluded).bit_count()
+        return self._common_mask(options, allowed_genres, excluded).bit_count()
 
     def candidates(self, options, weather, allowed_genres, allowed_speeds, excluded):
-        common = self._common_mask(options, allowed_genres, allowed_speeds, excluded)
+        common = self._common_mask(options, allowed_genres, excluded)
         on = options['weather_influence_mode'] == 'ON'
 
         common_count = common.bit_count()
@@ -110,8 +103,7 @@ class CandidateIndex:
             audit['weather_rejected_count'] = common_count - candidates_mask.bit_count()
 
         candidates = []
-        has_off_preference = (options['selected_theme_codes'] or options['selected_genre_codes']
-                              or options['tempo_preference'] != 'auto')
+        has_off_preference = options['selected_theme_codes'] or options['selected_genre_codes']
         for index in self._indices(candidates_mask):
             track = self.rows[index]
             scored = policy.score(track, options, weather)

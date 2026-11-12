@@ -1,5 +1,6 @@
 import {useState, type FormEvent} from 'react';
 import {canonicalYoutubeVideoUrl} from '../recommendation/youtubeReview';
+import {CatalogPublicationForm} from './CatalogPublicationForm';
 import {createSongRequestClient, type AdminSongItem, type AdminTask, type SongRequestClient, type SongResultRecovery, type SongReview, type SongTags} from './client';
 import {useAction, useResource} from './hooks';
 import {ActionState, Empty, ListPagination, Notice, ResourceState} from './ui';
@@ -214,21 +215,31 @@ function SongProcessingResults({client, revision, onRegistered, onShowTrack, onR
   const [page, setPage] = useState(0);
   const [registeredTrackId, setRegisteredTrackId] = useState('');
   const [recoveryNotice, setRecoveryNotice] = useState('');
+  const [publication, setPublication] = useState<{version: string; videoReviewPending: boolean} | null>(null);
   const resource = useResource(signal => client.getAdminTasks(page, signal), [client, revision, page]);
   const tagOptions = resource.value?.tag_options;
+  const recommendationGenres = resource.value?.recommendation_genres;
   function registered(trackId: string) {
     setRegisteredTrackId(trackId);
     setRecoveryNotice('');
+    setPublication(null);
     onRegistered(trackId);
     resource.reload();
   }
   function recovered(decision: SongResultRecovery['decision']) {
     setRegisteredTrackId('');
+    setPublication(null);
     setRecoveryNotice(decision === 'REQUEUE' ? '수정한 링크로 태깅을 다시 요청했습니다.'
       : decision === 'LINK_EXISTING' ? '기존 음악 목록의 곡에 연결했습니다.' : '곡 신청을 반려했습니다.');
     setPage(0);
     resource.reload();
     onRecovered();
+  }
+  function published(version: string, videoReviewPending: boolean) {
+    setRegisteredTrackId('');
+    setRecoveryNotice('');
+    setPublication({version, videoReviewPending});
+    resource.reload();
   }
   return <section className="p4-section">
     <div className="p4-section-heading">
@@ -237,6 +248,9 @@ function SongProcessingResults({client, revision, onRegistered, onShowTrack, onR
     </div>
     {registeredTrackId && <Notice>음악 목록에 등록했습니다. <a href="#music-list" onClick={() => onShowTrack(registeredTrackId)}>등록한 곡 보기</a></Notice>}
     <Notice>{recoveryNotice}</Notice>
+    {publication && <Notice>추천 카탈로그 {publication.version}을 발행했습니다.
+      {publication.videoReviewPending && <> <a href="/admin/music/youtube">YouTube 영상 검수</a>가 남아 있습니다.</>}
+    </Notice>}
     <ResourceState {...resource} retry={resource.reload}/>
     {resource.value && (resource.value.items.length ? <ul className="p4-result-list">
       {resource.value.items.map(task => {
@@ -244,6 +258,7 @@ function SongProcessingResults({client, revision, onRegistered, onShowTrack, onR
         const sourceUrl = canonicalYoutubeVideoUrl(task.source_ref);
         const trackId = registration?.track_id || task.linked_track_id;
         const canReview = task.is_current !== false && task.status === 'RECEIVED_PENDING_REVIEW' && !!result && !registration;
+        const canPublish = task.is_current === true && task.status === 'REGISTERED' && !!registration && !registration.catalog_version;
         return <li key={`${task.id}:${task.revision}`} className="p4-card">
           <h3>{task.track_name} · {task.artist_name}</h3>
           <span className="p4-badge">{statusLabel(task.status)}</span>
@@ -254,6 +269,10 @@ function SongProcessingResults({client, revision, onRegistered, onShowTrack, onR
           </dl>}
           {registration && <dl className="p4-result-tags"><TagSummary prefix="등록 시" tags={registration.tags}/></dl>}
           {trackId && <a href="#music-list" onClick={() => onShowTrack(trackId)}>음악 목록에서 보기</a>}
+          {registration?.catalog_version && <p className="p4-meta">추천 카탈로그 {registration.catalog_version} 발행 완료 · <a href="/admin/music/youtube">YouTube 영상 검수</a></p>}
+          {canPublish && (recommendationGenres && Object.keys(recommendationGenres).length
+            ? <CatalogPublicationForm client={client} task={task} recommendationGenres={recommendationGenres} onPublished={published}/>
+            : <p className="p4-meta">카탈로그 발행에 필요한 서비스 장르 목록을 불러오지 못했습니다.</p>)}
           {canReview && <>
             {tagOptions?.genre.length && tagOptions.mood.length
               ? <FinalSongReviewForm client={client} task={task} result={result} options={tagOptions} onRegistered={registered}/>

@@ -9,7 +9,7 @@ from backend.recommendation.service import enqueue
 
 
 @override_settings(LOCAL_DEMO=True,INTEGRATION_ENABLED=False,OWNER_RESOLVER='',EVENT_SINK='',
-                   WEATHER_PROVIDER='',SEARCH_SECONDS=20,SEARCH_MAX_CANDIDATES=96,GEMINI_ENABLED=False)
+                   WEATHER_PROVIDER='',SEARCH_SECONDS=20,SEARCH_MAX_CANDIDATES=96,OPENAI_PLAYLIST_ENABLED=False)
 class CancellationTests(TransactionTestCase):
     def setUp(self):
         call_command('seed_c_demo',verbosity=0)
@@ -77,7 +77,8 @@ class CancellationTests(TransactionTestCase):
         family=parent.family;family.excluded=['keep-excluded'];family.exclusion_revision=2
         family.approved_playlist_id=parent.pk;family.approval_revision=3;family.save()
         before=deepcopy(parent.snapshot)
-        accepted,_=enqueue(family,'test-regeneration',parent)
+        with override_settings(OPENAI_PLAYLIST_ENABLED=True), patch.dict('os.environ', {'OPENAI_API_KEY':'test-only'}):
+            accepted,_=enqueue(family,'test-regeneration',parent)
         self.assertEqual(self.cancel(accepted['job_id']).json()['status'],'CANCELLED')
         family.refresh_from_db();parent.refresh_from_db()
         self.assertEqual(family.excluded,['keep-excluded']);self.assertEqual(family.exclusion_revision,2)

@@ -18,9 +18,9 @@ from .policy import eligible, score, weather_fit, off_preference_details, DURATI
 from .candidate_index import CandidateIndex
 from .weather import validate, obtain, current_profile, instant
 from .solver import choose, choose_preview
-from .provider import propose, validate_proposal, candidate_window
+from .provider import OPENAI_PLAYLIST_MODEL, propose, validate_proposal, candidate_window
 from .catalog_storage import unpack
-from .service import current_catalog
+from .service import HOURLY_DURATION_POLICY, current_catalog
 
 
 _catalog_lock = threading.Lock()
@@ -67,11 +67,11 @@ def _collect_candidates(catalog, raw, context):
     if len(raw) >= 5000:
         index = _index_for(catalog, raw)
         common_count = index.common_count(context['options'], context['allowed_genre_group_codes'],
-                                          context['allowed_speed_codes'], context['excluded_track_ids'])
+                                          (), context['excluded_track_ids'])
         selective_limit = max(1, min(5000, len(raw) // 10))
         if context['options']['weather_influence_mode'] == 'ON' and common_count < selective_limit:
             return index.candidates(context['options'], context['weather_code'],
-                                    context['allowed_genre_group_codes'], context['allowed_speed_codes'],
+                                    context['allowed_genre_group_codes'], (),
                                     context['excluded_track_ids'])
 
     on = context['options']['weather_influence_mode'] == 'ON'
@@ -81,7 +81,7 @@ def _collect_candidates(catalog, raw, context):
              'off_missing_preference_count': 0}
     for track in raw:
         if not eligible(track, context['options'], context['allowed_genre_group_codes'],
-                        context['allowed_speed_codes'], context['excluded_track_ids']):
+                        (), context['excluded_track_ids']):
             audit['common_rejected_count'] += 1
             continue
         audit['common_eligible_count'] += 1
@@ -91,8 +91,7 @@ def _collect_candidates(catalog, raw, context):
             audit['weather_rejected_count'] += 1
             continue
         if (not on and scored['P'] is None and (context['options']['selected_theme_codes']
-                or context['options']['selected_genre_codes']
-                or context['options']['tempo_preference'] != 'auto')):
+                or context['options']['selected_genre_codes'])):
             audit['off_missing_preference_count'] += 1
             continue
         candidates.append(dict(track, scores=scored))
@@ -104,9 +103,49 @@ def _collect_candidates(catalog, raw, context):
 def warm_current_catalog():
     catalog = current_catalog()
     if catalog is not None:
-        raw = verified_catalog(catalog)
-        if len(raw) >= 5000:
-            _index_for(catalog, raw)
+        if settings.HOURLY_RECOMMENDATION_ENABLED:
+            from .hourly_catalog import ensure_index
+            ensure_index(catalog)
+        else:
+            raw = verified_catalog(catalog)
+            if len(raw) >= 5000:
+                _index_for(catalog, raw)
+
+
+@transaction.atomic
+def save_hourly(job, catalog, context, items, total, plan, diagnostics):
+    from .hourly_jobs import deadline_for, require_time
+
+    current = active_job(job).select_for_update().annotate(dispatch_now=Now()).first()
+    require(current is not None, 'LEASE_LOST', '작업 실행 권한이 만료됐어요.', 409)
+    family = Family.objects.select_for_update().get(pk=job.family_id)
+    require(family.exclusion_revision == context['exclusion_revision'], 'EXCLUSION_REVISION_CONFLICT',
+            '선곡 중 제외 목록이 바뀌었어요.', 409)
+    if job.parent_id and not context.get('hourly_regeneration'):
+        head = family.playlist_set.order_by('-created_at', '-pk').first()
+        require(head and head.pk == job.parent_id, 'HOURLY_PLAN_STALE', '이미 새 시간별 선곡표가 있어요.', 409)
+    require_time(deadline_for(job))
+    fixed = {**context, 'family_id': family.pk, 'catalog_version': catalog.pk, 'catalog_sha256': catalog.sha256,
+             'source_ref': catalog.source_ref, 'source_sha256': catalog.source_sha256,
+             'duration_policy_version': HOURLY_DURATION_POLICY, 'effective_target_ms': TARGET,
+             'effective_min_ms': 10_500_000, 'effective_max_ms': 11_100_000}
+    preview = settings.LOCAL_DEMO and catalog.source_ref.startswith('local-preview:')
+    result = Playlist.objects.create(job=current, family=family, snapshot={
+        'context': fixed, 'items': items, 'total_ms': total, 'hourly_plan': plan,
+        'summary': '시간대별 예보와 선택하신 취향을 반영했어요.' if context['weather'] else '선택하신 취향으로 시간별 선곡표를 만들었어요.',
+        'generation_method': current.method, 'model': diagnostics.get('model'),
+        'provider_diagnostics': diagnostics, 'is_test': catalog.is_test,
+        'preview_only': preview, 'validation_passed': not preview,
+    })
+    if settings.INTEGRATION_ENABLED:
+        from .service import event
+        event('PLAYLIST_GENERATED', family, job.request_id, {'source_playlist_id': result.pk,
+              'context_snapshot': fixed, 'track_snapshots': items})
+    current.status = 'SUCCEEDED'
+    current.error = None
+    current.finished_at = timezone.now()
+    current.provider_diagnostics = diagnostics
+    current.save(update_fields=['status', 'error', 'finished_at', 'provider_diagnostics'])
 
 
 def claim(queue=None, worker_id=None):
@@ -144,11 +183,20 @@ def run_one(queue=None, worker_id=None):
     thread = threading.Thread(target=heartbeat,args=(job,stopped),daemon=True)
     thread.start()
     try:
-        now=timezone.now(); context=job.input
+        now = timezone.now()
+        context = {key: value for key, value in job.input.items() if key != 'allowed_speed_codes'}
+        context['options'] = {key: value for key, value in context['options'].items()
+                              if key != 'tempo_preference'}
         require(context['policy_version']==POLICY and context['mapping_version']==MAPPING
                 and context.get('score_version')==(
                     WEATHER_SCORE_VERSION if context['options']['weather_influence_mode']=='ON' else OFF_SCORE_VERSION),
                 'POLICY_NOT_READY','이 사이클의 고정 정책 구현을 확인해야 해요.',503)
+        if context.get('hourly'):
+            from .hourly_jobs import prepare
+            catalog = Catalog.objects.defer('tracks').get(pk=job.catalog_id)
+            save_hourly(job, catalog, context, *prepare(job, context, catalog))
+            outcome = 'SUCCEEDED'
+            return True
         on=context['options']['weather_influence_mode']=='ON'
         if on:
             if now >= instant(context['weather']['valid_until']):
@@ -158,8 +206,10 @@ def run_one(queue=None, worker_id=None):
         raw = verified_catalog(catalog)
         candidates, candidate_audit = _collect_candidates(catalog, raw, context)
         preview=settings.LOCAL_DEMO and catalog.source_ref.startswith('local-preview:')
+        search_diagnostics={}
+        diagnostics=None
+        model=None
         if job.method=='RULE_BASED':
-            search_diagnostics={}
             if preview:
                 parent_ids={t['track_id'] for t in Playlist.objects.get(pk=job.parent_id).snapshot['items']} if job.parent_id else set()
                 tracks,search_diagnostics=choose_preview(candidates,context['options']['weather_influence_mode'],
@@ -176,8 +226,10 @@ def run_one(queue=None, worker_id=None):
                      '날씨와 선택하신 취향을 반영했어요.' if on else '선택하신 취향을 반영했어요.')
             reasons={}
         else:
-            parent=Playlist.objects.get(pk=job.parent_id)
-            ids=[t['track_id'] for t in parent.snapshot['items']]
+            ids=None
+            if job.parent_id and context.get('recommendation_trigger') != 'weather_refresh':
+                parent=Playlist.objects.get(pk=job.parent_id)
+                ids=[t['track_id'] for t in parent.snapshot['items']]
             offered=candidate_window(candidates,context,ids)
             while True:
                 delay = dispatch.begin_provider(job)
@@ -189,6 +241,7 @@ def run_one(queue=None, worker_id=None):
                                 'searched_full_pool':len(offered)==len(candidates)})
             active_job(job).update(provider_diagnostics=diagnostics)
             tracks=validate_proposal(proposal,offered,ids,context['options'],all_candidates=candidates)
+            model=OPENAI_PLAYLIST_MODEL
             summary=proposal['summary']; reasons={r['track_id']:r['reason'] for r in proposal['track_reasons']}
         total=sum(t['duration_ms'] for t in tracks)
         if on:
@@ -208,7 +261,7 @@ def run_one(queue=None, worker_id=None):
         items=[]
         for t in tracks:
             evidence=weather_fit(t,context['weather_code']) if on else off_preference_details(t,context['options'])
-            item={k:v for k,v in t.items() if k != 'score_cache'}
+            item={k:v for k,v in t.items() if k not in {'score_cache', 'speed'}}
             items.append({**item,'scores':{k:display(v) for k,v in t['scores'].items()},'scores_exact':exact(t['scores']),
                           'score_evidence':exact(evidence),
                           'reason':reasons.get(t['track_id'])})
@@ -219,17 +272,16 @@ def run_one(queue=None, worker_id=None):
             f=Family.objects.select_for_update().get(pk=job.family_id)
             if not job.parent_id:
                 f.allowed_genres=sorted({g for t in tracks for g in t['genre_group_codes']}) if not f.options['selected_genre_codes'] else f.options['selected_genre_codes']
-                f.allowed_speeds=sorted({t['speed'] for t in tracks}) if f.options['tempo_preference']=='auto' else context['allowed_speed_codes']
-                f.save()
-            fixed={**context,'allowed_genre_group_codes':f.allowed_genres,'allowed_speed_codes':f.allowed_speeds,
+                f.save(update_fields=['allowed_genres'])
+            fixed={**context,'allowed_genre_group_codes':f.allowed_genres,
                    'family_id':f.pk,'catalog_version':job.catalog_id,'catalog_sha256':catalog.sha256,
                    'source_ref':catalog.source_ref,'source_sha256':catalog.source_sha256,
                    'duration_policy_version':DURATION_POLICY,'duration_mode':'STANDARD',
                    'effective_target_ms':TARGET,'effective_min_ms':MINIMUM,'effective_max_ms':MAXIMUM,'shortening_reason':None}
             result=Playlist.objects.create(job=current,family=f,snapshot={'context':fixed,'items':items,'total_ms':total,
-                'summary':summary,'generation_method':job.method,'model':'gemini-3.8-flash' if job.method=='GEMINI_RECONFIGURE' else None,
-                'provider_diagnostics':diagnostics if job.method=='GEMINI_RECONFIGURE' else None,
-                'search_diagnostics':{**candidate_audit,**search_diagnostics} if job.method=='RULE_BASED' else candidate_audit,
+                'summary':summary,'generation_method':job.method,'model':model,
+                'provider_diagnostics':diagnostics,
+                'search_diagnostics':{**candidate_audit,**search_diagnostics},
                 'is_test':catalog.is_test,'preview_only':preview,'validation_passed':not preview})
             if settings.INTEGRATION_ENABLED:
                 from .service import event

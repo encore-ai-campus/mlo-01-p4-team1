@@ -26,6 +26,8 @@
       ]
     },
     "tempo_preference": {
+      "deprecated": true,
+      "description": "이전 클라이언트 호환용입니다. 선곡에 반영하지 않습니다.",
       "type": "string",
       "enum": [
         "auto",

@@ -170,14 +170,14 @@ class Readiness(Endpoint):
     def get(self,request):
         admin(request,'manage_music')
         from backend.music.catalog import export_tracks
-        from backend.recommendation.policy import eligible,weather_fit,GENRES,SPEEDS,WEATHER_WEIGHTS
+        from backend.recommendation.policy import eligible,weather_fit,GENRES,WEATHER_WEIGHTS
         from backend.recommendation.inputs import DEFAULTS
         registered_count=common_count=duration=0
         weather_counts={code:0 for code in WEATHER_WEIGHTS}
         options={**DEFAULTS,'weather_influence_mode':'OFF'}
         for track in export_tracks():
             registered_count+=1
-            if not eligible(track,options,list(GENRES),list(SPEEDS),[]):continue
+            if not eligible(track,options,list(GENRES),(),[]):continue
             common_count+=1;duration+=track['duration_ms']
             for code in weather_counts:weather_counts[code]+=weather_fit(track,code) is not None
         active_catalog = current_catalog()

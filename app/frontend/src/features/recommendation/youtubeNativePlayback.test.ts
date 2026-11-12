@@ -7,7 +7,7 @@ const tracks = [1, 2, 3].map(index => ({track_id: `track-${index}`, track_name: 
 const complete: NativeYoutubeQueue = {playlist_id: 'result-1', tracks: tracks.map((track, index) => ({track_id: track.track_id, video_id: `testVID000${index + 1}`, source: 'OPERATOR_NATIVE_REPORTED_PLAYING'})), missing: [], total_count: 3, ready_count: 3, is_complete: true, url: 'https://www.youtube.com/watch_videos?video_ids=testVID0001,testVID0002,testVID0003'};
 const partial: NativeYoutubeQueue = {...complete, tracks: [complete.tracks[0], complete.tracks[2]], missing: [{track_id: 'track-2', track_name: 'Song 2', reason: '외부 재생 확인 대기'}], ready_count: 2, is_complete: false, url: 'https://www.youtube.com/watch_videos?video_ids=testVID0001,testVID0003'};
 
-describe('native YouTube default playback', () => {
+describe('secondary YouTube playback', () => {
   it('accepts a preloaded official queue URL in exact result order', () => {
     expect(checkedNativeQueueHref(complete, 'result-1', tracks)).toBe(complete.url);
     expect(checkedNativeQueueHref(partial, 'result-1', tracks)).toBe(partial.url);
@@ -27,24 +27,21 @@ describe('native YouTube default playback', () => {
     expect(checkedNativeQueueHref({...complete, tracks: [complete.tracks[0], {...complete.tracks[1], video_id: complete.tracks[0].video_id}, complete.tracks[2]]}, 'result-1', tracks)).toBeNull();
   });
 
-  it('labels a partial queue with both counts, missing songs and reduced actual playback time', () => {
+  it('shows a short partial queue link with both counts', () => {
     const html = renderToStaticMarkup(createElement(YoutubeNativeQueueView, {queue: partial, tracks, playlistId: 'result-1'}));
-    expect(html).toContain('연결된 2곡만 YouTube에서 재생 (전체 3곡 중)');
-    expect(html).toContain('Song 2'); expect(html).toContain('외부 재생 확인 대기');
-    expect(html).toContain('실제 재생시간이 짧아집니다'); expect(html).toContain('원래 선곡표');
+    expect(html).toContain('YouTube 새 탭에서 2/3곡 열기');
     expect(html).toContain('target="_blank"'); expect(html).toContain('rel="noopener noreferrer"');
   });
 
   it('gates a ready external link for pending conditions without changing the stored queue', () => {
     const html = renderToStaticMarkup(createElement(YoutubeNativeQueueView, {queue: complete, tracks, playlistId: 'result-1', blockReason: '선택 조건 변경 미반영'}));
-    expect(html).toContain('선택 조건 변경 미반영'); expect(html).not.toContain('href=');
+    expect(html).toBe('');
     expect(complete.tracks).toHaveLength(3);
   });
 
-  it('renders the full queue action and account-storage caveat without a default iframe', () => {
+  it('renders only the external link for a complete queue', () => {
     const html = renderToStaticMarkup(createElement(YoutubeNativeQueueView, {queue: complete, tracks, playlistId: 'result-1', onOpen: vi.fn()}));
-    expect(html).toContain('YouTube에서 선곡표 연속 재생'); expect(html).toContain('계정에 저장한 재생목록이 아니며');
-    expect(html).toContain('aria-label="새 탭에서 YouTube 선곡표 연속 재생"');
+    expect(html).toContain('YouTube 새 탭에서 열기');
     expect(html).not.toContain('<iframe'); expect(html).not.toContain('iframe_api');
     const initial = renderToStaticMarkup(createElement(YoutubeNativePlayback, {playlistId: 'result-1', tracks}));
     expect(initial).not.toContain('<iframe'); expect(initial).not.toContain('embed/');
@@ -55,7 +52,7 @@ it('includes unreviewed collected videos in the queue without claiming they are 
   const queue = {...complete, unreviewed_count: 3, tracks: complete.tracks.map(track => ({...track, native_verified: false, source: 'COLLECTED_UNREVIEWED'}))};
   expect(checkedNativeQueueHref(queue, 'result-1', tracks)).toBe(complete.url);
   const html = renderToStaticMarkup(createElement(YoutubeNativeQueueView, {queue, tracks, playlistId: 'result-1'}));
-  expect(html).toContain('3곡은 미검수 수집 영상'); expect(html).toContain('수집한 미검수 영상도 연속 재생에 포함');
+  expect(html).toContain('미검수 영상 3곡 포함');
   expect(html).toContain('watch_videos?video_ids=');
   expect(checkedNativeQueueHref({...queue, unreviewed_count: 0}, 'result-1', tracks)).toBeNull();
 });
