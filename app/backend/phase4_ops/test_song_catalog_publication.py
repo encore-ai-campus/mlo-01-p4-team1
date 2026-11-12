@@ -250,6 +250,7 @@ class SongCatalogPublicationTests(TestCase):
         self.assertFalse(response.json()['video_review_pending'])
         self.assertEqual(youtube_registry.track_registry(self.item.track_id), before)
 
+    @override_settings(OPENAI_PLAYLIST_ENABLED=False, OPENAI_PLAYLIST_LOCAL_RULE_FALLBACK=True)
     def test_new_song_is_selected_and_reviewed_video_resolves_for_iframe(self):
         catalog = self.publish_song()
         registry = youtube_registry.track_registry(self.item.track_id)
