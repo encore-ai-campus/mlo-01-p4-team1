@@ -1,5 +1,6 @@
 """수령 03/05/06의 완성 회차·NULL·역순·충돌·조회 만료 계약."""
 import copy
+import io
 import os
 import unittest
 from datetime import datetime, timedelta
@@ -7,7 +8,7 @@ from importlib.util import find_spec
 from itertools import permutations
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
-from pipeline.weather import es_latest
+from pipeline.weather import es_current, es_latest
 from pipeline.weather.common import OBS, FORECAST, KST, digest
 from pipeline.weather.projection import project_grid
 from pipeline.weather.latest_state import merge_rows
@@ -39,6 +40,43 @@ def forecast(issue):
 
 
 class WeatherEsTests(unittest.TestCase):
+    def test_es_request_uses_api_key_and_ca_over_https(self):
+        settings = {'ES_API_KEY': 'Zml4dHVyZTpmaXh0dXJl', 'ES_CA_CERT': '/fixture/ca.crt'}
+        with patch.dict(os.environ, settings, clear=True), patch.object(
+            es_current.ssl, 'create_default_context'
+        ) as context, patch.object(es_current, 'build_opener') as opener:
+            opener.return_value.open.return_value = io.BytesIO(b'{"found": true}')
+            self.assertEqual(
+                es_current.request('https://weather.example.test:9200', 'GET', '/weather/_doc/60_127'),
+                {'found': True},
+            )
+        request = opener.return_value.open.call_args.args[0]
+        self.assertEqual(request.get_header('Authorization'), 'ApiKey ' + settings['ES_API_KEY'])
+        context.assert_called_once_with(cafile='/fixture/ca.crt')
+
+    def test_es_request_rejects_api_key_on_http_or_with_basic_auth(self):
+        api_key = {'ES_API_KEY': 'Zml4dHVyZTpmaXh0dXJl'}
+        for scheme, credentials in (
+            ('http', api_key),
+            ('https', {**api_key, 'ES_USERNAME': 'fixture-user'}),
+            ('https', {**api_key, 'ES_PASSWORD': 'fixture-password'}),
+        ):
+            with self.subTest(scheme=scheme, credentials=sorted(credentials)), patch.dict(
+                os.environ, credentials, clear=True
+            ), patch.object(es_current, 'build_opener') as opener:
+                with self.assertRaisesRegex(ValueError, '^es_api_key_requires_https_and_exclusive_auth$'):
+                    es_current.request(scheme + '://weather.example.test:9200', 'GET', '/weather')
+                opener.assert_not_called()
+
+    def test_es_request_rejects_malformed_api_key(self):
+        for api_key in ('%%%', 'bm9fY29sb24=', 'OmZpeHR1cmU=', 'Zml4dHVyZTo='):
+            with self.subTest(api_key=api_key), patch.dict(os.environ, {'ES_API_KEY': api_key}, clear=True), patch.object(
+                es_current, 'build_opener'
+            ) as opener:
+                with self.assertRaisesRegex(ValueError, '^invalid_es_api_key$'):
+                    es_current.request('https://weather.example.test:9200', 'GET', '/weather')
+                opener.assert_not_called()
+
     def test_partial_new_round_preserves_old_and_completed_missing_stays_null(self):
         old=observation(NOW.replace(minute=0)-timedelta(minutes=10))
         new=observation()
