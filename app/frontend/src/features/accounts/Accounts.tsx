@@ -71,6 +71,10 @@ export function Signup(){
       <p className="account-help">이메일 없이도 가입·로그인이 가능합니다. 복구 수단을 등록하지 않고 아이디·비밀번호를 잊으면 자동 복구를 제공할 수 없습니다.</p>
       <button className="primary" disabled={busy||!policy?.ready}>{busy?'가입 처리 중…':'회원가입'}</button>
     </form>}
+    {policy?.ready&&<div className="account-links">
+      {policy.documents.privacy&&<button type="button" className="account-text-button" onClick={()=>setDialog('privacy')}>개인정보 처리방침 전문</button>}
+      {policy.documents.privacy_contact&&<button type="button" className="account-text-button" onClick={()=>setDialog('privacy_contact')}>개인정보 문의 안내</button>}
+    </div>}
     <p className="account-links"><a href="/login">로그인</a><a href="/">비회원으로 이용</a></p>
     {policy&&dialog&&<PolicyView policy={policy} kind={dialog} onClose={()=>setDialog('')}/>}
   </Shell>;

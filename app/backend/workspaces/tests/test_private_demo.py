@@ -88,6 +88,53 @@ class PrivateDemoEnrollmentTests(TestCase):
         self.assertEqual(caught.exception.code, "AGREEMENT_REQUIRED")
         self.assertFalse(get_user_model().objects.filter(username=private_demo.DEMO_USERNAME).exists())
 
+    def test_separate_public_policy_preserves_approved_demo_review(self):
+        claim = self.prepare_claim()
+        reviewer, admin = self.reviewer(private_demo.REVIEWER_USERNAME)
+        self.verify_passkey_session(reviewer, admin)
+        path = f"/api/platform/v1/admin/workspace-claims/{claim['id']}"
+        approval = self.post(admin, path + "/decisions", {
+            "decision": "APPROVE", "reason_code": "DEMO_SCENARIO_CONFIRMED",
+        }, revision=claim["revision"])
+        self.assertEqual(approval.status_code, 200, approval.content)
+
+        public = Client(enforce_csrf_checks=True)
+        docs = {"terms": "Public terms fixture", "privacy_notice": "Public notice fixture",
+                "email": "Public email fixture"}
+        with override_settings(MEMBER_POLICIES_READY=True, MEMBER_POLICY_VERSION="public-policy-fixture",
+                               MEMBER_POLICY_DOCUMENTS=docs):
+            self.assertFalse(public.get("/api/accounts/policy").json()["ready"])
+            self.assertEqual(self.post(public, "/api/accounts/signup", {}).status_code, 404)
+            with override_settings(MEMBER_PUBLIC_SIGNUP_ENABLED=True):
+                with override_settings(MEMBER_PUBLIC_LIMIT_HOUR=0):
+                    self.assertFalse(public.get("/api/accounts/policy").json()["ready"])
+                    self.assertEqual(self.post(public, "/api/accounts/signup", {}).status_code, 503)
+                self.assertTrue(public.get("/api/accounts/policy").json()["ready"])
+                self.assertEqual(public.get("/api/accounts/policy").json()["documents"], docs)
+                self.assertEqual(admin.get(path).status_code, 200)
+                self.assertTrue(ClaimDecision.objects.filter(claim_id=claim["id"], decision="APPROVE").exists())
+                self.assertFalse(private_demo.available())
+                body = {"username": "publicfixture", "nickname": "공개회원", "password": PASSWORD,
+                        "password_confirmation": PASSWORD, "terms_accepted": True,
+                        "privacy_acknowledged": True, "age_confirmed": True, "email_consent": False}
+                stale = self.post(public, "/api/accounts/signup", body | {"policy_version": private_demo.POLICY_VERSION})
+                self.assertEqual(stale.status_code, 409, stale.content)
+                created = self.post(public, "/api/accounts/signup", body | {"policy_version": "public-policy-fixture"})
+                self.assertEqual(created.status_code, 201, created.content)
+                self.assertEqual(set(PolicyReceipt.objects.filter(user__username="publicfixture")
+                                     .values_list("version", flat=True)), {"public-policy-fixture"})
+                login = self.post(public, "/api/auth/login", {"username": "publicfixture", "password": PASSWORD})
+                self.assertEqual(login.status_code, 200, login.content)
+                self.assertTrue(public.get("/api/auth/me").json()["authenticated"])
+                withdrawal = self.post(public, "/api/me/withdraw", {
+                    "current_password": PASSWORD, "confirmation": "회원탈퇴",
+                })
+                self.assertEqual(withdrawal.status_code, 200, withdrawal.content)
+                self.assertFalse(public.get("/api/auth/me").json()["authenticated"])
+                self.assertFalse(get_user_model().objects.filter(username="publicfixture").exists())
+                self.assertFalse(PolicyReceipt.objects.filter(version="public-policy-fixture").exists())
+                self.assertEqual(admin.get(path).status_code, 200)
+
     def test_exact_reviewer_and_private_receipts_without_public_portal(self):
         claim = self.prepare_claim()
         self.assertEqual(claim, self.prepare_claim())

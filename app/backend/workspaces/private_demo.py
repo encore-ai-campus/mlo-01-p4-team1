@@ -44,11 +44,19 @@ def review_only_mode():
             and not settings.PLATFORM_ENABLED and not settings.MEMBER_LOCAL_PREVIEW)
 
 
-def available():
-    return (review_only_mode() and not settings.MEMBER_POLICIES_READY
+def review_ready():
+    membership_compatible = not settings.MEMBER_POLICIES_READY or (
+        settings.MEMBER_PUBLIC_SIGNUP_ENABLED and policy.signup_policy_ready()
+    )
+    return (review_only_mode()
+            and membership_compatible
             and not settings.PHASE4_OWNER_PORTAL_ENABLED and bool(settings.MEMBER_LOOKUP_KEY)
             and settings.PHASE4_PRIVATE_DEMO_POLICY_VERSION == POLICY_VERSION and demo_window_open()
             and policy.valid_documents(settings.PHASE4_PRIVATE_DEMO_POLICY_DOCUMENTS))
+
+
+def available():
+    return review_ready() and not settings.MEMBER_POLICIES_READY
 
 
 def song_portal_available():
@@ -62,19 +70,24 @@ def require_demo_runtime():
             "PRIVATE_DEMO_NOT_READY", "제한된 시연 점주 등록 설정을 확인해 주세요.", 503)
 
 
+def require_review_runtime():
+    require(review_ready(),
+            "PRIVATE_DEMO_NOT_READY", "제한된 시연 점주 심사 설정을 확인해 주세요.", 503)
+
+
 def reviewer_allowed(user):
     return user.username == REVIEWER_USERNAME and user.has_perm("workspaces.review_workspace")
 
 
 def review_available_to(user):
     if review_only_mode():
-        return available() and reviewer_allowed(user)
+        return review_ready() and reviewer_allowed(user)
     return song_portal_available() and user.has_perm("workspaces.review_workspace")
 
 
 def require_reviewable(claim):
     if review_only_mode():
-        require_demo_runtime()
+        require_review_runtime()
         documents = settings.PHASE4_PRIVATE_DEMO_POLICY_DOCUMENTS
     else:
         require(song_portal_available(), "PRIVATE_DEMO_NOT_READY", "제한된 시연 점주 등록 설정을 확인해 주세요.", 503)
