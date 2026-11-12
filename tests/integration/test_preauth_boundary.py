@@ -431,6 +431,30 @@ class OIDCExchange(PrivateInputs):
                     owner_id="123",
                 )
 
+    def test_small_runner_skew_waits_before_accepting_the_same_strict_window(self):
+        args = dict(account=self.account, role=self.role, repository=self.repository,
+                    environment="infra-plan", repository_id="456", owner_id="123")
+        claims = {**self.claims, "iat": 1002, "exp": 1300}
+        pause = Mock()
+        clock = Mock(side_effect=[1000.025, 1002.001])
+        self.assertEqual(oidc.validate_claims(self.token(claims), **args, clock=clock, pause=pause), claims)
+        self.assertAlmostEqual(pause.call_args.args[0], 1.975)
+
+        for altered, times, expected_phase, waited in (
+            ({"iat": 1010}, [1000], "claims-time", False),
+            ({"exp": 1002}, [1000], "claims-time", False),
+            ({}, [1000, 1001], "claims-time", True),
+            ({"exp": 1003}, [1000, 1003], "claims-time", True),
+            ({"sub": "repo:example/project:environment:infra-plan"}, [1000], "claims-scope", False),
+            ({"aud": "another-audience"}, [1000], "claims-issuer-audience", False),
+        ):
+            pause = Mock()
+            with self.subTest(altered=altered, times=times), self.assertRaises(oidc.OIDCPhaseError) as error:
+                oidc.validate_claims(self.token({**claims, **altered}), **args,
+                                     clock=Mock(side_effect=times), pause=pause)
+            self.assertEqual(error.exception.phase, expected_phase)
+            self.assertEqual(pause.called, waited)
+
     def test_exact_sts_exchange_is_in_memory_and_config_contains_no_token(self):
         sts = boto3.client(
             "sts",
@@ -572,13 +596,13 @@ class SSMDeployment(PrivateInputs):
             self.stubs.append(Stubber(client))
         self.command = "00000000-0000-0000-0000-000000000001"
 
-    def preflight(self, account=None, artifact=None):
+    def preflight(self, account=None, artifact=None, role="p4-controller-encore1"):
         account = account or self.binding["account_ids"]["encore1"]
         self.stubs[0].add_response(
             "get_caller_identity",
             {
                 "Account": account,
-                "Arn": f"arn:aws:sts::{account}:assumed-role/p4-controller-encore1/local",
+                "Arn": f"arn:aws:sts::{account}:assumed-role/{role}/local",
                 "UserId": "local-test-user",
             },
             {},
@@ -689,6 +713,40 @@ class SSMDeployment(PrivateInputs):
         with self.assertRaises(ValueError):
             execution.deploy_runtime(gate, factory, self.folder / "receipt.json")
         factory.assert_not_called()
+
+    def web_payload(self, order):
+        release = "main-" + "a" * 40
+        nodes = {node["name"]: node["instance_id"] for node in self.inventory["nodes"]}
+        self.document["name"] = "p4-control-web-" + release
+        self.artifact.update(
+            bucket=self.inventory["storage"]["transfer_bucket_ref"],
+            key=f"artifacts/web/{release}.tar.gz",
+        )
+        self.payload.update(operation="deploy", targets=[nodes[node] for node in order])
+        return release
+
+    def test_main_web_release_rejects_unordered_control_targets_before_aws(self):
+        release = self.web_payload(["control-a", "control-b"])
+        gate = self.gate(self.review(payload=self.payload))
+        factory = Mock()
+        with self.assertRaisesRegex(ValueError, "ordered Control targets"):
+            execution.deploy_runtime(
+                gate, factory, self.folder / "receipt.json",
+                web_release=(release, "unused"),
+            )
+        factory.assert_not_called()
+
+    def test_main_web_release_rejects_another_signed_image_before_send(self):
+        release = self.web_payload(["control-b", "control-a"])
+        gate = self.gate(self.review(payload=self.payload))
+        self.preflight(role="p4-ci-web-deploy")
+        with patch("artifact_verifier.inspect_artifact", return_value={
+            "fixture": False, "artifact_version": release, "image_digests": {"web": "signed-other-image"},
+        }), self.assertRaisesRegex(ValueError, "differs from published main web release"):
+            self.invoke(gate, web_release=(release, "published-image"))
+        self.assertFalse((self.folder / "receipt.json").exists())
+        for stub in self.stubs:
+            stub.assert_no_pending_responses()
 
     def test_archive_hash_mismatch_never_reaches_send(self):
         gate = self.gate(self.review(payload=self.payload))

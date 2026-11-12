@@ -9,6 +9,7 @@ from export_inventory import export, write_inventory
 from export_track2 import export_track2
 from track2 import fixture_track2
 from track2_audit import audit_edge, audit_storage, edge_mutations
+from security import audit_checkpoint_probes
 
 def exercise(work,env,artifacts,tool,original_parts,base_binding):
     binding=copy.deepcopy(base_binding); binding['track2']=fixture_track2()
@@ -38,6 +39,7 @@ def exercise(work,env,artifacts,tool,original_parts,base_binding):
     write_inventory(inventory,artifacts/'track2-inventory.mock.json')
     write_inventory(sidecar,artifacts/'track2-sidecar.mock.json')
     require(set(inventory['storage'])=={'raw_bucket_ref','lake_bucket_ref','backup_bucket_ref','state_bucket_ref','transfer_bucket_ref'},'Track2 leaked into common inventory v1')
+    audit_checkpoint_probes(states,binding)
     audit_storage(states,binding); audit_edge(states['encore1'],binding['track2']); edge_mutations(states['encore1'],binding['track2'])
     # Exporter refuses output drift and keeps the prior file intact on failure.
     original=paths[0].read_text(); before=(artifacts/'track2-sidecar.mock.json').read_bytes()

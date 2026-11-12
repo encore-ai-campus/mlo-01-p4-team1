@@ -106,7 +106,11 @@ ADMIN_PASSKEY_REQUIRED = not LOCAL_DEMO or os.environ.get('ADMIN_PASSKEY_REQUIRE
 ADMIN_PASSKEY_RP_ID = os.environ.get('ADMIN_PASSKEY_RP_ID', 'localhost' if LOCAL_DEMO else '')
 ADMIN_PASSKEY_ORIGIN = os.environ.get('ADMIN_PASSKEY_ORIGIN', 'http://localhost:5173' if LOCAL_DEMO else '')
 PLATFORM_ENABLED = os.environ.get('PLATFORM_LOCAL_MVP') == '1'
+VENUE_MCP_SERVICE_ENABLED = os.environ.get('VENUE_MCP_SERVICE_ENABLED') == '1'
 PHASE4_OWNER_PORTAL_ENABLED = os.environ.get('PHASE4_OWNER_PORTAL_ENABLED') == '1'
+PHASE4_PRIVATE_DEMO_ENABLED = os.environ.get('PHASE4_PRIVATE_DEMO_ENABLED') == '1'
+PHASE4_PRIVATE_DEMO_POLICY_VERSION = os.environ.get('PHASE4_PRIVATE_DEMO_POLICY_VERSION', '')
+PHASE4_PRIVATE_DEMO_POLICY_DOCUMENTS = json.loads(os.environ.get('PHASE4_PRIVATE_DEMO_POLICY_DOCUMENTS', '{}'))
 PHASE4_SONG_POLICY = {
     'version': 'owner-song-requests-v1', 'allow_general_users': False, 'require_approved_venue': True,
     'quota_scope': 'account', 'window_days': None, 'period_limit': None, 'count_all_submitted': True,
@@ -159,6 +163,14 @@ RECOMMENDATION_JOB_TIMEOUT_SECONDS = int(os.environ.get('RECOMMENDATION_JOB_TIME
 RECOMMENDATION_MAX_RECOVERIES = int(os.environ.get('RECOMMENDATION_MAX_RECOVERIES', '2'))
 RECOMMENDATION_MAX_QUEUED_RULE = int(os.environ.get('RECOMMENDATION_MAX_QUEUED_RULE', '100'))
 RECOMMENDATION_MAX_QUEUED_GEMINI = int(os.environ.get('RECOMMENDATION_MAX_QUEUED_GEMINI', '20'))
+RECOMMENDATION_MAX_QUEUED_GPT = int(os.environ.get('RECOMMENDATION_MAX_QUEUED_GPT', '20'))
+OPENAI_PLAYLIST_ENABLED = os.environ.get('OPENAI_PLAYLIST_ENABLED', '0' if LOCAL_DEMO else '1') == '1'
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '').strip()
+OPENAI_PLAYLIST_TIMEOUT_MS = int(os.environ.get('OPENAI_PLAYLIST_TIMEOUT_MS', '45000'))
+OPENAI_PLAYLIST_MAX_CANDIDATES = int(os.environ.get('OPENAI_PLAYLIST_MAX_CANDIDATES', '150'))
+OPENAI_PLAYLIST_MAX_OUTPUT_TOKENS = int(os.environ.get('OPENAI_PLAYLIST_MAX_OUTPUT_TOKENS', '8192'))
+OPENAI_PLAYLIST_MAX_CONCURRENT = int(os.environ.get('OPENAI_PLAYLIST_MAX_CONCURRENT', '1'))
+OPENAI_PLAYLIST_MIN_INTERVAL_SECONDS = float(os.environ.get('OPENAI_PLAYLIST_MIN_INTERVAL_SECONDS', '2'))
 GEMINI_MAX_CONCURRENT = int(os.environ.get('GEMINI_MAX_CONCURRENT', '1'))
 GEMINI_MIN_INTERVAL_SECONDS = float(os.environ.get('GEMINI_MIN_INTERVAL_SECONDS', '2'))
 GEMINI_ENABLED = os.environ.get('GEMINI_ENABLED') == '1'
@@ -184,6 +196,12 @@ YOUTUBE_SEARCH_CACHE_SECONDS = int(os.environ.get('YOUTUBE_SEARCH_CACHE_SECONDS'
 LOGGING = {
     'version': 1, 'disable_existing_loggers': False,
     'handlers': {'recommendation_console': {'class': 'logging.StreamHandler'}},
-    'loggers': {'recommendation.worker': {
-        'handlers': ['recommendation_console'], 'level': 'INFO', 'propagate': False}},
+    'loggers': {
+        'recommendation.worker': {
+            'handlers': ['recommendation_console'], 'level': 'INFO', 'propagate': False},
+        'backend.venues': {
+            'handlers': ['recommendation_console'], 'level': 'INFO', 'propagate': False},
+        'backend.workspaces': {
+            'handlers': ['recommendation_console'], 'level': 'INFO', 'propagate': False},
+    },
 }

@@ -4,6 +4,7 @@ import tempfile
 from datetime import datetime, timezone
 from fractions import Fraction
 from pathlib import Path
+from urllib.error import HTTPError
 from unittest import TestCase
 from unittest.mock import patch, MagicMock
 from django.test import override_settings
@@ -259,7 +260,7 @@ class SolverTests(TestCase):
 
 
 class ProviderTests(TestCase):
-    @override_settings(GEMINI_MAX_CANDIDATES=200)
+    @override_settings(OPENAI_PLAYLIST_MAX_CANDIDATES=200)
     def test_large_csv_window_is_bounded_and_reserves_new_and_genre_tracks(self):
         tracks=[{'track_id':str(i),'genre_group_codes':['JAZZ' if i<299 else 'POP'],
                  'scores':{'S':Fraction(300-i)}} for i in range(300)]
@@ -270,21 +271,106 @@ class ProviderTests(TestCase):
         self.assertGreaterEqual(len({t['track_id'] for t in window}-{str(i) for i in range(200)}),40)
         self.assertEqual(window,candidate_window(tracks,context,[str(i) for i in range(200)]))
 
-    @override_settings(GEMINI_ENABLED=True,GEMINI_TIMEOUT_MS=60000,GEMINI_MAX_CANDIDATES=200)
-    @patch.dict('os.environ',{'GEMINI_API_KEY':'test-key','GEMINI_MAX_OUTPUT_TOKENS':'8192'})
+    @override_settings(OPENAI_PLAYLIST_MAX_CANDIDATES=10)
+    def test_initial_and_weather_refresh_do_not_require_novel_candidates(self):
+        track = {'track_id':'only','genre_group_codes':['JAZZ'],'scores':{'S':Fraction(1)}}
+        context = {'options':{**DEFAULTS,'selected_genre_codes':['JAZZ']},'seed':'fixed'}
+        self.assertEqual(candidate_window([track],context,None),[track])
+        with self.assertRaises(DomainError) as error:
+            candidate_window([track],context,['only'])
+        self.assertEqual(error.exception.code,'NO_MEANINGFUL_CHANGE')
+
+    @override_settings(OPENAI_PLAYLIST_TIMEOUT_MS=1500,OPENAI_PLAYLIST_MAX_CANDIDATES=10,
+                       OPENAI_PLAYLIST_MAX_OUTPUT_TOKENS=2048)
+    @patch.dict('os.environ',{'OPENAI_API_KEY':'test-key'})
+    def test_openai_request_and_response_use_minimal_fields_and_strict_schema(self):
+        proposal = {'track_ids':['selected'],'summary':'설명',
+                    'track_reasons':[{'track_id':'selected','reason':'이유'}]}
+        candidate = {'track_id':'selected','duration_ms':10800000,'genre_group_codes':['JAZZ'],
+                     'theme_codes':['CALM'],'scores':{'W':Fraction(2),'P':None,'S':Fraction(5,2),'private':0},
+                     'source_document':'hidden','audio_path':'hidden','track_name':'hidden','speed':'medium'}
+        context = {'options':{**DEFAULTS,'weather_influence_mode':'ON','region_id':'hidden'},
+                   'recommendation_trigger':'weather_refresh','weather_code':'CLEAR',
+                   'weather':{'source_document':'hidden'},'owner_id':'hidden'}
+        opener = MagicMock()
+        response = opener.open.return_value.__enter__.return_value
+        response.read.return_value = json.dumps({
+            'status':'completed','output':[{'type':'reasoning'},{
+                'type':'message','role':'assistant','status':'completed',
+                'content':[{'type':'output_text','text':json.dumps(proposal)}],
+            }], 'usage':{'input_tokens':29,'output_tokens':30},
+        }).encode()
+        with patch('backend.recommendation.provider.build_opener',return_value=opener):
+            actual, diagnostics = propose([candidate],context,None)
+        self.assertEqual(actual,proposal)
+        self.assertEqual(diagnostics['model'],'gpt-6-luna')
+        self.assertEqual((diagnostics['input_tokens'],diagnostics['output_tokens']),(29,30))
+        opener.open.assert_called_once()
+        request = opener.open.call_args.args[0]
+        self.assertEqual((request.full_url,request.get_method()),('https://api.openai.com/v1/responses','POST'))
+        self.assertEqual(request.get_header('Authorization'),'Bearer test-key')
+        self.assertEqual(opener.open.call_args.kwargs,{'timeout':1.5})
+        payload = json.loads(request.data)
+        self.assertEqual(payload['model'],'gpt-6-luna')
+        self.assertIs(payload['store'],False)
+        self.assertEqual(payload['max_output_tokens'],2048)
+        format_spec = payload['text']['format']
+        self.assertIs(format_spec['strict'],True)
+        self.assertEqual(format_spec['type'],'json_schema')
+        self.assertIs(format_spec['schema']['additionalProperties'],False)
+        self.assertIs(format_spec['schema']['properties']['track_reasons']['items']['additionalProperties'],False)
+        data = json.loads(payload['input'])
+        self.assertEqual(data['trigger'],'weather_refresh')
+        self.assertEqual(data['weather_code'],'CLEAR')
+        self.assertNotIn('parent_track_ids',data)
+        self.assertNotIn('tempo_preference',data)
+        self.assertNotIn('hidden',payload['input'])
+        self.assertEqual(data['candidates'],[{
+            'track_id':'selected','duration_ms':10800000,'genre_group_codes':['JAZZ'],
+            'theme_codes':['CALM'],'scores':{'W':2.0,'P':None,'S':2.5},
+        }])
+
+    @override_settings(OPENAI_PLAYLIST_TIMEOUT_MS=60000,OPENAI_PLAYLIST_MAX_CANDIDATES=10,
+                       OPENAI_PLAYLIST_MAX_OUTPUT_TOKENS=2048)
+    @patch.dict('os.environ',{'OPENAI_API_KEY':'test-key'})
     def test_provider_busy_reports_safe_failure_without_retry(self):
-        error=type('BusyError',(Exception,),{'code':503})('test-key must not appear')
-        client=MagicMock();client.models.generate_content.side_effect=error
+        opener=MagicMock()
+        opener.open.side_effect=HTTPError('https://api.openai.com/v1/responses',503,'test-key must not appear',{},None)
         context={'options':{**DEFAULTS,'weather_influence_mode':'OFF'}}
-        candidate={'track_id':'legacy','speed':'medium','scores':{'S':Fraction(90)}}
-        with patch('google.genai.Client',return_value=client),self.assertRaises(DomainError) as failure:
-            propose([candidate],context,[])
+        with patch('backend.recommendation.provider.build_opener',return_value=opener),self.assertRaises(DomainError) as failure:
+            propose([{'track_id':'a','duration_ms':10800000}],context,[])
         self.assertEqual(failure.exception.code,'PROVIDER_BUSY')
         self.assertEqual(failure.exception.details,{'provider_status':503})
         self.assertNotIn('test-key',failure.exception.message)
-        client.models.generate_content.assert_called_once()
-        sent = json.loads(client.models.generate_content.call_args.kwargs['contents'])
-        self.assertNotIn('speed', sent['candidates'][0])
+        self.assertIsNone(failure.exception.__cause__)
+        opener.open.assert_called_once()
+
+    @override_settings(OPENAI_PLAYLIST_TIMEOUT_MS=1500,OPENAI_PLAYLIST_MAX_CANDIDATES=10,
+                       OPENAI_PLAYLIST_MAX_OUTPUT_TOKENS=2048)
+    @patch.dict('os.environ',{'OPENAI_API_KEY':'test-key'})
+    def test_provider_incomplete_and_refused_responses_are_rejected(self):
+        context = {'options':DEFAULTS}
+        candidates = [{'track_id':'a','duration_ms':10800000}]
+        incomplete = {'status':'incomplete','output':[]}
+        refused = {'status':'completed','output':[{'type':'message','role':'assistant','status':'completed',
+                   'content':[{'type':'refusal','refusal':'hidden'}]}]}
+        for response in (incomplete,refused):
+            with self.subTest(response=response['status']):
+                with patch('backend.recommendation.provider._request_openai',return_value=json.dumps(response).encode()):
+                    with self.assertRaises(DomainError) as failure:
+                        propose(candidates,context,None)
+                self.assertEqual(failure.exception.code,'PROVIDER_RESPONSE_INVALID')
+                self.assertNotIn('hidden',failure.exception.message)
+
+    @override_settings(OPENAI_PLAYLIST_TIMEOUT_MS=1500,OPENAI_PLAYLIST_MAX_CANDIDATES=10,
+                       OPENAI_PLAYLIST_MAX_OUTPUT_TOKENS=2048)
+    @patch.dict('os.environ',{'OPENAI_API_KEY':'test-key'})
+    def test_insufficient_offered_duration_does_not_call_api(self):
+        with patch('backend.recommendation.provider._request_openai') as request:
+            with self.assertRaises(DomainError) as failure:
+                propose([{'track_id':'short','duration_ms':1000}],{'options':DEFAULTS},None)
+        self.assertEqual(failure.exception.code,'SEARCH_INCOMPLETE')
+        request.assert_not_called()
 
     def test_model_cannot_return_unoffered_ids_from_full_catalog(self):
         track={'track_id':'not-offered','duration_ms':10800000}
@@ -305,3 +391,20 @@ class ProviderTests(TestCase):
         proposal['track_reasons'][0]['track_id']='missing'
         with self.assertRaises(DomainError) as e: validate_proposal(proposal,candidates,[],DEFAULTS)
         self.assertEqual(e.exception.code,'PROVIDER_RESPONSE_INVALID')
+
+    def test_first_playlist_keeps_duration_duplicate_and_genre_checks(self):
+        options = {**DEFAULTS,'weather_influence_mode':'ON','selected_genre_codes':['JAZZ']}
+        tracks = [{'track_id':'a','duration_ms':5400000,'genre_group_codes':['JAZZ']},
+                  {'track_id':'b','duration_ms':5400000,'genre_group_codes':['JAZZ']}]
+        def response(ids):
+            return {'track_ids':ids,'summary':'설명',
+                    'track_reasons':[{'track_id':track_id,'reason':'이유'} for track_id in ids]}
+        self.assertEqual(validate_proposal(response(['a','b']),tracks,None,options),tracks)
+        for ids in (['a'],['a','a']):
+            with self.subTest(ids=ids),self.assertRaises(DomainError) as failure:
+                validate_proposal(response(ids),tracks,None,options)
+            self.assertEqual(failure.exception.code,'PROVIDER_RESPONSE_INVALID')
+        tracks[1]['genre_group_codes'] = ['POP']
+        with self.assertRaises(DomainError) as failure:
+            validate_proposal(response(['a','b']),tracks,None,options)
+        self.assertEqual(failure.exception.code,'PROVIDER_RESPONSE_INVALID')

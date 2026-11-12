@@ -16,7 +16,7 @@ class Command(BaseCommand):
 
     def add_arguments(self,parser):
         parser.add_argument('username')
-        parser.add_argument('--permissions',nargs='*',choices=['manage_ads','manage_music','view_feedback'],default=[])
+        parser.add_argument('--permissions',nargs='*',choices=['manage_ads','manage_music','view_feedback','view_operations','manage_venues'],default=[])
         parser.add_argument('--role', choices=ROLES)
         action=parser.add_mutually_exclusive_group()
         action.add_argument('--revoke',action='store_true')

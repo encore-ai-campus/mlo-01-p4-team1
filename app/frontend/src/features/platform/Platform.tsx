@@ -7,28 +7,70 @@ import {ReviewPanel} from './ReviewPanel';
 import {PlatformAdminHome,PlatformRecovery,PlatformLegal,type PlatformAdmin} from './PlatformSupport';
 import {AccountSecurity,PersonalRecords} from './AccountSecurity';
 import './platform.css';
+import {PlatformHomeDesign} from './PlatformHomeDesign';
+import {PlatformPublicDesign,isPublicDesignPath} from './PlatformPublicDesign';
 import {CinematicNavLink} from '../cinematic/CinematicNavLink';
 import {VenueExplorePage} from '../venues/pages/VenueExplorePage';
 import {OwnerSongRequestsPortal} from '../song-requests/SongRequests';
 
 type Boot={account?:Account;session?:{csrf_token:string};csrf_token?:string;song_requests_only?:boolean;can_request_songs?:boolean};
 type Admin=PlatformAdmin;
+export function PlatformSidebar({path,account,admin}:{path:string;account:Account|null;admin:Admin|null}){
+  const types=account?.memberships.filter(m=>m.status==='ACTIVE').map(m=>m.type)||[];
+  const isAdmin=admin?.role==='ADMIN'&&!admin?.passkey_required;
+  const hasAdminNav=admin?.role==='ADMIN'||Boolean(admin?.passkey_required);
+  const canReview=isAdmin&&(
+    (admin.allowed_menus.some(menu=>menu.path==='/platform/review')&&(admin.platform_enabled!==false||admin.private_demo_review_allowed===true))
+    ||Boolean(admin.venue_closure_allowed)||Boolean(admin.venue_metrics_allowed)
+  );
+  const operationsUrl=isAdmin&&admin.operations_dashboard?.allowed&&admin.operations_dashboard.configured?admin.operations_dashboard.path:null;
+  const logsUrl=isAdmin&&admin.log_dashboard?.allowed&&admin.log_dashboard.configured?admin.log_dashboard.path:null;
+  const canAds=isAdmin&&admin.allowed_menus.some(menu=>menu.path==='/admin/ads');
+  if(!account&&!hasAdminNav)return null;
+  return <aside className="p-sidebar" aria-label="내 서비스 메뉴">
+    {account&&<><p>MY ACCOUNT</p><a className={path==='/platform'?'active':''} href="/platform">서비스 선택</a><a className={path==='/platform/account'?'active':''} href="/platform/account">마이페이지</a><p>MY SERVICES</p>
+      {types.includes('CONSUMER')&&<a className={path==='/platform/consumer'?'active':''} href="/platform/consumer">핏플레이스 · 장소 탐색</a>}
+      {types.includes('BUSINESS')&&<a className={path==='/platform/business'?'active':''} href="/platform/business">사업자 · muther.</a>}</>}
+    {hasAdminNav&&<><p>OPERATIONS</p><a className={path==='/platform/admin'?'active':''} href="/platform/admin">관리자 대시보드</a>
+      {canReview&&<a className={path==='/platform/review'?'active':''} href="/platform/review">매장 승인 심사</a>}
+      {operationsUrl&&<a href={operationsUrl}>운영 대시보드 (Kibana)</a>}
+      {logsUrl&&<a href={logsUrl}>사용자 행동 분석 (Kibana)</a>}
+      {canAds&&<a href="/admin/ads">광고 대시보드</a>}</>}
+  </aside>;
+}
+
 export function Platform(){
-  const path=location.pathname;
+  const path=location.pathname==='/'?'/platform':location.pathname;
+  const reviewPage=path==='/platform/review';
+  const claimId=new URLSearchParams(location.search).get('claim');
+  const validClaim=claimId===null||/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(claimId);
+  const administratorLogin=path==='/platform/admin/login';
+  const adminPage=administratorLogin||path==='/platform/admin'||reviewPage;
   const [account,setAccount]=useState<Account|null>(null),[policy,setPolicy]=useState<Policy|null>(null),[admin,setAdmin]=useState<Admin|null>(null);
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
   const [nickname,setNickname]=useState(''),[terms,setTerms]=useState(false);
   const [songPortal,setSongPortal]=useState<{canRequest:boolean}|null>(null);
   const types=account?.memberships.filter(m=>m.status==='ACTIVE').map(m=>m.type)||[];
   const adminSignedIn=admin?.role==='ADMIN'||admin?.passkey_required;
-  const canReview=admin?.role==='ADMIN'&&admin.allowed_menus.some(menu=>menu.path==='/platform/review');
+  const hasAdminNav=Boolean(adminSignedIn);
+  const reviewMenu=admin?.role==='ADMIN'&&admin.allowed_menus.some(menu=>menu.path==='/platform/review');
+  const canReview=reviewMenu&&(admin?.platform_enabled!==false||admin?.private_demo_review_allowed===true);
+  const canWorkspaceReview=Boolean((canReview&&(admin?.workspace_review_allowed??true))||(claimId!==null&&admin?.role==='ADMIN'&&admin?.private_demo_review_allowed===true));
+  const canClosureReview=Boolean(admin?.role==='ADMIN'&&admin?.venue_closure_allowed);
+  const canVenueMetrics=Boolean(admin?.role==='ADMIN'&&(admin?.venue_metrics_allowed??admin?.venue_closure_allowed));
+  const canOpenReview=claimId===null?(canReview||canClosureReview||canVenueMetrics):admin?.role==='ADMIN'&&(canReview||admin?.private_demo_review_allowed===true);
   useEffect(()=>{let active=true;void(async()=>{try{
+    if(adminPage){
+      const result=await raw<Admin>('/api/auth/me');
+      if(active){setCsrf(result.csrf_token);setAdmin(result);}
+      return;
+    }
     const boot=await call<Boot>('/sessions/current');if(!active)return;setCsrf(boot.session?.csrf_token||boot.csrf_token||'');
     if(boot.song_requests_only)setSongPortal({canRequest:boot.can_request_songs===true});
     const [p,a]=await Promise.all([call<{version:string;documents:{kind:string;text:string}[]}>('/policies'),raw<Admin>('/api/auth/me')]);
     if(!active)return;setPolicy({version:p.version,documents:Object.fromEntries(p.documents.map(document=>[document.kind,document.text]))});setAdmin(a);
     if(boot.account){setAccount(boot.account);setNickname(boot.account.nickname);}
-  }catch(e){if(active)setError((e as Error).message);}finally{if(active)setLoading(false);}})();return()=>{active=false;};},[]);
+  }catch(e){if(active)setError((e as Error).message);}finally{if(active)setLoading(false);}})();return()=>{active=false;};},[adminPage]);
   async function run(work:()=>Promise<void>){setBusy(true);setError('');setMessage('');try{await work();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
   async function enterType(type:'CONSUMER'|'BUSINESS'){
     const result=await call<{next_action:{path:string}}>('/me/context','PUT',{membership_type:type});location.assign(result.next_action.path);
@@ -37,7 +79,22 @@ export function Platform(){
     await call('/me/memberships','POST',{membership_type:type,policy_version:policy?.version,acknowledgements:{terms:true,privacy_notice:true}});await enterType(type);
   }
   const titles:Record<string,string>={'/platform/signup':'하나의 계정으로 시작하세요','/platform/login':'로그인','/platform/admin/login':'메인 플랫폼 관리자 로그인','/platform/admin':'플랫폼 관리자','/platform/account/recovery':'계정 찾기','/platform/terms':'이용약관','/platform/privacy':'개인정보 처리방침','/platform/privacy-contact':'개인정보 관련 문의','/platform/business':'뮤더 · 매장과 팀 관리','/platform/review':'매장 관리권한 심사','/platform/account':'내 계정과 이용 유형','/platform/consumer':'핏플레이스 · 장소 탐색'};
-  const signup=path==='/platform/signup',administratorLogin=path==='/platform/admin/login',login=path==='/platform/login'||administratorLogin;
+  const signup=path==='/platform/signup',login=path==='/platform/login'||administratorLogin;
+  if(reviewPage)return <div className="platform-page">
+    <header className="p-header"><a className="p-logo" href="/platform/admin">muther.</a></header>
+    <div className={`p-layout ${hasAdminNav?'':'p-public-layout'}`}>
+      <PlatformSidebar path={path} account={account} admin={admin}/>
+      <main className="p-main">
+        {error&&<p className="p-alert error" role="alert">{error}</p>}
+        {loading?<p role="status">관리자 계정을 확인하고 있습니다.</p>:
+         !validClaim?<p role="alert">신청 링크를 확인해 주세요.</p>:
+         canOpenReview?<ReviewPanel admin canWorkspace={canWorkspaceReview} canClosures={canClosureReview} canMetrics={canVenueMetrics} claimId={claimId??undefined}/>:
+         admin?.passkey_required?<section className="p-card"><a href="/admin/passkey">패스키 인증</a></section>:
+         admin?.role==='ADMIN'?<p role="status">매장 심사 권한이 없습니다.</p>:
+         admin&&<section className="p-card p-auth"><h1>심사 관리자 로그인</h1><LoginForm administrator/></section>}
+      </main>
+    </div>
+  </div>;
   if(songPortal)return <div className="platform-page">
     <header className="p-header"><a className="p-logo" href="/platform/business">muther.</a>
       {account
@@ -57,7 +114,10 @@ export function Platform(){
       songPortal.canRequest?<OwnerSongRequestsPortal/>:<section className="p-card"><h1>곡 신청 권한이 없습니다</h1><p>승인된 매장의 점주 계정으로 이용해 주세요.</p></section>}
     </main>
   </div>;
-  if (path==='/platform/consumer' && account && types.includes('CONSUMER')) return <VenueExplorePage readOnly showServiceHeader enableAi showVisitRecommendations/>;
+  if (!loading && ((path==='/platform/admin' && !adminSignedIn) || (path==='/platform/consumer' && !account))) return <PlatformPublicDesign path={path} account={account} admin={admin} policy={policy} loading={loading} error={error}/>;
+  if (path==='/platform'||path==='/platform/') return <PlatformHomeDesign account={account} admin={admin} loading={loading}/>;
+  if (isPublicDesignPath(path)) return <PlatformPublicDesign path={path} account={account} admin={admin} policy={policy} loading={loading} error={error}/>;
+  if (path==='/platform/consumer' && account && types.includes('CONSUMER')) return <VenueExplorePage readOnly allowFeedback showServiceHeader enableAi showVisitRecommendations/>;
   return <div className="platform-page"><header className="p-header">
     <a className="p-logo" href="/platform"><b>◈</b> 메인 플랫폼 <small>이름 미정</small></a>
     <nav className="p-public-nav" aria-label="플랫폼 소개"><CinematicNavLink/><a href="/platform#services">서비스 소개</a></nav>
@@ -69,20 +129,15 @@ export function Platform(){
       <button onClick={()=>void run(async()=>{await raw('/api/auth/logout','POST',{});location.assign('/platform');})}>로그아웃</button>
     </>:<><a href="/platform/login">로그인</a><a className="p-header-signup" href="/platform/signup">회원가입</a></>}</div>
   </header>
-  <div className={`p-layout ${account||canReview?'':'p-public-layout'}`}>
-    {(account||canReview)&&<aside className="p-sidebar" aria-label="내 서비스 메뉴">
-      {account&&<><p>MY ACCOUNT</p><a className={path==='/platform'?'active':''} href="/platform">서비스 선택</a><a className={path==='/platform/account'?'active':''} href="/platform/account">마이페이지</a><p>MY SERVICES</p>
-        {types.includes('CONSUMER')&&<a className={path==='/platform/consumer'?'active':''} href="/platform/consumer">핏플레이스 · 장소 탐색</a>}
-        {types.includes('BUSINESS')&&<a className={path==='/platform/business'?'active':''} href="/platform/business">사업자 · muther.</a>}</>}
-      {canReview&&<><p>OPERATIONS</p><a className={path==='/platform/review'?'active':''} href="/platform/review">매장 승인 심사</a></>}
-    </aside>}
+  <div className={`p-layout ${account||hasAdminNav?'':'p-public-layout'}`}>
+    <PlatformSidebar path={path} account={account} admin={admin}/>
   <main className="p-main"><div className="p-heading"><p className="p-eyebrow">ONE ACCOUNT, TWO SERVICES</p><h1>{titles[path]||(account?'이용할 서비스를 선택하세요':'음악과 일상을 잇는 시작점')}</h1><p>사용자와 사업자가 하나의 계정으로 연결됩니다.</p></div>
   {error&&<div className="p-alert error" role="alert">{error}</div>}{message&&<div className="p-alert" role="status">{message}</div>}
   {loading?<p role="status">플랫폼 연결 중…</p>:signup||login?<section className="p-card p-auth">
     {account?<><h2>이미 로그인되어 있습니다</h2><a className="p-link-button" href="/platform">내 서비스로 이동</a></>:signup?<SignupForm policy={policy}/>:<LoginForm administrator={administratorLogin}/>}
   </section>:
   path==='/platform/account/recovery'?<PlatformRecovery/>:
-  ['/platform/terms','/platform/privacy','/platform/privacy-contact'].includes(path)?<PlatformLegal path={path} policy={policy}/>:path==='/platform/admin'?<PlatformAdminHome admin={admin}/>:path==='/platform/review'?(canReview?<ReviewPanel admin/>:<section className="p-card"><h2>접근 권한이 없습니다</h2><p>매장 심사 권한이 있는 관리자만 이용할 수 있습니다.</p><a href="/platform">메인으로 돌아가기</a></section>):
+  ['/platform/terms','/platform/privacy','/platform/privacy-contact'].includes(path)?<PlatformLegal path={path} policy={policy}/>:path==='/platform/admin'?<PlatformAdminHome admin={admin}/>:path==='/platform/review'?(canOpenReview?<ReviewPanel admin canWorkspace={canWorkspaceReview} canClosures={canClosureReview} canMetrics={canVenueMetrics} claimId={claimId??undefined}/>:<section className="p-card"><h2>접근 권한이 없습니다</h2><p>매장 심사 권한이 있는 관리자만 이용할 수 있습니다.</p><a href="/platform">메인으로 돌아가기</a></section>):
   !account&&path!=='/platform'?<section className="p-card"><h2>계정으로 시작하세요</h2><p>로그인 후 이용 유형과 매장 연결 상태를 확인합니다.</p><a className="p-link-button" href="/platform/login">로그인</a></section>:
   path==='/platform/account'&&account?<><section className="p-card"><h2>{account.nickname}님의 공통 계정</h2><dl className="p-facts"><div><dt>아이디</dt><dd>{account.username}</dd></div><div><dt>복구 이메일</dt><dd>{account.email_masked||'미등록 · 선택 사항'}</dd></div><div><dt>연결 유형</dt><dd>{types.map(type=>type==='BUSINESS'?'사업자':'사용자').join(' · ')}</dd></div></dl>{account.email_status==='PENDING'&&<p className="p-alert">이메일 확인이 대기 중입니다. <a href="#account-security">확인 코드 입력하기</a></p>}<form onSubmit={e=>{e.preventDefault();void run(async()=>{if(!nicknameValid(nickname))throw new Error(`별명은 ${NICKNAME_HELP}입니다.`);setAccount(await call<Account>('/me','PATCH',{nickname}));setMessage('별명을 변경했습니다.');});}}><label>별명<input value={nickname} onChange={e=>setNickname(e.target.value)} maxLength={10}/><small>{NICKNAME_HELP}</small></label><button disabled={busy}>별명 저장</button></form></section><section className="p-card"><h2>이용 유형 추가</h2><details><summary>적용 안내 확인</summary><p>{policy?.documents.terms}</p><p>{policy?.documents.privacy_notice}</p></details><label className="p-check"><input type="checkbox" checked={terms} onChange={e=>setTerms(e.target.checked)}/>약관에 동의하고 처리 안내를 확인했습니다.</label><div className="p-actions">{(['CONSUMER','BUSINESS'] as const).map(type=><button key={type} disabled={busy||!terms||types.includes(type)} onClick={()=>void run(()=>addType(type))}>{type==='BUSINESS'?'사업자':'사용자'} 유형 추가</button>)}</div></section><div id="account-security"><AccountSecurity account={account} policy={policy} onAccount={setAccount}/></div><PersonalRecords/></>:
   account&&['/platform/business','/platform/consumer'].includes(path)&&!types.includes(path==='/platform/business'?'BUSINESS':'CONSUMER')?<section className="p-card"><h2>이용 유형을 먼저 추가해 주세요</h2><a href="/platform/account">마이페이지에서 유형 추가</a></section>:

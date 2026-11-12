@@ -347,7 +347,7 @@ export function PublicPage(){
             </div>
             <div aria-live="polite" className={'playlist-status'+(showLoading||result&&!busy&&!changed&&!dirty&&applied&&result.approved_playlist_id!==result.playlist_id?' sr-only':'')}>{status}</div>
             {jobNotice&&<p className="generation-notice" role="status">{jobNotice}</p>}
-            {result&&!result.preview_only&&<p className="playlist-summary">{result.summary} <span className="badge">{result.generation_method==='RULE_BASED'?'기본 추천':'재설정'}</span></p>}
+            {result&&!result.preview_only&&<p className="playlist-summary">{result.summary} <span className="badge">{result.generation_method==='GPT_SELECTION'?'GPT 선곡':result.generation_method==='RULE_BASED'?'기본 추천':'재설정'}</span></p>}
             {!result&&!busy&&<div className="list-meta">{effectiveMode==='OFF'?'날씨와 관계없이 취향에 맞는 음악을 준비해 드려요.':'지역에 맞는 음악을 준비해 드려요.'}</div>}
             {showLoading&&<PlaylistLoading compact={!!result}/>}
             {(!busy||result)&&<ol className="tracks" aria-label="추천 곡 목록">{result?.items.map(track=>{

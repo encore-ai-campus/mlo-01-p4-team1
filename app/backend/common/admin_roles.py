@@ -6,9 +6,9 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 
 ROLES = {
-    'SUPER_ADMIN': frozenset(('manage_ads', 'manage_music', 'view_feedback', 'view_operations')),
+    'SUPER_ADMIN': frozenset(('manage_ads', 'manage_music', 'view_feedback', 'view_operations', 'manage_venues')),
     'ADS_ADMIN': frozenset(('manage_ads',)),
-    'OPS_ADMIN': frozenset(('manage_music', 'view_feedback', 'view_operations')),
+    'OPS_ADMIN': frozenset(('manage_music', 'view_feedback', 'view_operations', 'manage_venues')),
 }
 
 

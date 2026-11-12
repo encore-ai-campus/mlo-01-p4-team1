@@ -1,4 +1,3 @@
-import os
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
@@ -87,11 +86,17 @@ def catalog():
 
 @transaction.atomic
 def enqueue(family, request_id, parent=None, weather_refresh=False, *, selected_catalog=None):
-    from .dispatch import admit
+    from .dispatch import GPT_METHOD, admit, require_provider_configuration
+
     hourly = settings.HOURLY_RECOMMENDATION_ENABLED and (
         not weather_refresh or bool(parent and parent.snapshot.get('hourly_plan'))
     )
-    method = 'RULE_BASED' if hourly or not parent or weather_refresh else 'GEMINI_RECONFIGURE'
+    trigger = 'weather_refresh' if weather_refresh else 'regeneration' if parent else 'initial'
+    local_rules = ((settings.LOCAL_DEMO or getattr(settings, 'OPENAI_PLAYLIST_LOCAL_RULE_FALLBACK', False))
+                   and not settings.OPENAI_PLAYLIST_ENABLED and trigger != 'regeneration')
+    method = 'RULE_BASED' if hourly or local_rules else GPT_METHOD
+    if method == GPT_METHOD:
+        require_provider_configuration()
     admit(method)
     now = timezone.now()
     option_catalog = parent.job.catalog if parent and tagged_preview_enabled() else selected_catalog
@@ -100,7 +105,8 @@ def enqueue(family, request_id, parent=None, weather_refresh=False, *, selected_
     bundle = obtain(selected['region_id'],now) if on and not hourly else None
     weather_code = current_profile(bundle,validate(bundle,now),now) if bundle else None
     selected_catalog = parent.job.catalog if parent else selected_catalog or catalog()
-    fixed = {'options':selected,'raw_selection':family.raw_selection,'weather':bundle,'weather_code':weather_code,'excluded_track_ids':family.excluded,
+    fixed = {'recommendation_trigger':trigger,
+             'options':selected,'raw_selection':family.raw_selection,'weather':bundle,'weather_code':weather_code,'excluded_track_ids':family.excluded,
              'seed':family.pk,
              'score_version':WEATHER_SCORE_VERSION if on else OFF_SCORE_VERSION,
              'exclusion_revision':family.exclusion_revision,
@@ -221,10 +227,6 @@ def regenerate(owner,playlist_id,key,data,request_id):
                 'CYCLE_CONDITIONS_CHANGED','조건을 바꾸셨다면 새 선곡표를 받아 주세요.',409)
         require(body['exclusion_revision']==f.exclusion_revision,'EXCLUSION_REVISION_CONFLICT','최신 제외 목록을 확인해 주세요.',409)
         require(not busy(f),'JOB_IN_PROGRESS','선곡표를 생성하고 있어요.',409)
-        if not settings.HOURLY_RECOMMENDATION_ENABLED:
-            require(settings.GEMINI_ENABLED and settings.GEMINI_TIMEOUT_MS > 0 and settings.GEMINI_MAX_CANDIDATES > 0
-                    and bool(os.environ.get('GEMINI_API_KEY')) and int(os.environ.get('GEMINI_MAX_OUTPUT_TOKENS','0'))>0,
-                    'RECONFIGURATION_UNAVAILABLE','Gemini API 키와 호출 설정이 필요해요. 현재 선곡표는 유지됩니다.',503)
         return enqueue(f,request_id,parent)
     return mutate(owner,'regenerate:'+playlist_id,key,body,op)
 

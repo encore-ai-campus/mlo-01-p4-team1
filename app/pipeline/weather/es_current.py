@@ -21,7 +21,18 @@ def request(base, method, path, body=None, raw=False):
     data = body if raw else encode(body) if body is not None else None
     headers={'Content-Type': 'application/x-ndjson' if raw else 'application/json'}
     username=os.environ.get('ES_USERNAME','');password=os.environ.get('ES_PASSWORD','')
-    if username or password:
+    api_key=os.environ.get('ES_API_KEY','')
+    if api_key:
+        if username or password or parsed.scheme != 'https':
+            raise ValueError('es_api_key_requires_https_and_exclusive_auth')
+        try:
+            identifier, secret = base64.b64decode(api_key, validate=True).split(b':', 1)
+        except ValueError:
+            raise ValueError('invalid_es_api_key') from None
+        if not identifier or not secret:
+            raise ValueError('invalid_es_api_key')
+        headers['Authorization'] = 'ApiKey ' + api_key
+    elif username or password:
         if not username or not password or parsed.scheme!='https':raise ValueError('es_credentials_require_https')
         headers['Authorization']='Basic '+base64.b64encode((username+':'+password).encode()).decode()
     req = Request(base.rstrip('/') + path, data=data, method=method,

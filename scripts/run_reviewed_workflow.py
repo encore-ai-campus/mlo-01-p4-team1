@@ -6,13 +6,14 @@ import hashlib
 from pathlib import Path
 import platform
 import re
+import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "scripts"), str(ROOT / "aws-infra/contracts")]
 from infra_common.coordination import require
 from infra_common.preauth_execution import ExecutionGate, sha, private_file
-from infra_common.oidc import write_config
+from infra_common.oidc import ENVIRONMENTS, OIDC_PHASES, write_config
 from infra_control import execute
 
 
@@ -47,7 +48,39 @@ def authority_key(path, expected):
     return path
 
 
+def web_release(review, purpose):
+    if os.environ.get("MLO_WEB_DEPLOY") != "true":
+        return None
+    require(
+        purpose == "runtime" and os.environ.get("GITHUB_EVENT_NAME") == "push",
+        "main web deployment requires a push event",
+    )
+    commit = os.environ.get("GITHUB_SHA", "")
+    image = os.environ.get("MLO_WEB_IMAGE", "")
+    repository = review["account_ids"]["encore1"] + ".dkr.ecr.ap-northeast-2.amazonaws.com/mlo-p4/api"
+    require(
+        re.fullmatch(r"[a-f0-9]{40}", commit)
+        and subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip() == commit
+        and re.fullmatch(re.escape(repository) + r"@sha256:[a-f0-9]{64}", image),
+        "exact main checkout and published web digest required",
+    )
+    return "main-" + commit, image
+
+
+def credential_failure_phase(error):
+    from botocore.exceptions import CredentialRetrievalError
+
+    if not isinstance(error, CredentialRetrievalError):
+        return None
+    marker = error.kwargs.get("error_msg")
+    for phase in OIDC_PHASES:
+        if marker == f"MLO_OIDC_PHASE={phase}\n":
+            return phase
+    return "credential-process"
+
+
 def main():
+    phase = "signed-inputs"
     try:
         purpose = os.environ.get("MLO_PURPOSE")
         review_id = os.environ.get("MLO_REVIEW_SHA256", "")
@@ -93,15 +126,19 @@ def main():
         review = gate.check()
         require(sha(review) == review_id, "review directory/digest mismatch")
         target(review, purpose)
+        expected_web_release = web_release(review, purpose)
         # Config holds commands only; web identity and session keys remain in
         # credential_process memory. GitHub Environment approval is separate.
         credential_purpose = "apply" if purpose == "destroy" else purpose
+        if expected_web_release is not None:
+            credential_purpose = "web-deploy"
+        phase = "credential-config"
         config = write_config(
             folder / "oidc-config",
             review["account_ids"],
             credential_purpose,
             os.environ["GITHUB_REPOSITORY"],
-            "infra-" + credential_purpose,
+            ENVIRONMENTS[credential_purpose],
         )
         for name in list(os.environ):
             if name.startswith("AWS_"):
@@ -114,12 +151,17 @@ def main():
             AWS_CLI_AUTO_PROMPT="off",
             AWS_STS_REGIONAL_ENDPOINTS="regional",
         )
-        execute(gate, folder / "execution-receipt.json")
+        phase = "operation"
+        execute(gate, folder / "execution-receipt.json", web_release=expected_web_release)
         print("PASS: reviewed manual operation completed; inspect private receipt")
         return 0
-    except Exception:
+    except Exception as error:
+        if phase == "operation":
+            oidc_phase = credential_failure_phase(error)
+            if oidc_phase is not None:
+                phase = f"oidc/{oidc_phase}"
         print(
-            "FAIL: manual workflow refused/failed; inspect protected inputs and receipt",
+            f"FAIL: manual workflow stopped at {phase}; inspect protected inputs and receipt",
             file=sys.stderr,
         )
         return 2

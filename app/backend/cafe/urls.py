@@ -76,5 +76,6 @@ urlpatterns = [
     path('muther/<path:name>', frontend.asset, {'prefix':'muther'}),
     path('ad-examples/<path:name>', frontend.asset, {'prefix':'ad-examples'}),
     path('default-cover.svg', frontend.asset, {'name':'default-cover.svg'}),
+    path('muther-wordmark.png', frontend.asset, {'name':'muther-wordmark.png'}),
     path('penguin-guide-first.png', frontend.asset, {'name':'penguin-guide-first.png'}),
 ]

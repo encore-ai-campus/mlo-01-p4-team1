@@ -52,13 +52,27 @@ def documents():
             'local_preview': settings.MEMBER_LOCAL_PREVIEW, 'documents': settings.MEMBER_POLICY_DOCUMENTS}
 
 
+def valid_documents(documents):
+    return isinstance(documents, dict) and all(
+        isinstance(documents.get(kind), str) and documents[kind].strip()
+        for kind in ('terms', 'privacy_notice', 'email')
+    )
+
+
+def receipt_text(documents, kind):
+    return documents.get(kind, '만 14세 이상 확인' if kind == 'age14' else '')
+
+
 def consent(body):
     require(settings.MEMBER_LOCAL_PREVIEW or settings.MEMBER_POLICIES_READY,
             'POLICY_NOT_READY', '회원 정책 게시를 준비하고 있습니다.', 503)
-    require(settings.MEMBER_POLICY_VERSION and all(isinstance(settings.MEMBER_POLICY_DOCUMENTS.get(k), str)
-            and settings.MEMBER_POLICY_DOCUMENTS[k].strip() for k in ('terms', 'privacy_notice', 'email')),
+    validate_consent(body, version=settings.MEMBER_POLICY_VERSION, documents=settings.MEMBER_POLICY_DOCUMENTS)
+
+
+def validate_consent(body, *, version, documents):
+    require(version and valid_documents(documents),
             'POLICY_NOT_READY', '회원 정책 게시를 준비하고 있습니다.', 503)
-    require(body.get('policy_version') == settings.MEMBER_POLICY_VERSION,
+    require(body.get('policy_version') == version,
             'POLICY_CHANGED', '최신 약관과 안내를 다시 확인해 주세요.', 409)
     require(all(body.get(name) is True for name in ('terms_accepted', 'privacy_acknowledged', 'age_confirmed')),
             'AGREEMENT_REQUIRED', '이용약관 동의·처리 안내 확인·만 14세 이상 확인이 필요합니다.')

@@ -41,10 +41,11 @@ FROM development AS production
 ARG APP_REVISION
 RUN python -c 'import re,sys;sys.exit(0 if re.fullmatch("[0-9a-f]{40}|[0-9a-f]{64}",sys.argv[1]) else 2)' "$APP_REVISION"
 ENV APP_REVISION=$APP_REVISION APP_KIND=web DJANGO_SETTINGS_MODULE=backend.cafe.settings C_LOCAL_DEMO=0 FRONTEND_REQUIRED=1
+ENV VENUE_MCP_SERVER=/workspace/app/prototype/venue-recommendation-mcp/venue_recommendation_mcp.py
 COPY --from=frontend --chown=mlo:mlo /frontend/dist /workspace/app/frontend/dist
 COPY --chmod=0555 docker/runtime/serve.py /opt/mlo/bin/serve
 COPY --chmod=0555 docker/runtime/readiness.py /opt/mlo/bin/readiness
-COPY docker/runtime/app_runtime.py /opt/mlo/bin/app_runtime.py
+COPY --chmod=0444 docker/runtime/app_runtime.py /opt/mlo/bin/app_runtime.py
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s CMD ["/opt/mlo/bin/readiness"]
 CMD ["/opt/mlo/bin/serve", "--config", "/etc/mlo/service.json"]

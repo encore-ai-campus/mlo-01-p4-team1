@@ -15,21 +15,39 @@ spec.loader.exec_module(runtime)
 
 
 class AppRuntimeTests(unittest.TestCase):
-    def test_protected_configuration_accepts_weather_store_settings(self):
-        settings = {
-            'ES_URL': 'https://weather.invalid:9200',
-            'WEATHER_INDEX': 'weather-test',
-            'ES_USERNAME': 'unit-test',
-            'ES_PASSWORD': 'disposable-unit-fixture',
-            'ES_CA_CERT': '/run/mlo/secrets/weather-ca.pem',
+    def test_protected_secret_file_accepts_weather_venue_mcp_and_playlist_settings(self):
+        settings_by_case = {
+            'weather_api_key': {'ES_API_KEY': 'Zml4dHVyZTpmaXh0dXJl'},
+            'weather_password_with_venue_mcp_and_playlist': {
+                'ES_URL': 'https://weather.example.test:9200',
+                'WEATHER_INDEX': 'weather-current-v1',
+                'ES_USERNAME': 'weather_reader',
+                'ES_PASSWORD': 'disposable-unit-fixture',
+                'ES_CA_CERT': '/run/mlo/secrets/weather-ca.crt',
+                'VENUE_MCP_SERVICE_ENABLED': '1',
+                'VENUE_MCP_PUBLIC_CATALOG': '/run/mlo/secrets/published-venues.json',
+                'VENUE_WEATHER_BASE_URL': 'https://weather-api.example.test',
+                'VENUE_LLM_MODEL': 'fixture-model',
+                'GEMINI_ENABLED': '1',
+                'GEMINI_API_KEY': 'disposable-unit-fixture',
+                'OPENAI_API_KEY': 'disposable-unit-fixture',
+                'OPENAI_PLAYLIST_ENABLED': '1',
+                'OPENAI_PLAYLIST_TIMEOUT_MS': '20000',
+                'OPENAI_PLAYLIST_MAX_CANDIDATES': '150',
+                'OPENAI_PLAYLIST_MAX_OUTPUT_TOKENS': '3000',
+                'OPENAI_PLAYLIST_MAX_CONCURRENT': '1',
+                'OPENAI_PLAYLIST_MIN_INTERVAL_SECONDS': '2',
+                'RECOMMENDATION_MAX_QUEUED_GPT': '20',
+            },
         }
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder).resolve()
-            path = root / 'app-env.json'
-            path.write_text(json.dumps(settings))
-            info = SimpleNamespace(st_mode=stat.S_IFREG | 0o600, st_size=path.stat().st_size)
-            with patch.object(Path, 'stat', return_value=info):
-                self.assertEqual(runtime.secret_environment(path, root), settings)
+        for case, settings in settings_by_case.items():
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder).resolve()
+                path = root / 'app-env.json'
+                path.write_text(json.dumps(settings))
+                info = SimpleNamespace(st_mode=stat.S_IFREG | 0o600, st_size=path.stat().st_size)
+                with patch.object(Path, 'stat', return_value=info):
+                    self.assertEqual(runtime.secret_environment(path, root), settings)
 
     def test_protected_secret_file_rejects_symlinks_public_permissions_and_unknown_keys(self):
         with tempfile.TemporaryDirectory() as folder:

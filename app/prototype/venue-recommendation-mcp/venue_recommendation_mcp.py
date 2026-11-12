@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, StringConstraints,
 from venue_csv_catalog import add_csv_venues
 from venue_forecast import KST, fetch_forecasts, project_endpoint, timestamp
 from venue_nearby import PROVINCE_LABELS, RADIUS_M, SeoulPlaceIndex, display_district, station_label
-from venue_public_catalog import read_public_catalog
+from venue_public_catalog import PublicCatalogReader
 from venue_search_intent import (
     APPROXIMATE_BUDGET, BudgetBand, CALM_WORDS, UnverifiedCondition, VenueCategory, budget_from_text,
     compile_menu_words, explicit_menu_tags, per_person_budget, query_tags, required_mood_tags,
@@ -154,6 +154,9 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
     if public_mode:
         mapping_version = place_index.weather_mapping_version
         catalog_source = "PUBLIC_SNAPSHOT"
+        public_catalog = PublicCatalogReader(
+            public_catalog_path, place_index.weather_regions, tags, allow_preview=allow_preview_catalog,
+        )
     else:
         demo_catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
         verify_pilot(demo_catalog, tags)
@@ -166,9 +169,7 @@ def create_server(catalog_path=DEFAULT_CATALOG, locations_path=DEFAULT_LOCATIONS
 
     def current_catalog():
         if public_mode:
-            return read_public_catalog(
-                public_catalog_path, place_index.weather_regions, tags, allow_preview=allow_preview_catalog,
-            )
+            return public_catalog.read()
         return demo_catalog, demo_locations
 
     project_url = project_endpoint(weather_base_url) if weather_base_url else None
@@ -520,7 +521,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     catalogs = parser.add_mutually_exclusive_group()
     catalogs.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG, help="고정 시연 카탈로그 JSON")
-    catalogs.add_argument("--public-catalog", type=Path, help="호출마다 읽는 수도권 공개 매장·메뉴 스냅샷 JSON")
+    catalogs.add_argument("--public-catalog", type=Path, help="수도권 공개 매장·메뉴 스냅샷 JSON")
     parser.add_argument("--allow-preview-catalog", action="store_true", help="로컬 시연 스냅샷을 명시적으로 허용")
     parser.add_argument("--locations", type=Path, default=DEFAULT_LOCATIONS, help="매장별 프로젝트 날씨 지역 매핑 JSON")
     parser.add_argument("--venues-csv", type=Path, help="원본 ID로 매장 후보와 1인 평균예산을 추가할 시연 CSV")

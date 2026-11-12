@@ -12,10 +12,11 @@ interface NotificationItem {
 
 interface NotificationPopoverProps {
   userId?: string;
+  unavailable?: boolean;
   onSelectLink?: (link: string) => void;
 }
 
-export const NotificationPopover: React.FC<NotificationPopoverProps> = ({ userId = 'guest_anonymous', onSelectLink }) => {
+export const NotificationPopover: React.FC<NotificationPopoverProps> = ({ userId = 'guest_anonymous', onSelectLink, unavailable = false }) => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -28,6 +29,7 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({ userId
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
   useEffect(() => {
+    if (unavailable) return;
     fetchMySummary(userId)
       .then((res) => {
         if (res.success && res.summary) {
@@ -36,7 +38,7 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({ userId
         }
       })
       .catch(() => {});
-  }, [userId, isOpen]);
+  }, [userId, isOpen, unavailable]);
 
   return (
     <div ref={popoverRef} style={{ position: 'relative' }}>
@@ -46,7 +48,7 @@ export const NotificationPopover: React.FC<NotificationPopoverProps> = ({ userId
         className="fp-header-icon fp-notification-button"
         aria-label={unreadCount > 0 ? `알림, 읽지 않은 알림 ${unreadCount}개` : "알림"}
         aria-expanded={isOpen}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => unavailable ? window.alert('현재 플랫폼에서는 알림을 사용할 수 없습니다.') : setIsOpen(!isOpen)}
         style={{
           position: 'relative',
           background: '#ffffff',

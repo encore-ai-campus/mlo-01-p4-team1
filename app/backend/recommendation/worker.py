@@ -18,7 +18,7 @@ from .policy import eligible, score, weather_fit, off_preference_details, DURATI
 from .candidate_index import CandidateIndex
 from .weather import validate, obtain, current_profile, instant
 from .solver import choose, choose_preview
-from .provider import propose, validate_proposal, candidate_window
+from .provider import OPENAI_PLAYLIST_MODEL, propose, validate_proposal, candidate_window
 from .catalog_storage import unpack
 from .service import HOURLY_DURATION_POLICY, current_catalog
 
@@ -206,8 +206,10 @@ def run_one(queue=None, worker_id=None):
         raw = verified_catalog(catalog)
         candidates, candidate_audit = _collect_candidates(catalog, raw, context)
         preview=settings.LOCAL_DEMO and catalog.source_ref.startswith('local-preview:')
+        search_diagnostics={}
+        diagnostics=None
+        model=None
         if job.method=='RULE_BASED':
-            search_diagnostics={}
             if preview:
                 parent_ids={t['track_id'] for t in Playlist.objects.get(pk=job.parent_id).snapshot['items']} if job.parent_id else set()
                 tracks,search_diagnostics=choose_preview(candidates,context['options']['weather_influence_mode'],
@@ -224,8 +226,10 @@ def run_one(queue=None, worker_id=None):
                      '날씨와 선택하신 취향을 반영했어요.' if on else '선택하신 취향을 반영했어요.')
             reasons={}
         else:
-            parent=Playlist.objects.get(pk=job.parent_id)
-            ids=[t['track_id'] for t in parent.snapshot['items']]
+            ids=None
+            if job.parent_id and context.get('recommendation_trigger') != 'weather_refresh':
+                parent=Playlist.objects.get(pk=job.parent_id)
+                ids=[t['track_id'] for t in parent.snapshot['items']]
             offered=candidate_window(candidates,context,ids)
             while True:
                 delay = dispatch.begin_provider(job)
@@ -237,6 +241,7 @@ def run_one(queue=None, worker_id=None):
                                 'searched_full_pool':len(offered)==len(candidates)})
             active_job(job).update(provider_diagnostics=diagnostics)
             tracks=validate_proposal(proposal,offered,ids,context['options'],all_candidates=candidates)
+            model=OPENAI_PLAYLIST_MODEL
             summary=proposal['summary']; reasons={r['track_id']:r['reason'] for r in proposal['track_reasons']}
         total=sum(t['duration_ms'] for t in tracks)
         if on:
@@ -274,9 +279,9 @@ def run_one(queue=None, worker_id=None):
                    'duration_policy_version':DURATION_POLICY,'duration_mode':'STANDARD',
                    'effective_target_ms':TARGET,'effective_min_ms':MINIMUM,'effective_max_ms':MAXIMUM,'shortening_reason':None}
             result=Playlist.objects.create(job=current,family=f,snapshot={'context':fixed,'items':items,'total_ms':total,
-                'summary':summary,'generation_method':job.method,'model':'gemini-3.8-flash' if job.method=='GEMINI_RECONFIGURE' else None,
-                'provider_diagnostics':diagnostics if job.method=='GEMINI_RECONFIGURE' else None,
-                'search_diagnostics':{**candidate_audit,**search_diagnostics} if job.method=='RULE_BASED' else candidate_audit,
+                'summary':summary,'generation_method':job.method,'model':model,
+                'provider_diagnostics':diagnostics,
+                'search_diagnostics':{**candidate_audit,**search_diagnostics},
                 'is_test':catalog.is_test,'preview_only':preview,'validation_passed':not preview})
             if settings.INTEGRATION_ENABLED:
                 from .service import event

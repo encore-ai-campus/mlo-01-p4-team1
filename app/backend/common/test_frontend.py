@@ -21,6 +21,14 @@ class FrontendServingTests(TestCase):
             self.assertEqual(response.status_code,200)
             self.assertIn(b'id="root"',b''.join(response.streaming_content))
             self.assertEqual(response['Cache-Control'],'no-store')
+            self.assertEqual(response['Referrer-Policy'],'no-referrer')
+            response.close()
+        for map_path in ('/venues','/platform/consumer'):
+            map_response = self.client.get(map_path)
+            self.assertEqual(map_response.status_code,200)
+            b''.join(map_response.streaming_content)
+            self.assertEqual(map_response['Referrer-Policy'],'strict-origin-when-cross-origin')
+            map_response.close()
         self.assertEqual(self.client.get('/api/no-such-route').status_code,404)
         self.assertEqual(self.client.post('/signup',{}).status_code,405)
 
@@ -33,6 +41,22 @@ class FrontendServingTests(TestCase):
         (self.root/'assets/private.env').write_text('not-public')
         for path in ('/assets/private.env','/assets/../../backend/cafe/settings.py','/backend/cafe/settings.py','/src/main.tsx'):
             self.assertEqual(self.client.get(path).status_code,404)
+
+    def test_muther_wordmark_is_served_from_the_build_root(self):
+        asset = self.root / 'muther-wordmark.png'
+        image = b'\x89PNG\r\n\x1a\nwordmark'
+        asset.write_bytes(image)
+        for method, body in ((self.client.get, image), (self.client.head, b'')):
+            with self.subTest(method=method.__name__):
+                response = method('/muther-wordmark.png')
+                self.addCleanup(response.close)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response['Content-Type'], 'image/png')
+                self.assertEqual(response['Content-Length'], str(len(image)))
+                self.assertEqual(response['Cache-Control'], 'public, max-age=300')
+                self.assertEqual(b''.join(response.streaming_content), body)
+        asset.unlink()
+        self.assertEqual(self.client.get('/muther-wordmark.png').status_code, 404)
 
     def test_missing_frontend_build_fails_production_readiness(self):
         self.assertEqual(self.client.get('/readyz').status_code,200)

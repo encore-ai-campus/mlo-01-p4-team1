@@ -1,6 +1,8 @@
 from .bridge import VenueOwnerBridge
-from .status_overlay import VenueStatusOverlay
+from .catalog import VenueCatalogRecord
+from .status_overlay import VenueStatusOverlay, VenueClosureDecision
 from .interaction import VenueInteraction
+from .outbox import VenueOutbox
 from .event import (
     VenueEvent,
     VenueEventParticipation,
@@ -10,8 +12,11 @@ from .event import (
 
 __all__ = [
     'VenueOwnerBridge',
+    'VenueCatalogRecord',
     'VenueStatusOverlay',
+    'VenueClosureDecision',
     'VenueInteraction',
+    'VenueOutbox',
     'VenueEvent',
     'VenueEventParticipation',
     'OwnerEventTrustScore',

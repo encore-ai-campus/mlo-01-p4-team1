@@ -12,11 +12,14 @@ def obtain(fixture_id):
     return resolve_fixture(fixture_id)
 
 
-def run_one():
+def run_one(*, job_id=None):
     with transaction.atomic():
         now = dbnow()
-        job = BusinessCheckJob.objects.select_for_update(skip_locked=True).filter(
-            Q(state='QUEUED') | Q(state='RUNNING', lease_until__lt=now)).order_by('created_at').first()
+        queued = BusinessCheckJob.objects.select_for_update(skip_locked=True).filter(
+            Q(state='QUEUED') | Q(state='RUNNING', lease_until__lt=now))
+        if job_id is not None:
+            queued = queued.filter(pk=job_id)
+        job = queued.order_by('created_at').first()
         if not job:
             return False
         job.state, job.lease, job.lease_until = 'RUNNING', uuid.uuid4(), now+timedelta(seconds=30)

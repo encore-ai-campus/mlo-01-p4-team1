@@ -14,11 +14,14 @@ class Command(BaseCommand):
         parser.add_argument('--apply',action='store_true')
         parser.add_argument('--music',action='store_true')
         parser.add_argument('--streams',action='store_true')
+        parser.add_argument('--venues',action='store_true')
 
     def handle(self,*args,**options):
         if not options['apply']:
-            self.stdout.write(json.dumps({'applied':False,'steps':['migrate']+(['feedback_topic'] if options['streams'] else [])+(['music_import','publish_approved_only'] if options['music'] else [])}));return
+            self.stdout.write(json.dumps({'applied':False,'steps':['migrate']+(['venues_catalog_sync'] if options['venues'] else [])+(['feedback_topic'] if options['streams'] else [])+(['music_import','publish_approved_only'] if options['music'] else [])}));return
         call_command('migrate',interactive=False,stdout=self.stdout)
+        if options['venues']:
+            call_command('sync_venues_catalog',target='db',stdout=self.stdout)
         username=os.environ.get('BOOTSTRAP_ADMIN_USERNAME','')
         if username:
             from django.contrib.auth import get_user_model
@@ -33,7 +36,7 @@ class Command(BaseCommand):
                     permissions=[]
                 else:
                     permissions=[x.strip() for x in os.environ.get('BOOTSTRAP_ADMIN_PERMISSIONS','').split(',') if x.strip()]
-                if not role and (not permissions or not set(permissions)<={'manage_ads','manage_music','view_feedback'}):
+                if not role and (not permissions or not set(permissions)<={'manage_ads','manage_music','view_feedback','view_operations','manage_venues'}):
                     raise CommandError('explicit_admin_permissions_required')
                 if not role:call_command('bootstrap_admin',username,permissions=permissions,stdout=self.stdout)
         if options['streams']:

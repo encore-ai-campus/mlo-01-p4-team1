@@ -18,11 +18,34 @@ import { OwnerVenueClaimModal } from '../components/OwnerVenueClaimModal';
 import { OwnerEventPublishModal } from '../components/OwnerEventPublishModal';
 import { MenuItem, VenueEventSummary } from '../types/venue.types';
 import { api } from '../../../shared/api';
-import { weatherLabel, type Weather } from '../../region-weather/WeatherPanel';
+import { forecastHours, weatherLabel, type Weather } from '../../region-weather/WeatherPanel';
 import type { RegionOption } from '../../region-weather/RegionPicker';
 
-export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommendations?: boolean; showServiceHeader?: boolean; enableAi?: boolean }> = ({
+const INCHEON_DISTRICTS = new Set(['강화군', '계양구', '남동구', '동구', '미추홀구', '부평구', '연수구', '옹진군']);
+
+export function findRegionOptionForDistrict(items: RegionOption[], gu: string): RegionOption | undefined {
+  const trimmed = gu.trim();
+  const target = trimmed.startsWith('인천 ') ? trimmed.slice(3).trim() : trimmed;
+  const province =
+    trimmed.startsWith('인천 ') || INCHEON_DISTRICTS.has(trimmed)
+      ? '인천'
+      : trimmed.endsWith('구')
+        ? '서울'
+        : '경기';
+  return items.find((item) => {
+    const itemProvince = item.province?.trim() || '';
+    const itemDistrict = item.district?.trim() || '';
+    const itemName = item.name?.trim() || '';
+    return (
+      (itemProvince.startsWith(province) || itemName.startsWith(province)) &&
+      (itemDistrict === target || itemDistrict.startsWith(`${target} `) || itemDistrict.endsWith(` ${target}`))
+    );
+  });
+}
+
+export const VenueExplorePage: React.FC<{ readOnly?: boolean; allowFeedback?: boolean; showVisitRecommendations?: boolean; showServiceHeader?: boolean; enableAi?: boolean }> = ({
   readOnly = false,
+  allowFeedback = false,
   showVisitRecommendations = false,
   showServiceHeader = false,
   enableAi = false,
@@ -85,6 +108,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
     totalCount,
     loading,
     error,
+    errorStatus,
     reload: reloadVenues,
   } = useVenueList('강남구');
   const conciergeRegion = hasSelectedDistrict ? gu : undefined;
@@ -95,21 +119,19 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
     setLiveWeather(null);
     setWeatherLoading(true);
     setWeather('');
-    const target = gu.startsWith('인천 ') ? gu.slice(3) : gu;
-    const province = gu.startsWith('인천 ') || ['강화군','계양구','남동구','동구','미추홀구','부평구','연수구','옹진군'].includes(gu) ? '인천' : gu.endsWith('구') ? '서울' : '경기';
     const refresh = async () => {
       try {
         const regions = await api<{items: RegionOption[]}>('/api/regions/tree', 'GET', undefined, undefined, controller.signal);
-        const region = regions.items.find(item => item.province?.startsWith(province) && (item.district === target || item.district?.startsWith(`${target} `)));
+        const region = findRegionOptionForDistrict(regions.items || [], gu);
         if (!region) throw new Error('지역 없음');
         const result = await api<Weather>(`/api/weather?region_id=${encodeURIComponent(region.region_id)}`, 'GET', undefined, undefined, controller.signal);
-        const current = result.current;
-        if (result.is_test || !current || current.status === 'stale' || current.status === 'missing' || current.pty === undefined) throw new Error('현재 날씨 없음');
-        const label = weatherLabel(current.pty, current.sky);
+        const slot = forecastHours(result)[0];
+        if (result.is_test || !slot || slot.pty === undefined) throw new Error('현재 날씨 없음');
+        const label = weatherLabel(slot.pty, slot.sky);
         if (label === '확인 불가') throw new Error('현재 날씨 없음');
         if (!controller.signal.aborted) {
-          setLiveWeather({label, area: region.locality || region.name, temperature: typeof current.temperature === 'number' && Number.isFinite(current.temperature) ? current.temperature : null});
-          setWeather([3,7].includes(current.pty) ? 'SNOW' : current.pty > 0 ? 'RAIN' : 'CLEAR');
+          setLiveWeather({label, area: region.locality || region.name, temperature: typeof slot.temperature === 'number' && Number.isFinite(slot.temperature) ? slot.temperature : null});
+          setWeather([3,7].includes(slot.pty) ? 'SNOW' : slot.pty > 0 ? 'RAIN' : 'CLEAR');
         }
       } catch { if (!controller.signal.aborted) { setLiveWeather(null); setWeather(''); } }
       finally { if (!controller.signal.aborted) setWeatherLoading(false); }
@@ -152,24 +174,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       color: '#0f172a',
     }}>
-      {showServiceHeader && readOnly && <div className="fitplace-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap'}}>
-        <a className="fitplace-logo" href="/venues">핏플레이스</a>
-        <div><span className="fitplace-header-title">나에게 딱 맞는 하루</span></div>
-        <div className="fp-header-actions">
-          <a href={serviceAccount?.role === 'USER' ? '/platform/account' : '/platform/login'}>{serviceAccount?.role === 'USER' ? `${serviceAccount.nickname || '회원'} · 마이페이지` : '로그인'}</a>
-          <div className="fp-header-menu-wrap">
-            <button type="button" className="fp-header-menu-trigger" aria-label="전체 메뉴" aria-expanded={headerMenuOpen} aria-controls="fp-platform-header-menu" onClick={() => setHeaderMenuOpen(open => !open)}><span aria-hidden="true">☰</span></button>
-            {headerMenuOpen && <>
-              <div className="fp-header-menu-backdrop" aria-hidden="true" onClick={() => setHeaderMenuOpen(false)} />
-              <nav id="fp-platform-header-menu" className="fp-header-menu" aria-label="전체 메뉴">
-                <div className="fp-header-menu-title"><strong>전체 메뉴</strong><button type="button" aria-label="메뉴 닫기" onClick={() => setHeaderMenuOpen(false)}>×</button></div>
-                <a href="/">음악 큐레이션 <span aria-hidden="true">›</span></a>
-              </nav>
-            </>}
-          </div>
-        </div>
-      </div>}
-      {!readOnly && (
+      {(!readOnly || showServiceHeader) && (
         <>
           <div className="fitplace-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
             <a className="fitplace-logo" href="/venues">핏플레이스</a>
@@ -180,11 +185,12 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
             <div className="fp-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {/* 알림 벨 팝오버 */}
               <NotificationPopover
+                unavailable={readOnly}
                 userId={currentUserId}
                 onSelectLink={(url) => window.location.href = url}
               />
 
-              <button type="button" className="fp-header-icon fp-profile-button" aria-label="마이페이지" onClick={() => setIsMyPageOpen(true)}>
+              <button type="button" className="fp-header-icon fp-profile-button" aria-label="마이페이지" onClick={() => { if (readOnly) window.location.href = serviceAccount?.role === 'USER' ? '/platform/account' : '/platform/login'; else setIsMyPageOpen(true); }}>
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="7.5" r="3.5"/><path d="M4.5 20v-2.2a4.3 4.3 0 0 1 4.3-4.3h6.4a4.3 4.3 0 0 1 4.3 4.3V20"/></svg>
               </button>
               <div className="fp-header-menu-wrap">
@@ -193,16 +199,22 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
                   <div className="fp-header-menu-backdrop" aria-hidden="true" onClick={() => setHeaderMenuOpen(false)} />
                   <nav id="fp-header-menu" className="fp-header-menu" aria-label="전체 메뉴">
                     <div className="fp-header-menu-title"><strong>전체 메뉴</strong><button type="button" aria-label="메뉴 닫기" onClick={() => setHeaderMenuOpen(false)}>×</button></div>
-                    <a href="/">음악 큐레이션 <span aria-hidden="true">›</span></a>
+                    <details className="fp-owner-menu">
+                      <summary>관련 서비스 <span aria-hidden="true">⌄</span></summary>
+                      <div className="fp-owner-submenu">
+                        <a href="/platform">itda <span aria-hidden="true">›</span></a>
+                        <a href="/muther">muther <span aria-hidden="true">›</span></a>
+                      </div>
+                    </details>
                     <details className="fp-owner-menu">
                       <summary>사장님 페이지 <span aria-hidden="true">⌄</span></summary>
                       <div className="fp-owner-submenu">
                         <a href="/">매장 음악 관리 <span aria-hidden="true">›</span></a>
-                        <button type="button" onClick={() => { setHeaderMenuOpen(false); setIsClaimModalOpen(true); }}>사장님 등록 <span aria-hidden="true">›</span></button>
-                        <button type="button" onClick={() => { setHeaderMenuOpen(false); setIsPublishEventOpen(true); }}>이벤트 발행 <span aria-hidden="true">›</span></button>
+                        <button type="button" onClick={() => { setHeaderMenuOpen(false); readOnly ? window.alert('현재 플랫폼에서는 해당 기능을 사용할 수 없습니다.') : setIsClaimModalOpen(true); }}>사장님 등록 <span aria-hidden="true">›</span></button>
+                        <button type="button" onClick={() => { setHeaderMenuOpen(false); readOnly ? window.alert('현재 플랫폼에서는 해당 기능을 사용할 수 없습니다.') : setIsPublishEventOpen(true); }}>이벤트 발행 <span aria-hidden="true">›</span></button>
                       </div>
                     </details>
-                    <a href="/login">로그인 <span aria-hidden="true">›</span></a>
+                    <a href="/platform/login">로그인 <span aria-hidden="true">›</span></a>
                   </nav>
                 </>}
               </div>
@@ -267,8 +279,13 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
           )}
 
           {error && (
-            <div style={{ textAlign: 'center', padding: '30px', color: '#ef4444' }}>
-              ⚠️ {error}
+            <div style={{ textAlign: 'center', padding: '30px', color: '#ef4444' }} role="alert">
+              <p>⚠️ {error}</p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
+                {errorStatus === 401 && <a href="/platform/login">로그인하기</a>}
+                {errorStatus === 403 && <a href="/platform/account">사용자 이용 유형 확인</a>}
+                <button type="button" onClick={() => void reloadVenues()}>다시 불러오기</button>
+              </div>
             </div>
           )}
 
@@ -280,6 +297,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
                 venue={venue}
                 userId={currentUserId}
                 readOnly={readOnly}
+        allowFeedback={allowFeedback}
                 onSelectVenue={handleOpenDetail}
                 onSelectMenu={handleSelectMenu}
               />
@@ -328,7 +346,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
 
           <p className="fp-map-hint">핀을 선택하면 매장 상세를 확인해요.</p>
           <VenueInteractiveMap
-            temperature={null}
+            temperature={liveWeather?.temperature ?? null}
             weather={weather}
             gu={gu}
             venues={venues}
@@ -352,6 +370,7 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
         isOpen={detailVenueId !== null}
         onClose={() => setDetailVenueId(null)}
         readOnly={readOnly}
+        allowFeedback={allowFeedback}
         onOpenEventModal={handleOpenEvent}
         userId={currentUserId}
         currentWeather={weather}
@@ -383,15 +402,18 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; showVisitRecommend
           <OwnerVenueClaimModal
             isOpen={isClaimModalOpen}
             onClose={() => setIsClaimModalOpen(false)}
-            onSuccess={() => reloadVenues()}
+            onSuccess={(venueId) => {
+              reloadVenues();
+              if (venueId) handleOpenDetail(venueId);
+            }}
           />
 
           {/* 점주 이벤트 발행 모달 */}
           <OwnerEventPublishModal
             isOpen={isPublishEventOpen}
             onClose={() => setIsPublishEventOpen(false)}
-            venueId={venues[0]?.venue_id || 'venue_seoul_0001'}
-            venueName={venues[0]?.venue_name || '대표 매장'}
+            venueId={detailVenue?.venue_id || venues[0]?.venue_id || 'venue_seoul_0001'}
+            venueName={detailVenue?.venue_name || venues[0]?.venue_name || '대표 매장'}
             onSuccess={() => reloadVenues()}
           />
         </>

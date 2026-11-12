@@ -9,7 +9,7 @@ from backend.recommendation.api import Endpoint
 from backend.accounts import services as account_services
 from backend.common.identity import raw_request
 from backend.recommendation.errors import DomainError, require
-from . import accounts, service, authorization as auth
+from . import accounts, private_demo, service, authorization as auth
 from .schema import validate, CONTRACT
 
 ACCOUNT_OPERATIONS={
@@ -29,7 +29,11 @@ class PlatformEndpoint(Endpoint):
         super().initial(request,*args,**kwargs)
         descriptor = self.operations.get(request.method.lower(), {})
         self.song_portal_only = auth.song_portal_only()
-        if not (self.song_portal_only and descriptor.get('operationId') in SONG_PORTAL_OPERATIONS):
+        operation = descriptor.get('operationId')
+        private_review = private_demo.review_only_mode() and operation in private_demo.PRIVATE_REVIEW_OPERATIONS
+        if not private_review and not (
+            self.song_portal_only and operation in (SONG_PORTAL_OPERATIONS | private_demo.REVIEW_OPERATIONS)
+        ):
             auth.enabled()
         require(account_services.limit('platform-ip:'+request.META.get('REMOTE_ADDR',''),maximum=2000),
                 'RATE_LIMITED','요청이 많습니다. 잠시 후 다시 시도해 주세요.',429)

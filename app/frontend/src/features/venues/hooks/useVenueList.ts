@@ -32,10 +32,12 @@ export function useVenueList(initialGu: string = '강남구', partnerExact = fal
   const [totalCount, setTotalCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
 
   const loadVenues = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setErrorStatus(null);
     try {
       const params: VenueSearchParams = {
         sigungu: gu,
@@ -58,6 +60,7 @@ export function useVenueList(initialGu: string = '강남구', partnerExact = fal
       }
     } catch (err: any) {
       setError(err.message || '매장 목록을 불러오지 못했습니다.');
+      setErrorStatus(typeof err?.status === 'number' ? err.status : null);
     } finally {
       setLoading(false);
     }
@@ -94,6 +97,7 @@ export function useVenueList(initialGu: string = '강남구', partnerExact = fal
     totalCount,
     loading,
     error,
+    errorStatus,
     reload: loadVenues,
   };
 }
