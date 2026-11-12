@@ -13,7 +13,7 @@ from backend.workspaces.music import public_applied_playlist
 from .access import consumer_get
 
 
-@consumer_get(public_when_platform_disabled=True)
+@consumer_get
 def venue_detail_api(request, venue_id: str, *, consumer):
     """
     GET /api/venues/<venue_id>
@@ -125,7 +125,7 @@ def venue_detail_api(request, venue_id: str, *, consumer):
         'interaction_id', 'user_id', 'content', 'rating', 'weather_condition', 'weather_temp', 'created_at'
     ))
     for review in recent_reviews:
-        if consumer is not None and str(review.get('user_id', '')).startswith('platform:'):
+        if review['user_id'].startswith('platform:'):
             review['user_id'] = '방문 회원'
         if hasattr(review['created_at'], 'isoformat'):
             review['created_at'] = review['created_at'].isoformat()

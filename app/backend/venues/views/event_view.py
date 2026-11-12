@@ -54,7 +54,7 @@ def _user_manages_venue(business_user, venue_id: str) -> bool:
     ).exists()
 
 
-@consumer_get(public_when_platform_disabled=True)
+@consumer_get
 def active_events_banner_api(request, *, consumer):
     """
     GET /api/venues/events/active
@@ -287,7 +287,7 @@ def event_report_false_api(request, event_id: int, *, consumer):
     })
 
 
-@consumer_get
+@consumer_get(empty_when_platform_disabled=True)
 def venue_my_summary_api(request, *, consumer):
     """
     GET /api/venues/my/summary
@@ -383,7 +383,7 @@ def venue_my_summary_api(request, *, consumer):
     })
 
 
-@consumer_get
+@consumer_get(empty_when_platform_disabled=True)
 def venue_notifications_api(request, *, consumer):
     """
     GET /api/venues/notifications

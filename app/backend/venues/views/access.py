@@ -130,8 +130,8 @@ def consumer_mcp(view):
     return checked
 
 
-def consumer_get(view=None, *, public_when_platform_disabled: bool = False):
-    """Consumer GET guard supporting local preview, non-platform public catalog reads, and platform CONSUMER accounts."""
+def consumer_get(view=None, *, empty_when_platform_disabled: bool = False):
+    """Require an active consumer outside standalone demo mode."""
     def decorator(fn):
         @never_cache
         @require_GET
@@ -140,9 +140,7 @@ def consumer_get(view=None, *, public_when_platform_disabled: bool = False):
             ensure_request_id(request)
             if standalone_demo():
                 return fn(request, *args, consumer=None, **kwargs)
-            if not settings.PLATFORM_ENABLED:
-                if public_when_platform_disabled:
-                    return fn(request, *args, consumer=None, **kwargs)
+            if not settings.PLATFORM_ENABLED and empty_when_platform_disabled:
                 return JsonResponse({
                     'success': True,
                     'user_id': '',
