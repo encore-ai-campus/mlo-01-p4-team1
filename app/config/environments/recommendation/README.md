@@ -10,10 +10,13 @@
 | `shared.env.example` | A/B 각각 `/etc/music-cluster/control/recommendation.env`. 큐/lease/호출 한도는 동일, API_BIND_HOST는 호스트별 사설 IP |
 | `control-a-rule.env.example` | A의 `recommendation-rule-1.env` |
 | `control-b-rule.env.example` | B의 `recommendation-rule-1.env` |
-| `control-b-gemini.env.example` | B의 `recommendation-gemini-1.env`. 실제 키는 이 비공개 파일에만 주입 |
-| `music-recommendation@.service` | 작업 종류별 독립 프로세스. instance=`rule-1` 또는 `gemini-1` |
+| `control-b-gpt.env.example` | B의 보호된 `recommendation-gpt-1.env`. GPT 워커의 `OPENAI_API_KEY` 주입 |
+| `control-b-gemini.env.example` | 이전 설정 참고용. 기존 `gemini` 큐 이름은 GPT 큐의 호환 별칭 |
+| `music-recommendation@.service` | 작업 종류별 독립 프로세스. instance=`rule-1` 또는 `gpt-1` |
 | `music-recommendation-api.service` | 초기 Django ASGI/Uvicorn API 호스트당1프로세스, 8000, 사설 bind |
 
 실제 환경 파일은 root:control/0640으로 인계합니다. 기존 `database.env/application.env`와 같은 PostgreSQL·인증·날씨/피드백 어댑터가 필요합니다. 원문 DB 파일의 이름이 다르면 PG 설정 이름과 unit 참조를 함께 맞춥니다. 코드·migration·한도는 양쪽 호스트에서 같아야 하며 구 워커와 혼합 실행하지 않습니다.
+
+공통 API의 키는 A/B 각 호스트의 보호된 `/etc/music-cluster/control/recommendation-api-secret.env`에서 주입합니다. GPT 워커는 해당 instance의 보호 환경 파일에서 키를 받습니다. 공유 `recommendation.env`에는 API와 워커가 같은 호출·큐 한도를 사용하도록 비밀값을 제외한 설정만 둡니다.
 
 프로세스 메모리/CPU·작업/호출 한도·프로세스 개수는 초기 검증 예시입니다. Linux systemd 실기동·실제 카탈로그 부하·ALB/HTTPS/SSO·운영 장애 승계는 인계 문서의 남은 검증입니다. 실제 서버 설치·활성화·AWS 변경은 이번 작업에서 수행하지 않았습니다.

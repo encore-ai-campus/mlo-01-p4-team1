@@ -1,18 +1,19 @@
-"""Read-only queue observation; does not claim jobs, call Gemini or prove worker liveness."""
+"""Read-only queue observation without claiming jobs or calling a provider."""
 import json
 from math import ceil, isfinite
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 from django.db.models import Count
 from django.db.models.functions import Now
-from backend.recommendation.dispatch import METHODS
+from backend.recommendation.dispatch import GPT_JOB_METHODS, METHODS
 from backend.recommendation.models import Job
 
 
 def snapshot():
     queues = {}
     for queue, method in METHODS.items():
-        jobs = Job.objects.filter(method=method)
+        methods = GPT_JOB_METHODS if queue == 'gpt' else (method,)
+        jobs = Job.objects.filter(method__in=methods)
         oldest = jobs.filter(status='QUEUED').only('created_at').annotate(dispatch_now=Now()).order_by('created_at').first()
         recent = list(jobs.filter(finished_at__isnull=False, claimed_at__isnull=False)
                       .order_by('-finished_at').values_list('claimed_at', 'finished_at')[:100])

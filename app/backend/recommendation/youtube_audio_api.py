@@ -17,4 +17,4 @@ class YoutubeAudio(Endpoint):
                 'EXCLUSIONS_NOT_APPLIED', '제외 변경을 반영한 새 선곡표를 먼저 받아 주세요.', 409)
         track = next((item for item in playlist.snapshot['items'] if item['track_id'] == track_id), None)
         require(track is not None, 'NOT_FOUND', '선곡표에 있는 곡만 재생할 수 있어요.', 404)
-        return Response(resolve_audio(track, video_id, owner))
+        return Response(resolve_audio(track, video_id, owner, playlist=playlist))

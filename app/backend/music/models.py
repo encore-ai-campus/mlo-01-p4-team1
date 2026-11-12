@@ -69,3 +69,17 @@ class MusicImportRun(models.Model):
 
     class Meta:
         db_table = 'music_import_run'
+
+
+class TaggedMusicCandidate(models.Model):
+    source = models.ForeignKey('common.MusicSource', on_delete=models.PROTECT)
+    audio_sha256 = models.CharField(max_length=64)
+    video_id = models.CharField(max_length=11)
+    record = models.JSONField()
+    track = models.OneToOneField(Track, null=True, on_delete=models.PROTECT)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['source', 'audio_sha256'], name='tagged_music_source_audio'),
+            models.UniqueConstraint(fields=['source', 'video_id'], name='tagged_music_source_video'),
+        ]

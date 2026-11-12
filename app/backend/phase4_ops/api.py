@@ -11,6 +11,9 @@ from django.middleware.csrf import get_token
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 
+from backend.recommendation.errors import DomainError
+from backend.recommendation.policy import GENRES
+
 from . import pipeline_services, recovery_services, registration_services, song_services
 from . import serialization as out
 from .access import managed_venues, principal
@@ -44,7 +47,7 @@ def endpoint(methods, capability=None, worker=False, session=False):
                 result = function(request, actor, *args, **kwargs)
                 data, status = result if type(result) is tuple else (result, 200)
                 response = JsonResponse(data, status=status)
-            except OperationError as error:
+            except (OperationError, DomainError) as error:
                 response = JsonResponse({'code': error.code, 'message': error.message, 'details': error.details}, status=error.status)
             except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError, RequestDataTooBig):
                 response = JsonResponse({'code': 'INVALID_INPUT', 'message': '요청 형식과 크기를 확인해 주세요.', 'details': {}}, status=400)
@@ -162,6 +165,7 @@ def admin_tasks(request, actor):
     options = pipeline_services.tag_dictionary(required=False)
     if options:
         result['tag_options'] = {kind: sorted(codes) for kind, codes in options.items()}
+    result['recommendation_genres'] = {code: label for code, (label, _) in GENRES.items()}
     return result
 
 
@@ -170,6 +174,13 @@ def admin_task_finalize(request, actor, pk):
     data = body(request)
     return mutation(request, actor, 'task-finalize:' + str(pk), data,
                     lambda: registration_services.finalize(actor, pk, data))
+
+
+@endpoint({'POST'}, 'review_songs')
+def admin_task_publish(request, actor, pk):
+    data = body(request)
+    return mutation(request, actor, 'task-publish:' + str(pk), data,
+                    lambda: registration_services.publish_registered(actor, pk, data))
 
 
 @endpoint({'POST'}, 'review_songs')

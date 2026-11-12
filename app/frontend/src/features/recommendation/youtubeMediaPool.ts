@@ -5,24 +5,26 @@ export type AudioResolution = {status: 'READY' | 'UNAVAILABLE'; video_id: string
 type Prepared = 'ready' | 'unavailable' | 'unknown';
 type Mode = 'iframe' | 'audio';
 type Slot = {
-  candidate: PlaybackCandidate; track: PlaybackTrack; panel: HTMLDivElement; label: HTMLParagraphElement; media: HTMLDivElement;
+  candidate: PlaybackCandidate; track: PlaybackTrack; panel: HTMLDivElement; media: HTMLDivElement;
   player?: YoutubeIframePlayer; audio?: HTMLAudioElement; mode: Mode; warm: boolean; ready: boolean;
-  disposed: boolean; switching: boolean; abort: AbortController; expiresAt: number; loadAt: number;
-  deadline?: ReturnType<typeof setTimeout>; poll?: ReturnType<typeof setInterval>;
+  disposed: boolean; switching: boolean; iframeReady: boolean; abort: AbortController; expiresAt: number; loadAt: number;
+  deadline?: ReturnType<typeof setTimeout>;
   finish: (result: Prepared) => void; promise: Promise<Prepared>; unlink: () => void;
 };
 export type MediaPoolOptions = {
-  api: YoutubeIframeApi; host: HTMLDivElement;
+  api: YoutubeIframeApi | (() => Promise<YoutubeIframeApi>); host: HTMLDivElement;
   current: () => {candidate: PlaybackCandidate; track: PlaybackTrack} | null;
+  shouldAutoplay?: () => boolean;
+  allowCandidate: (track: PlaybackTrack, candidate: PlaybackCandidate) => boolean;
   resolveAudio: (track: PlaybackTrack, candidate: PlaybackCandidate, signal: AbortSignal) => Promise<AudioResolution>;
   onState: (value: number) => void; onError: (code: number) => void; onAutoplayBlocked: () => void;
-  onRoute: (mode: Mode) => void; onPreparation: (message: string) => void;
+  onRoute: (mode: Mode) => void;
   onTransition?: (value: {track_id: string; route: Mode; prepared: boolean; milliseconds: number}) => void;
 };
 const TRANSIENT = new Set(['BUSY', 'RATE_LIMITED', 'TIMEOUT', 'EXTRACTOR_UNAVAILABLE', 'NETWORK_ERROR']);
 
-// Two independent visible media slots: current playback and one muted preview.
-// Preview events never enter the current track's ENDED/PLAYING state machine.
+// The next slot cues an iframe or buffers an authorized audio source.
+// Its events stay separate from the current track until the slot is promoted.
 export class YoutubeMediaPool implements PlaybackAdapter {
   private active: Slot | null = null;
   private prepared: Slot | null = null;
@@ -31,7 +33,7 @@ export class YoutubeMediaPool implements PlaybackAdapter {
   private destroyed = false;
   constructor(private options: MediaPoolOptions) {}
 
-  private clearTimers(slot: Slot) {clearTimeout(slot.deadline); clearInterval(slot.poll);}
+  private clearTimers(slot: Slot) {clearTimeout(slot.deadline);}
   private dispose(slot: Slot) {
     if (slot.disposed) return;
     slot.disposed = true; this.clearTimers(slot); slot.unlink(); slot.abort.abort();
@@ -46,17 +48,19 @@ export class YoutubeMediaPool implements PlaybackAdapter {
   discardPrepared() {
     if (this.warming) this.dispose(this.warming);
     if (this.prepared) this.dispose(this.prepared);
-    this.options.onPreparation('');
   }
   private currentSlot(slot: Slot) {return !this.destroyed && !slot.disposed && (this.active === slot || this.warming === slot || this.prepared === slot);}
   private makeSlot(candidate: PlaybackCandidate, track: PlaybackTrack, warm: boolean, signal?: AbortSignal): Slot {
-    const panel = document.createElement('div'), media = document.createElement('div'), label = document.createElement('p');
+    const panel = document.createElement('div'), media = document.createElement('div');
     panel.className = `youtube-media-slot ${warm ? 'is-preview' : 'is-active'}`;
-    label.className = 'youtube-media-label'; label.textContent = warm ? `다음 곡 준비 · ${track.track_name}` : track.track_name;
-    panel.append(label, media); this.options.host.append(panel);
+    if (warm) {
+      panel.inert = true;
+      panel.setAttribute('aria-hidden', 'true');
+    }
+    panel.append(media); this.options.host.append(panel);
     let resolve!: (value: Prepared) => void; let settled = false;
     const promise = new Promise<Prepared>(done => {resolve = done;});
-    const slot: Slot = {candidate, track, panel, label, media, mode: 'iframe', warm, ready: false, disposed: false, switching: false,
+    const slot: Slot = {candidate, track, panel, media, mode: 'iframe', warm, ready: false, disposed: false, switching: false, iframeReady: false,
       abort: new AbortController(), expiresAt: Infinity, loadAt: performance.now(), promise, unlink: () => {},
       finish: result => {if (!settled) {settled = true; resolve(result);}}};
     if (signal) {
@@ -70,7 +74,6 @@ export class YoutubeMediaPool implements PlaybackAdapter {
     this.clearTimers(slot);
     if (result === 'ready') {
       slot.ready = true; this.warming = null; this.prepared = slot;
-      this.options.onPreparation(`다음 곡 준비 완료 · ${slot.mode === 'audio' ? '이미지·오디오' : 'YouTube 영상'}`);
       slot.finish('ready');
     } else {slot.finish(result); this.dispose(slot);}
   }
@@ -82,45 +85,51 @@ export class YoutubeMediaPool implements PlaybackAdapter {
   }
   private startIframe(slot: Slot) {
     const frame = document.createElement('iframe');
-    frame.title = slot.warm ? '다음 곡 사전 재생 확인 · 음소거' : 'YouTube 선곡표 삽입 재생';
-    frame.src = `https://www.youtube.com/embed/?enablejsapi=1&playsinline=1&rel=0&origin=${encodeURIComponent(window.location.origin)}`;
+    frame.title = 'YouTube 선곡표 삽입 재생';
+    const id = slot.warm ? '' : encodeURIComponent(slot.candidate.video_id);
+    frame.src = `https://www.youtube.com/embed/${id}?enablejsapi=1&playsinline=1&rel=0&origin=${encodeURIComponent(window.location.origin)}`;
     frame.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture'; frame.allowFullscreen = true;
     frame.referrerPolicy = 'strict-origin-when-cross-origin'; slot.media.append(frame);
-    slot.deadline = setTimeout(() => this.fail(slot, 153), 20000);
-    slot.player = new this.options.api.Player(frame, {events: {
-      onReady: () => {
-        if (!this.currentSlot(slot) || !slot.player || slot.switching) return;
-        clearTimeout(slot.deadline);
-        if (slot.warm) {
-          if (!slot.player.mute || !slot.player.seekTo || !slot.player.getVideoData) {this.completePreparation(slot, 'unknown'); return;}
-          slot.player.mute();
-          slot.deadline = setTimeout(() => this.completePreparation(slot, 'unknown'), 18000);
-        }
-        slot.player.loadVideoById(slot.candidate.video_id);
-      },
-      onStateChange: event => {
-        if (!this.currentSlot(slot) || slot.switching || !this.matches(slot)) return;
-        if (!slot.warm) {this.emitState(slot, event.data); return;}
-        if (event.data !== 1 || slot.poll || slot.ready) return;
-        const first = slot.player!.getCurrentTime(), start = performance.now();
-        slot.poll = setInterval(() => {
-          if (!this.currentSlot(slot) || !this.matches(slot)) return;
-          if (slot.player!.getCurrentTime() - first >= 2 && performance.now() - start >= 2500) {
-            slot.player!.pauseVideo(); slot.player!.seekTo!(0, true);
-            this.completePreparation(slot, 'ready');
+    slot.deadline = setTimeout(() => this.iframeUnavailable(slot, 153), 20000);
+    const attach = (api: YoutubeIframeApi) => {
+      if (!this.currentSlot(slot) || slot.switching) return;
+      slot.player = new api.Player(frame, {events: {
+        onReady: () => {
+          if (!this.currentSlot(slot) || !slot.player || slot.switching || slot.iframeReady) return;
+          slot.iframeReady = true;
+          clearTimeout(slot.deadline);
+          if (slot.warm) {
+            if (!slot.player.cueVideoById || !slot.player.mute || !slot.player.getVideoData) {this.completePreparation(slot, 'unknown'); return;}
+            slot.deadline = setTimeout(() => this.completePreparation(slot, 'unknown'), 18000);
+            slot.player.mute();
+            slot.player.cueVideoById(slot.candidate.video_id);
+          } else if (this.options.shouldAutoplay?.() !== false) {
+            slot.player.loadVideoById(slot.candidate.video_id);
+          } else {
+            this.emitState(slot, 5);
           }
-        }, 200);
-      },
-      onError: event => {
-        if (!this.currentSlot(slot) || slot.switching) return;
-        if ([101, 150].includes(event.data)) void this.startAudio(slot, event.data);
-        else this.fail(slot, event.data, [2, 100].includes(event.data) ? 'unavailable' : 'unknown');
-      },
-      onAutoplayBlocked: () => {
-        if (!this.currentSlot(slot) || slot.switching) return;
-        if (slot.warm) this.completePreparation(slot, 'unknown'); else this.options.onAutoplayBlocked();
-      },
-    }});
+        },
+        onStateChange: event => {
+          if (!this.currentSlot(slot) || slot.switching || !this.matches(slot)) return;
+          if (!slot.warm) {this.emitState(slot, event.data); return;}
+          if (event.data === 5 && slot.iframeReady && !slot.ready) this.completePreparation(slot, 'ready');
+          if (event.data === 1) slot.player?.pauseVideo();
+        },
+        onError: event => this.iframeUnavailable(slot, event.data),
+        onAutoplayBlocked: () => {
+          if (!this.currentSlot(slot) || slot.switching) return;
+          if (slot.warm) this.completePreparation(slot, 'unknown'); else this.options.onAutoplayBlocked();
+        },
+      }});
+    };
+    if (typeof this.options.api === 'function') {
+      void this.options.api().then(attach).catch(() => this.iframeUnavailable(slot, 153));
+    } else attach(this.options.api);
+  }
+  private iframeUnavailable(slot: Slot, code: number) {
+    if (!this.currentSlot(slot) || slot.switching) return;
+    if ([101, 150].includes(code) || (!slot.warm && slot.candidate.match_status === 'VERIFIED')) void this.startAudio(slot, code);
+    else this.fail(slot, code, [2, 100].includes(code) ? 'unavailable' : 'unknown');
   }
   private emitState(slot: Slot, value: number) {
     if (slot !== this.active || slot.warm || slot.disposed) return;
@@ -133,9 +142,10 @@ export class YoutubeMediaPool implements PlaybackAdapter {
   }
   private async startAudio(slot: Slot, iframeError = 150) {
     if (!this.currentSlot(slot) || slot.switching) return;
+    if (!this.options.allowCandidate(slot.track, slot.candidate)) {this.fail(slot, iframeError, 'unavailable'); return;}
     slot.switching = true; this.clearTimers(slot);
-    try {slot.player?.destroy();} catch {this.fail(slot, iframeError); return;}
-    slot.player = undefined; slot.media.replaceChildren();
+    try {slot.player?.destroy();} catch { /* An unresponsive iframe is still detached below. */ }
+    slot.iframeReady = false; slot.player = undefined; slot.media.replaceChildren();
     slot.deadline = setTimeout(() => {slot.abort.abort(); this.fail(slot, iframeError);}, 26000);
     let source: AudioResolution;
     try {source = await this.options.resolveAudio(slot.track, slot.candidate, slot.abort.signal);}
@@ -149,8 +159,10 @@ export class YoutubeMediaPool implements PlaybackAdapter {
     if (expiry < Date.now() + 15000) {this.fail(slot, iframeError, 'unknown'); return;}
     this.clearTimers(slot); slot.mode = 'audio'; slot.expiresAt = expiry;
     const image = document.createElement('img'); image.alt = `${slot.track.track_name} · 영상 이미지`;
-    if (/^https:\/\/(i\.ytimg\.com|img\.youtube\.com)\//.test(source.thumbnail_url || '')) image.src = source.thumbnail_url!;
-    const audio = document.createElement('audio'); audio.controls = true; audio.preload = 'auto'; audio.muted = slot.warm;
+    const fallbackCover = slot.track.cover_image_url || '/default-cover.svg';
+    image.src = /^https:\/\/(i\.ytimg\.com|img\.youtube\.com)\//.test(source.thumbnail_url || '') ? source.thumbnail_url! : fallbackCover;
+    image.addEventListener('error', () => {if (this.currentSlot(slot)) image.src = fallbackCover;}, {once: true});
+    const audio = document.createElement('audio'); audio.controls = !slot.warm; audio.preload = 'auto'; audio.muted = slot.warm;
     slot.audio = audio; slot.media.className = 'youtube-media-audio'; slot.media.append(image, audio);
     const ownsAudio = () => this.currentSlot(slot) && slot.audio === audio;
     audio.addEventListener('playing', () => {if (ownsAudio() && !slot.warm) this.emitState(slot, 1);});
@@ -165,30 +177,40 @@ export class YoutubeMediaPool implements PlaybackAdapter {
     };
     audio.addEventListener('canplay', buffered); audio.addEventListener('progress', buffered); audio.addEventListener('loadeddata', buffered);
     audio.src = source.audio_url!; audio.load();
-    if (!slot.warm) {this.options.onRoute('audio'); this.play();}
+    if (!slot.warm) {
+      this.options.onRoute('audio');
+      if (this.options.shouldAutoplay?.() !== false) this.play();
+      else {this.clearTimers(slot); this.emitState(slot, 5);}
+    }
   }
   async prepare(candidate: PlaybackCandidate, track: PlaybackTrack, signal: AbortSignal): Promise<Prepared> {
-    if (this.destroyed || signal.aborted) return 'unknown';
+    if (this.destroyed || signal.aborted || !this.options.allowCandidate(track, candidate)) return 'unknown';
     this.discardPrepared();
     const slot = this.makeSlot(candidate, track, true, signal); this.warming = slot;
-    this.options.onPreparation(`다음 곡 확인 중 · ${track.track_name}`);
-    if (candidate.playback_hint === 'AUDIO') void this.startAudio(slot); else this.startIframe(slot);
+    if (candidate.playback_hint === 'AUDIO' && candidate.source !== 'TAGGED_JSON_PREVIEW') void this.startAudio(slot); else this.startIframe(slot);
     return slot.promise;
   }
   preparedLifetimeMs() {return this.prepared ? Math.max(0, this.prepared.expiresAt - Date.now()) : 0;}
   load(videoId: string) {
-    const current = this.options.current(); if (!current || this.destroyed) return;
+    const current = this.options.current();
+    if (!current || this.destroyed || current.candidate.video_id !== videoId || !this.options.allowCandidate(current.track, current.candidate)) return;
     const slot = this.prepared;
     if (slot && slot.candidate.video_id === videoId && slot.track.track_id === current.track.track_id && slot.expiresAt > Date.now() + 15000) {
-      this.prepared = null; slot.unlink(); slot.warm = false; slot.panel.className = 'youtube-media-slot is-active';
-      slot.label.textContent = slot.track.track_name;
-      if (this.active) this.dispose(this.active); this.active = slot; slot.loadAt = performance.now();
-      this.options.onPreparation(''); this.options.onRoute(slot.mode); this.play(); return;
+      this.prepared = null; slot.unlink();
+      if (this.active) this.dispose(this.active);
+      this.active = slot; slot.loadAt = performance.now();
+      slot.warm = false; slot.panel.className = 'youtube-media-slot is-active';
+      slot.panel.inert = false; slot.panel.removeAttribute('aria-hidden');
+      if (slot.audio) slot.audio.controls = true;
+      this.options.onRoute(slot.mode);
+      if (this.options.shouldAutoplay?.() !== false) this.play();
+      else this.emitState(slot, 5);
+      return;
     }
     this.discardPrepared(); if (this.active) this.dispose(this.active);
     const next = this.makeSlot(current.candidate, current.track, false); this.active = next;
     this.options.onRoute('iframe');
-    if (current.candidate.playback_hint === 'AUDIO') void this.startAudio(next); else this.startIframe(next);
+    if (current.candidate.playback_hint === 'AUDIO' && current.candidate.source !== 'TAGGED_JSON_PREVIEW') void this.startAudio(next); else this.startIframe(next);
   }
   play() {
     const slot = this.active; if (!slot || slot.disposed) return;
@@ -196,12 +218,12 @@ export class YoutubeMediaPool implements PlaybackAdapter {
       if (slot.expiresAt <= Date.now() + 5000) {void this.refreshAudio(slot); return;}
       slot.audio.muted = false;
       void slot.audio.play().catch(error => {if (!this.currentSlot(slot)) return; if (error.name === 'NotAllowedError') this.options.onAutoplayBlocked(); else this.options.onError(150);});
-    } else {slot.player?.unMute?.(); slot.player?.playVideo();}
+    } else if (slot.iframeReady) {slot.player?.unMute?.(); slot.player?.playVideo();}
   }
   private async refreshAudio(slot: Slot) {
     slot.audio?.pause(); slot.switching = false; await this.startAudio(slot);
   }
-  pause() {const slot = this.active; if (slot?.audio) slot.audio.pause(); else slot?.player?.pauseVideo();}
+  pause() {const slot = this.active; if (slot?.audio) slot.audio.pause(); else if (slot?.iframeReady) slot.player?.pauseVideo();}
   getCurrentTime() {return this.active?.audio?.currentTime ?? this.active?.player?.getCurrentTime() ?? 0;}
   destroy() {if (this.destroyed) return; this.destroyed = true; for (const slot of [...this.slots]) this.dispose(slot); this.options.host.replaceChildren();}
 }

@@ -1,13 +1,15 @@
-import os
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from django.utils.module_loading import import_string
 from .models import OwnerLock, Family, Job, Playlist, Catalog, Idempotency, PendingEvent, uid
 from .errors import require
-from .inputs import shape, options, strict_int, strings, DEFAULTS
-from .policy import POLICY, MAPPING, OPTIONS, GENRES, initial_speeds, DURATION_POLICY, WEATHER_SCORE_VERSION, OFF_SCORE_VERSION, MINIMUM, MAXIMUM
-from .weather import obtain, validate, current_profile
+from .inputs import shape, options, strict_int, strings, OPTION_FIELDS, recommendation_genres, tagged_preview_enabled
+from .policy import POLICY, MAPPING, OPTIONS, DURATION_POLICY, WEATHER_SCORE_VERSION, OFF_SCORE_VERSION, MINIMUM, MAXIMUM
+from .weather import obtain, validate, current_profile, instant
+
+
+HOURLY_DURATION_POLICY = 'hourly-55-65-total-175-185-v1'
 
 
 def event(kind, family, request_id, payload):
@@ -41,7 +43,10 @@ def mutate(owner, scope, key, data, operation):
         OwnerLock.objects.select_for_update().get(owner_id=owner)
         cached = Idempotency.objects.filter(owner_id=owner,scope=scope,key=key).first()
         if cached:
-            require(cached.body == data,'IDEMPOTENCY_CONFLICT','같은 요청 키에 다른 내용이 있어요.',409)
+            previous = cached.body
+            if scope == 'basic' or scope.startswith('regenerate:'):
+                previous = {field: value for field, value in previous.items() if field != 'tempo_preference'}
+            require(previous == data,'IDEMPOTENCY_CONFLICT','같은 요청 키에 다른 내용이 있어요.',409)
             return cached.response, cached.status
         response,status = operation()
         Idempotency.objects.create(owner_id=owner,scope=scope,key=key,body=data,response=response,status=status)
@@ -80,21 +85,37 @@ def catalog():
 
 
 @transaction.atomic
-def enqueue(family, request_id, parent=None, weather_refresh=False):
-    from .dispatch import admit
-    method = 'RULE_BASED' if not parent or weather_refresh else 'GEMINI_RECONFIGURE'
+def enqueue(family, request_id, parent=None, weather_refresh=False, *, selected_catalog=None):
+    from .dispatch import GPT_METHOD, admit, require_provider_configuration
+
+    hourly = settings.HOURLY_RECOMMENDATION_ENABLED and (
+        not weather_refresh or bool(parent and parent.snapshot.get('hourly_plan'))
+    )
+    trigger = 'weather_refresh' if weather_refresh else 'regeneration' if parent else 'initial'
+    local_rules = ((settings.LOCAL_DEMO or getattr(settings, 'OPENAI_PLAYLIST_LOCAL_RULE_FALLBACK', False))
+                   and not settings.OPENAI_PLAYLIST_ENABLED and trigger != 'regeneration')
+    method = 'RULE_BASED' if hourly or local_rules else GPT_METHOD
+    if method == GPT_METHOD:
+        require_provider_configuration()
     admit(method)
     now = timezone.now()
-    on = family.options['weather_influence_mode']=='ON'
-    bundle = obtain(family.options['region_id'],now) if on else None
-    weather_code = current_profile(bundle,validate(bundle,now),now) if on else None
-    speeds = family.allowed_speeds or (initial_speeds(family.options['tempo_preference'],weather_code) if on else [])
-    selected_catalog=parent.job.catalog if parent else catalog()
-    fixed = {'options':family.options,'raw_selection':family.raw_selection,'weather':bundle,'weather_code':weather_code,'excluded_track_ids':family.excluded,
+    option_catalog = parent.job.catalog if parent and tagged_preview_enabled() else selected_catalog
+    selected = options({}, family.options, catalog=option_catalog)
+    on = selected['weather_influence_mode']=='ON'
+    bundle = obtain(selected['region_id'],now) if on and not hourly else None
+    weather_code = current_profile(bundle,validate(bundle,now),now) if bundle else None
+    selected_catalog = parent.job.catalog if parent else selected_catalog or catalog()
+    fixed = {'recommendation_trigger':trigger,
+             'options':selected,'raw_selection':family.raw_selection,'weather':bundle,'weather_code':weather_code,'excluded_track_ids':family.excluded,
              'seed':family.pk,
              'score_version':WEATHER_SCORE_VERSION if on else OFF_SCORE_VERSION,
-             'exclusion_revision':family.exclusion_revision,'allowed_genre_group_codes':family.allowed_genres or sorted(GENRES),
-             'allowed_speed_codes':speeds,'policy_version':family.policy_version,'mapping_version':family.mapping_version}
+             'exclusion_revision':family.exclusion_revision,
+             'allowed_genre_group_codes':family.allowed_genres or sorted(recommendation_genres(selected_catalog)),
+             'policy_version':family.policy_version,'mapping_version':family.mapping_version}
+    if hourly:
+        fixed['hourly'] = True
+        if parent and not weather_refresh:
+            fixed['hourly_regeneration'] = True
     job = Job.objects.create(family=family,input=fixed,catalog=selected_catalog,request_id=request_id,
                              parent_id=parent.pk if parent else None,
                               method=method)
@@ -111,6 +132,17 @@ def refresh_weather(owner,playlist_id,key,data,request_id):
     def operation():
         family=owned(Family,owner,parent.family_id,True)
         require(body['exclusion_revision']==family.exclusion_revision,'EXCLUSION_REVISION_CONFLICT','최신 제외 목록을 확인해 주세요.',409)
+        plan = parent.snapshot.get('hourly_plan')
+        if plan and settings.HOURLY_RECOMMENDATION_ENABLED:
+            latest = family.playlist_set.order_by('-created_at', '-pk').first()
+            require(latest.pk == parent.pk, 'HOURLY_PLAN_STALE', '이미 새 시간별 선곡표가 있어요.', 409)
+            now = timezone.now()
+            if now < instant(plan['next_refresh_at']):
+                return {'changed':False,'playlist_id':parent.pk},200
+            require(now < instant(plan['blocks'][1]['end_at']), 'HOURLY_PLAN_EXPIRED',
+                    '두 구간 이상 지났어요. 새 시간별 선곡표를 만들어 주세요.', 409)
+            require(not busy(family),'JOB_IN_PROGRESS','선곡표를 생성하고 있어요.',409)
+            return enqueue(family,request_id,parent,weather_refresh=True)
         if family.options['weather_influence_mode']=='OFF':
             return {'changed':False,'playlist_id':parent.pk},200
         now=timezone.now();latest=obtain(family.options['region_id'],now)
@@ -123,8 +155,9 @@ def refresh_weather(owner,playlist_id,key,data,request_id):
 
 
 def basic(owner,key,data,request_id):
-    body = shape(data,[*DEFAULTS,'region_id','excluded_track_ids'])
-    selected=options(body)
+    body = shape(data,[*OPTION_FIELDS,'region_id','excluded_track_ids'])
+    selected_catalog = current_catalog() if tagged_preview_enabled() else None
+    selected=options(body, catalog=selected_catalog)
     region=body.get('region_id')
     require(region is None or type(region) is str)
     region=region.strip() or None if isinstance(region,str) else None
@@ -137,7 +170,7 @@ def basic(owner,key,data,request_id):
         require(body['option_version']==OPTIONS,'OPTIONS_CHANGED','선택 항목을 새로 확인해 주세요.',409)
         family = Family.objects.create(owner_id=owner,options={k:v for k,v in body.items() if k!='excluded_track_ids'},
                                        raw_selection=raw_selection,allowed_genres=body['selected_genre_codes'],policy_version=POLICY,mapping_version=MAPPING)
-        return enqueue(family,request_id)
+        return enqueue(family,request_id,selected_catalog=selected_catalog)
     return mutate(owner,'basic',key,{**body,'raw_selection':raw_selection},op)
 
 
@@ -182,20 +215,18 @@ def exclusions(owner,family_id,key=None,data=None,request_id=''):
 
 def regenerate(owner,playlist_id,key,data,request_id):
     parent = owned(Playlist,owner,playlist_id)
-    body = shape(data,[*DEFAULTS,'exclusion_revision'])
+    body = shape(data,[*OPTION_FIELDS,'exclusion_revision'])
     require('exclusion_revision' in body,'EXCLUSION_REVISION_REQUIRED','제외 버전이 필요해요.',400)
-    body = {**options(body,parent.family.options),'exclusion_revision':strict_int(body['exclusion_revision'])}
+    selected_catalog = parent.job.catalog if tagged_preview_enabled() else None
+    body = {**options(body,parent.family.options,catalog=selected_catalog),'exclusion_revision':strict_int(body['exclusion_revision'])}
     def op():
         f = owned(Family,owner,parent.family_id,True)
         require(f.policy_version==POLICY and f.mapping_version==MAPPING and f.options.get('option_version')==OPTIONS,
                 'OPTIONS_CHANGED','선택 항목을 새로 확인해 주세요.',409)
-        require({k:v for k,v in body.items() if k!='exclusion_revision'}==f.options,
+        require({k:v for k,v in body.items() if k!='exclusion_revision'}==options({}, f.options,catalog=selected_catalog),
                 'CYCLE_CONDITIONS_CHANGED','조건을 바꾸셨다면 새 선곡표를 받아 주세요.',409)
         require(body['exclusion_revision']==f.exclusion_revision,'EXCLUSION_REVISION_CONFLICT','최신 제외 목록을 확인해 주세요.',409)
         require(not busy(f),'JOB_IN_PROGRESS','선곡표를 생성하고 있어요.',409)
-        require(settings.GEMINI_ENABLED and settings.GEMINI_TIMEOUT_MS > 0 and settings.GEMINI_MAX_CANDIDATES > 0
-                and bool(os.environ.get('GEMINI_API_KEY')) and int(os.environ.get('GEMINI_MAX_OUTPUT_TOKENS','0'))>0,
-                'RECONFIGURATION_UNAVAILABLE','Gemini API 키와 호출 설정이 필요해요. 현재 선곡표는 유지됩니다.',503)
         return enqueue(f,request_id,parent)
     return mutate(owner,'regenerate:'+playlist_id,key,body,op)
 
@@ -220,8 +251,9 @@ def approve(owner,playlist_id,key,data,request_id):
                           and type(result.snapshot.get('total_ms')) is int
                           and MINIMUM <= result.snapshot['total_ms'] <= MAXIMUM
                           and len({t['track_id'] for t in result.snapshot['items']})==len(result.snapshot['items']))
+        duration_policy = HOURLY_DURATION_POLICY if result.snapshot.get('hourly_plan') else DURATION_POLICY
         require((result.snapshot.get('validation_passed') is True or preview_approval)
-                and result.snapshot['context'].get('duration_policy_version')==DURATION_POLICY,
+                and result.snapshot['context'].get('duration_policy_version')==duration_policy,
                 'RESULT_NOT_APPROVABLE','현재 시간 정책으로 검증한 결과가 아니에요.',409)
         require(set(result.snapshot['context']['excluded_track_ids'])==set(f.excluded),
                 'EXCLUSIONS_NOT_APPLIED','제외 변경을 반영한 선곡표가 필요해요.',409)

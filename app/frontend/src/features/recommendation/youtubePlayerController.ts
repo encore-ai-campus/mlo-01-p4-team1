@@ -1,5 +1,5 @@
-export type PlaybackTrack = {track_id: string; track_name: string; artists_name: string};
-export type PlaybackCandidate = {video_id: string; title: string; channel_title: string; duration_seconds: number; source: 'CATALOG_MAPPING' | 'YOUTUBE_API' | 'MAPPING_REGISTRY'; match_status?: 'VERIFIED' | 'CANDIDATE'; playback_hint?: 'AUDIO'};
+export type PlaybackTrack = {track_id: string; track_name: string; artists_name: string; cover_image_url?: string | null; youtube_video_id?: string};
+export type PlaybackCandidate = {video_id: string; title: string; channel_title: string; duration_seconds: number; source: 'CATALOG_MAPPING' | 'YOUTUBE_API' | 'MAPPING_REGISTRY' | 'TAGGED_JSON_PREVIEW'; match_status?: 'VERIFIED' | 'CANDIDATE'; playback_hint?: 'AUDIO'};
 export type PlaybackResolution = {track_id: string; status: 'READY' | 'SEARCH_UNAVAILABLE' | 'NO_MATCH' | 'MAPPING_REQUIRED'; candidates: PlaybackCandidate[]; reason?: 'UNMAPPED' | 'PENDING' | 'BLOCKED'; message?: string};
 export type PlaybackPhase = 'idle' | 'resolving' | 'loading' | 'playing' | 'paused' | 'blocked' | 'unavailable' | 'complete' | 'error';
 export type PlaybackSnapshot = {index: number; phase: PlaybackPhase; message: string; candidate: PlaybackCandidate | null; skipped: {track_id: string; track_name: string; reason: string}[]; playedTrackIds: string[]};
@@ -28,7 +28,8 @@ export class YoutubePlaybackController {
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private expiryTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(private tracks: PlaybackTrack[], private adapter: PlaybackAdapter, private resolve: PlaybackResolver, private publish: (state: PlaybackSnapshot) => void) {}
+  constructor(private tracks: PlaybackTrack[], private adapter: PlaybackAdapter, private resolve: PlaybackResolver,
+    private publish: (state: PlaybackSnapshot) => void, private autoSkipUnavailable: () => boolean = () => true) {}
 
   snapshot() {return {...this.state, skipped: [...this.state.skipped], playedTrackIds: [...this.state.playedTrackIds]};}
 
@@ -221,8 +222,11 @@ export class YoutubePlaybackController {
   private async skipUnavailable(reason: string) {
     const track = this.tracks[this.state.index];
     const skipped = this.state.skipped.filter(item => item.track_id !== track.track_id);
-    this.update({skipped: [...skipped, {track_id: track.track_id, track_name: track.track_name, reason}]});
-    await this.start(this.state.index + 1);
+    const unavailable = [...skipped, {track_id: track.track_id, track_name: track.track_name, reason}];
+    if (this.autoSkipUnavailable()) {
+      this.update({skipped: unavailable});
+      await this.start(this.state.index + 1);
+    } else this.update({skipped: unavailable, phase: 'unavailable', candidate: null, message: '이 곡은 재생 연결을 확인해 주세요.'});
   }
 
   private finish() {
@@ -245,6 +249,8 @@ export class YoutubePlaybackController {
       void this.start(this.state.index + 1);
     } else if (value === 2 && this.state.phase === 'playing') {
       this.update({phase: 'paused', message: '일시 정지했어요.'});
+    } else if (value === 5 && this.state.phase === 'loading' && !this.began) {
+      this.update({phase: 'paused', message: '재생할 준비가 됐어요.'});
     }
   }
 
@@ -256,6 +262,8 @@ export class YoutubePlaybackController {
       if (this.candidates.length && this.attempted.length < 5) this.loadNextCandidate();
       else if (this.requests < 2 && this.attempted.length < 5) void this.findCandidates();
       else void this.skipUnavailable(`YouTube 삽입 재생 불가(오류 ${code})로 이 곡을 건너뛰었어요.`);
+    } else if (this.state.candidate.source === 'TAGGED_JSON_PREVIEW' && this.autoSkipUnavailable()) {
+      void this.skipUnavailable(`이 곡의 재생을 확인하지 못했어요(오류 ${code}).`);
     } else {
       this.adapter.pause();
       this.update({phase: 'error', message: code === 153 ? 'YouTube가 이 페이지의 출처를 확인하지 못했어요(153). 대시보드를 새로고침해 주세요.' : `YouTube 플레이어 연결을 확인해 주세요(오류 ${code}). 이 곡은 자동으로 건너뛰지 않았어요.`});

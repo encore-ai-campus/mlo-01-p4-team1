@@ -18,6 +18,7 @@ from django.conf import settings
 from django.core.cache import cache
 
 from .errors import require
+from .models import Catalog
 from .youtube import VIDEO_ID
 from . import youtube_registry
 
@@ -57,6 +58,24 @@ def validate_playback_request(body):
             and all(isinstance(value, str) and VIDEO_ID.fullmatch(value) for value in excluded))
     require(len(set(excluded)) == len(excluded))
     return track_id, excluded
+
+
+def tagged_preview_candidate(playlist, track):
+    """Return the original video only for a local tagging-JSON test snapshot."""
+    if not (settings.LOCAL_DEMO and not settings.INTEGRATION_ENABLED
+            and playlist.snapshot.get('is_test') is True and playlist.snapshot.get('preview_only') is True):
+        return None
+    video_id = track.get('youtube_video_id')
+    duration_ms = track.get('duration_ms')
+    if (not isinstance(video_id, str) or not VIDEO_ID.fullmatch(video_id)
+            or track.get('play_url') != f'https://www.youtube.com/watch?v={video_id}'
+            or type(duration_ms) is not int or duration_ms <= 0):
+        return None
+    if not Catalog.objects.filter(job__playlist=playlist, is_test=True, ready=True,
+                                  source_ref__startswith='local-preview:tagged-json:').exists():
+        return None
+    return {'video_id': video_id, 'title': track['track_name'], 'channel_title': track['artists_name'],
+            'duration_seconds': duration_ms / 1000, 'source': 'TAGGED_JSON_PREVIEW', 'match_status': 'CANDIDATE'}
 
 
 def _text(value):
