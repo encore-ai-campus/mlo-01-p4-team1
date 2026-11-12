@@ -2,6 +2,7 @@
 
 import argparse
 import base64
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import json
 import os
@@ -21,6 +22,22 @@ ENVIRONMENTS = {
     "runtime": "infra-runtime",
     "web-deploy": "infra-runtime",
 }
+
+OIDC_PHASES = ("context", "token-request", "claims", "sts-exchange", "session")
+
+
+class OIDCPhaseError(ValueError):
+    def __init__(self, phase):
+        self.phase = phase
+        super().__init__("OIDC credential process failed")
+
+
+@contextmanager
+def oidc_phase(phase):
+    try:
+        yield
+    except Exception:
+        raise OIDCPhaseError(phase) from None
 
 
 def validate_claims(
@@ -80,7 +97,7 @@ def validate_claims(
     return claims
 
 
-def credentials(account, role, repository, environment, *, request=None, sts=None):
+def request_context(repository):
     require(
         os.environ.get("GITHUB_ACTIONS") == "true"
         and os.environ.get("GITHUB_REF") == "refs/heads/main"
@@ -112,6 +129,12 @@ def credentials(account, role, repository, environment, *, request=None, sts=Non
     url = urllib.parse.urlunsplit(
         endpoint._replace(query=urllib.parse.urlencode(query, doseq=True))
     )
+    return url, bearer, repository_id, owner_id
+
+
+def credentials(account, role, repository, environment, *, request=None, sts=None):
+    with oidc_phase("context"):
+        url, bearer, repository_id, owner_id = request_context(repository)
     if request is None:
 
         class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -130,16 +153,25 @@ def credentials(account, role, repository, environment, *, request=None, sts=Non
             require(len(raw) <= 65536, "OIDC response too large")
             return json.loads(raw)
 
-    token = request(url, {"Authorization": "Bearer " + bearer})["value"]
-    validate_claims(
-        token,
-        account=account,
-        role=role,
-        repository=repository,
-        environment=environment,
-        repository_id=repository_id,
-        owner_id=owner_id,
-    )
+    with oidc_phase("token-request"):
+        token = request(url, {"Authorization": "Bearer " + bearer})["value"]
+    with oidc_phase("claims"):
+        validate_claims(
+            token,
+            account=account,
+            role=role,
+            repository=repository,
+            environment=environment,
+            repository_id=repository_id,
+            owner_id=owner_id,
+        )
+    with oidc_phase("sts-exchange"):
+        result = assume_session(sts, role, token)
+    with oidc_phase("session"):
+        return format_session(result)
+
+
+def assume_session(sts, role, token):
     owned = sts is None
     if owned:
         import boto3
@@ -159,7 +191,7 @@ def credentials(account, role, repository, environment, *, request=None, sts=Non
             ),
         )
     try:
-        result = sts.assume_role_with_web_identity(
+        return sts.assume_role_with_web_identity(
             RoleArn=role,
             RoleSessionName="mlo-p4-" + str(os.getpid()),
             WebIdentityToken=token,
@@ -168,6 +200,9 @@ def credentials(account, role, repository, environment, *, request=None, sts=Non
     finally:
         if owned:
             sts.close()
+
+
+def format_session(result):
     expires = result["Expiration"]
     require(
         isinstance(expires, datetime)
