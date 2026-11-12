@@ -1,5 +1,7 @@
 from functools import wraps
 import json
+import os
+from pathlib import Path
 import uuid
 
 from django.conf import settings
@@ -142,6 +144,7 @@ def consumer_get(
     view=None,
     *,
     empty_when_platform_disabled: bool = False,
+    operational_catalog: bool = False,
     public_when_enabled: bool = False,
 ):
     """Require an active consumer outside standalone demo or explicit public catalog mode."""
@@ -180,7 +183,18 @@ def consumer_get(
                     },
                 })
             try:
-                user = _require_member(request, 'CONSUMER', 'CONSUMER_MEMBERSHIP_REQUIRED', '사용자 이용 유형을 먼저 추가해 주세요.')
+                path = os.environ.get('VENUE_MCP_PUBLIC_CATALOG', '').strip()
+                catalog_access = (
+                    operational_catalog
+                    and not settings.MEMBER_LOCAL_PREVIEW
+                    and bool(path)
+                    and Path(path).suffix.lower() in {'.sqlite', '.sqlite3'}
+                )
+                user = _require_member(
+                    request, 'CONSUMER', 'CONSUMER_MEMBERSHIP_REQUIRED',
+                    '사용자 이용 유형을 먼저 추가해 주세요.',
+                    check_platform_enabled=not catalog_access,
+                )
             except DomainError as error:
                 return _error_response(error.code, error.message, error.status)
             return fn(request, *args, consumer=user, **kwargs)

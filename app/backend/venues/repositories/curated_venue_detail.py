@@ -8,6 +8,11 @@ from pathlib import Path
 from django.conf import settings
 
 
+def configured_sqlite_catalog():
+    path = os.environ.get("VENUE_MCP_PUBLIC_CATALOG", "").strip()
+    return bool(path and Path(path).suffix.lower() in {".sqlite", ".sqlite3"})
+
+
 @lru_cache(maxsize=2)
 def _public_venues(path):
     try:
@@ -44,7 +49,7 @@ def local_catalog_detail(venue_id):
     if not settings.LOCAL_DEMO:
         return None
     path = os.environ.get("VENUE_MCP_PUBLIC_CATALOG")
-    if not path:
+    if not path or configured_sqlite_catalog():
         return None
     try:
         snapshot = json.loads(Path(path).read_text(encoding="utf-8"))

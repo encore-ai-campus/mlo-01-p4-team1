@@ -1,12 +1,15 @@
+from django.conf import settings
 from django.http import JsonResponse
 
+from backend.venues.repositories.curated_venue_detail import configured_sqlite_catalog
+from backend.venues.repositories.operational_catalog import CatalogUnavailable, get_operational_venue_repo
 from backend.venues.services.ranking_service import filter_and_rank_venues
 from backend.venues.services.event_service import check_and_send_nearby_event_promo
 
 from .access import consumer_get
 
 
-@consumer_get(public_when_enabled=True)
+@consumer_get(public_when_enabled=True, operational_catalog=True)
 def venue_list_api(request, *, consumer):
     """
     GET /api/venues
@@ -59,20 +62,21 @@ def venue_list_api(request, *, consumer):
         bbox = None
 
     # 랭킹 서비스 호출 (조건에 부합하는 전체 후보 매장 추출 후 동/검색어/파트너 필터까지 적용하여 정확한 전수 카운트 산출)
-    results, _ = filter_and_rank_venues(
-        gu=gu,
-        user_id=user_id,
-        category=cat,
-        budget_tier=price_tier_raw or None,
-        weather=weather,
-        time_slot=time_slot,
-        only_with_events=event_only,
-        only_open_now=open_now,
-        prefer_local=prefer_local,
-        limit=5000,
-        return_total=True,
-        bbox=bbox,
-    )
+    try:
+        rank_options = {
+            'gu': gu, 'user_id': user_id, 'category': cat, 'budget_tier': price_tier_raw or None,
+            'weather': weather, 'time_slot': time_slot, 'only_with_events': event_only,
+            'only_open_now': open_now, 'prefer_local': prefer_local, 'limit': 5000,
+            'return_total': True, 'bbox': bbox,
+        }
+        if not settings.MEMBER_LOCAL_PREVIEW or configured_sqlite_catalog():
+            rank_options['venue_repo'] = get_operational_venue_repo()
+        results, _ = filter_and_rank_venues(**rank_options)
+        if 'venue_repo' in rank_options:
+            rank_options['venue_repo'].verify_current()
+    except CatalogUnavailable:
+        return JsonResponse({'success': False, 'code': 'VENUE_CATALOG_UNAVAILABLE',
+                             'message': '매장 카탈로그 연결을 확인해 주세요.'}, status=503)
 
     # 추가 메모리 필터: 동 단위 & 검색어(q) & 날씨·음악 큐레이션(구 partner_only) 필터
     filtered_results = []
