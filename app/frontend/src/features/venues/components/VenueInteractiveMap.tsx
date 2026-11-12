@@ -139,6 +139,17 @@ function CoordinatePins({ venues, onSelectVenue, notice = '지도 타일 연결 
   );
 }
 
+export const VENUE_MAP_TILE_SOURCES = [
+  {
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    options: {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+      referrerPolicy: 'strict-origin-when-cross-origin',
+    },
+  },
+] as const;
+
 export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
   gu,
   weather,
@@ -214,34 +225,14 @@ export const VenueInteractiveMap: React.FC<VenueInteractiveMapProps> = ({
         zoomControl: false,
       });
 
-      // 기본 타일은 CARTO Voyager CDN을 사용하고, 오류 시 OSM 타일 -> 좌표 기반 핀으로 순차 폴백한다.
-      const tileSources = [
-        {
-          url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-          options: {
-            subdomains: 'abcd',
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-            maxZoom: 19,
-            referrerPolicy: 'strict-origin-when-cross-origin',
-          },
-        },
-        {
-          url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          options: {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            maxZoom: 19,
-            referrerPolicy: 'strict-origin-when-cross-origin',
-          },
-        },
-      ];
-
+      // CARTO CDN은 배포 도메인에서 API KEY REQUIRED 워터마크 PNG(HTTP 200)를 반환하므로 OSM 타일을 기본으로 사용하고 오류 시 좌표 뷰로 폴백한다.
       let activeLayer: any = null;
       const attachTileLayer = (sourceIndex: number) => {
         if (activeLayer) {
           map.removeLayer(activeLayer);
           activeLayer = null;
         }
-        const cfg = tileSources[sourceIndex];
+        const cfg = VENUE_MAP_TILE_SOURCES[sourceIndex];
         if (!cfg) {
           setTileBlocked(true);
           return;

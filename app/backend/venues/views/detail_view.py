@@ -13,7 +13,7 @@ from backend.workspaces.music import public_applied_playlist
 from .access import consumer_get
 
 
-@consumer_get
+@consumer_get(public_when_enabled=True)
 def venue_detail_api(request, venue_id: str, *, consumer):
     """
     GET /api/venues/<venue_id>
@@ -94,7 +94,7 @@ def venue_detail_api(request, venue_id: str, *, consumer):
     ).exists()
 
     applied_playlist = None
-    if consumer is not None or not settings.PLATFORM_ENABLED:
+    if consumer is not None or not settings.PLATFORM_ENABLED or getattr(settings, 'VENUE_PUBLIC_CATALOG_ENABLED', False):
         for cid in candidate_ids:
             applied_playlist = public_applied_playlist(cid)
             if applied_playlist:

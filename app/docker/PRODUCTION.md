@@ -68,7 +68,9 @@ Control A/B의 공통 API에는 `ES_URL`, `WEATHER_INDEX`, `ES_USERNAME`, `ES_PA
 각 Control에서 대표 지역의 `/api/weather`가 200을 반환하고 `recommendation_ready=true`인지 확인합니다.
 
 매장 MCP는 기본 비활성입니다. `VENUE_MCP_SERVICE_ENABLED=1`을 설정하면 로그인 세션과
-활성 `CONSUMER` 권한이 있는 계정에서 호출할 수 있습니다. 운영 카탈로그는
+활성 `CONSUMER` 권한이 있는 계정에서 호출할 수 있습니다. 공개 매장 목록(`/api/venues`,
+`/api/venues/<id>`, `/api/venues/events/active`)을 비시연 환경에서 비로그인 사용자에게도 열려면
+보호된 `app-env.json`에 `VENUE_PUBLIC_CATALOG_ENABLED=1`을 명시합니다(기본값 비활성). 운영 카탈로그는
 [팀 CSV 변환 명령](../prototype/venue-recommendation-mcp/README.md#팀-csv-준비)으로 준비합니다.
 각 Control의 호스트 디렉터리에 검증한 동일 버전의 `catalog.sqlite3`을 전달합니다. 웹 프로세스의
 UID 10001이 디렉터리를 탐색하고 파일을 읽을 수 있어야 합니다.
