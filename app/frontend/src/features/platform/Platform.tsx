@@ -83,6 +83,7 @@ export function Platform(){
       songPortal.canRequest?<OwnerSongRequestsPortal/>:<section className="p-card"><h1>곡 신청 권한이 없습니다</h1><p>승인된 매장의 점주 계정으로 이용해 주세요.</p></section>}
     </main>
   </div>;
+  if (!loading && ((path==='/platform/admin' && !adminSignedIn) || (path==='/platform/consumer' && !account))) return <PlatformPublicDesign path={path} account={account} admin={admin} policy={policy} loading={loading} error={error}/>;
   if (path==='/platform'||path==='/platform/') return <PlatformHomeDesign account={account} admin={admin} loading={loading}/>;
   if (isPublicDesignPath(path)) return <PlatformPublicDesign path={path} account={account} admin={admin} policy={policy} loading={loading} error={error}/>;
   if (path==='/platform/consumer' && account && types.includes('CONSUMER')) return <VenueExplorePage readOnly showServiceHeader enableAi showVisitRecommendations/>;
