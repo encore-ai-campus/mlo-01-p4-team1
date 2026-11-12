@@ -431,6 +431,30 @@ class OIDCExchange(PrivateInputs):
                     owner_id="123",
                 )
 
+    def test_small_runner_skew_waits_before_accepting_the_same_strict_window(self):
+        args = dict(account=self.account, role=self.role, repository=self.repository,
+                    environment="infra-plan", repository_id="456", owner_id="123")
+        claims = {**self.claims, "iat": 1002, "exp": 1300}
+        pause = Mock()
+        clock = Mock(side_effect=[1000.025, 1002.001])
+        self.assertEqual(oidc.validate_claims(self.token(claims), **args, clock=clock, pause=pause), claims)
+        self.assertAlmostEqual(pause.call_args.args[0], 1.975)
+
+        for altered, times, expected_phase, waited in (
+            ({"iat": 1010}, [1000], "claims-time", False),
+            ({"exp": 1002}, [1000], "claims-time", False),
+            ({}, [1000, 1001], "claims-time", True),
+            ({"exp": 1003}, [1000, 1003], "claims-time", True),
+            ({"sub": "repo:example/project:environment:infra-plan"}, [1000], "claims-scope", False),
+            ({"aud": "another-audience"}, [1000], "claims-issuer-audience", False),
+        ):
+            pause = Mock()
+            with self.subTest(altered=altered, times=times), self.assertRaises(oidc.OIDCPhaseError) as error:
+                oidc.validate_claims(self.token({**claims, **altered}), **args,
+                                     clock=Mock(side_effect=times), pause=pause)
+            self.assertEqual(error.exception.phase, expected_phase)
+            self.assertEqual(pause.called, waited)
+
     def test_exact_sts_exchange_is_in_memory_and_config_contains_no_token(self):
         sts = boto3.client(
             "sts",
