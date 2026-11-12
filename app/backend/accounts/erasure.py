@@ -1,7 +1,6 @@
 """Delete live SQL account data. External logs/backups require the operator erasure procedure."""
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.conf import settings
 from backend.recommendation.errors import require
 from backend.common.admin_roles import revoke_sessions
 from backend.common import models as common
@@ -13,12 +12,11 @@ from .models import MemberProfile
 def erase(profile):
     profile = MemberProfile.objects.select_for_update().get(pk=profile.pk)
     user = get_user_model().objects.select_for_update().get(pk=profile.user_id)
-    if settings.PLATFORM_ENABLED:
-        from backend.workspaces.models import WorkspaceMembership, WorkspaceInvitation
-        require(not WorkspaceMembership.objects.filter(user=user,status='ACTIVE',role='OWNER',
-            workspace__status__in=['ACTIVE','SUSPENDED']).exists(),
-            'OWNERSHIP_RESOLUTION_REQUIRED','소유 매장을 닫거나 관리책임을 먼저 이전해 주세요.',409)
-        WorkspaceInvitation.objects.filter(invitee=user,state='PENDING').update(state='REVOKED')
+    from backend.workspaces.models import WorkspaceMembership, WorkspaceInvitation
+    require(not WorkspaceMembership.objects.filter(user=user,status='ACTIVE',role='OWNER',
+        workspace__status__in=['ACTIVE','SUSPENDED']).exists(),
+        'OWNERSHIP_RESOLUTION_REQUIRED','소유 매장을 닫거나 관리책임을 먼저 이전해 주세요.',409)
+    WorkspaceInvitation.objects.filter(invitee=user,state='PENDING').update(state='REVOKED')
     owner = str(profile.owner_id)
     revoke_sessions(user)
     events = common.FeedbackEvent.objects.filter(owner_id=owner)

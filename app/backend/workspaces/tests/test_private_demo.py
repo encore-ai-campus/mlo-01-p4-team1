@@ -136,6 +136,15 @@ class PrivateDemoEnrollmentTests(TestCase):
                 self.assertFalse(get_user_model().objects.filter(username="publicfixture").exists())
                 self.assertFalse(PolicyReceipt.objects.filter(version="public-policy-fixture").exists())
                 self.assertEqual(admin.get(path).status_code, 200)
+                owner = get_user_model().objects.get(username=private_demo.DEMO_USERNAME)
+                owner_client = Client(enforce_csrf_checks=True)
+                owner_client.force_login(owner)
+                blocked = self.post(owner_client, '/api/me/withdraw', {
+                    'current_password': PASSWORD, 'confirmation': '회원탈퇴',
+                })
+                self.assertEqual(blocked.status_code, 409, blocked.content)
+                self.assertEqual(blocked.json()['code'], 'OWNERSHIP_RESOLUTION_REQUIRED')
+                self.assertTrue(get_user_model().objects.filter(pk=owner.pk).exists())
 
     def test_exact_reviewer_and_private_receipts_without_public_portal(self):
         claim = self.prepare_claim()
