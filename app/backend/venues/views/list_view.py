@@ -6,7 +6,7 @@ from backend.venues.services.event_service import check_and_send_nearby_event_pr
 from .access import consumer_get
 
 
-@consumer_get
+@consumer_get(public_when_enabled=True)
 def venue_list_api(request, *, consumer):
     """
     GET /api/venues

@@ -57,7 +57,15 @@ def _require_member(
     check_platform_enabled: bool = True,
 ):
     if check_platform_enabled:
-        authorization.enabled()
+        if kind == 'CONSUMER' and not settings.MEMBER_LOCAL_PREVIEW:
+            require(
+                settings.PLATFORM_ENABLED,
+                'PLATFORM_NOT_READY',
+                '로컬 플랫폼 MVP가 활성화되지 않았습니다.',
+                503,
+            )
+        else:
+            authorization.enabled()
     user = authorization.account(request)
     require(
         ServiceMembership.objects.filter(user=user, kind=kind, status='ACTIVE').exists(),
@@ -130,8 +138,13 @@ def consumer_mcp(view):
     return checked
 
 
-def consumer_get(view=None, *, empty_when_platform_disabled: bool = False):
-    """Require an active consumer outside standalone demo mode."""
+def consumer_get(
+    view=None,
+    *,
+    empty_when_platform_disabled: bool = False,
+    public_when_enabled: bool = False,
+):
+    """Require an active consumer outside standalone demo or explicit public catalog mode."""
     def decorator(fn):
         @never_cache
         @require_GET
@@ -140,6 +153,18 @@ def consumer_get(view=None, *, empty_when_platform_disabled: bool = False):
             ensure_request_id(request)
             if standalone_demo():
                 return fn(request, *args, consumer=None, **kwargs)
+            if public_when_enabled and getattr(settings, 'VENUE_PUBLIC_CATALOG_ENABLED', False):
+                try:
+                    user = _require_member(
+                        request,
+                        'CONSUMER',
+                        'CONSUMER_MEMBERSHIP_REQUIRED',
+                        '사용자 이용 유형을 먼저 추가해 주세요.',
+                        check_platform_enabled=False,
+                    )
+                except DomainError:
+                    user = None
+                return fn(request, *args, consumer=user, **kwargs)
             if not settings.PLATFORM_ENABLED and empty_when_platform_disabled:
                 return JsonResponse({
                     'success': True,

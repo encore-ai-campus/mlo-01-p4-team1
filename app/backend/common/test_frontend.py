@@ -23,7 +23,7 @@ class FrontendServingTests(TestCase):
             self.assertEqual(response['Cache-Control'],'no-store')
             self.assertEqual(response['Referrer-Policy'],'no-referrer')
             response.close()
-        for map_path in ('/venues','/platform/consumer'):
+        for map_path in ('/venues', '/platform/consumer', '/platform/consumer/'):
             map_response = self.client.get(map_path)
             self.assertEqual(map_response.status_code,200)
             b''.join(map_response.streaming_content)

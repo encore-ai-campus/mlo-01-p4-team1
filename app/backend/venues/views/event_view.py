@@ -54,7 +54,7 @@ def _user_manages_venue(business_user, venue_id: str) -> bool:
     ).exists()
 
 
-@consumer_get
+@consumer_get(public_when_enabled=True)
 def active_events_banner_api(request, *, consumer):
     """
     GET /api/venues/events/active

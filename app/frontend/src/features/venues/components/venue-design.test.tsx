@@ -11,6 +11,7 @@ import { canOpenVenueDetail, VisitCards } from './VisitRecommendationSection';
 import { VenueConciergeSection } from './VenueConciergeSection';
 import { fetchVisitOptions } from '../api/visitRecommendation.api';
 import { nextRegionIndex } from './RegionSelect';
+import { VENUE_MAP_TILE_SOURCES } from './VenueInteractiveMap';
 import type { VenueItem } from '../types/venue.types';
 
 const venue: VenueItem = {venue_id:'v1',venue_name:'실제 매장',gu_name:'강남구',dong_name:'신사동',road_address:'주소',category:'CAFE',price_tier:1,avg_price:9000,rating:4.9,review_count:150,is_partner:false,mood_tags:[],latitude:37,longitude:127,is_open_now:true,status_code:'OPEN',status_label:'정상',has_closure_warning:false,matched_menus_preview:[{menu_id:'m1',venue_id:'v1',menu_name:'아주 긴 실제 메뉴 이름도 잘리지 않고 표시됩니다',price:6000,price_tier:1,is_signature:true,weather_match:'ALL',category:'커피'}],match_score:90};
@@ -113,5 +114,13 @@ describe('매장 탐색 디자인',()=>{
   const html = renderToStaticMarkup(<VisitCards venues={[recommendation, menuCandidate]}/>);
   expect(html).toContain('방문 후기 · 2차');
   expect(html).toContain('메뉴로 찾은 후보 · 생맥주 + 감자튀김');
+ });
+ it('지도 타일은 CARTO API 키 워터마크 CDN 없이 OpenStreetMap 타일과 Origin 리퍼러 정책을 사용한다', () => {
+  expect(VENUE_MAP_TILE_SOURCES.length).toBeGreaterThan(0);
+  expect(VENUE_MAP_TILE_SOURCES[0].url).toBe('https://tile.openstreetmap.org/{z}/{x}/{y}.png');
+  expect(VENUE_MAP_TILE_SOURCES[0].options.referrerPolicy).toBe('strict-origin-when-cross-origin');
+  for (const source of VENUE_MAP_TILE_SOURCES) {
+   expect(source.url).not.toContain('carto');
+  }
  });
 });

@@ -392,3 +392,62 @@ class VenueAdminClosureAndMonitoringTests(Helpers, TestCase):
         self.assertEqual(detail.status_code, 200)
         self.assertEqual(detail.json()["venue"]["recent_reviews"][0]["user_id"], "방문 회원")
         self.assertNotContains(detail, platform_id)
+
+    @override_settings(
+        LOCAL_DEMO=False,
+        MEMBER_LOCAL_PREVIEW=False,
+        PLATFORM_ENABLED=False,
+        VENUE_PUBLIC_CATALOG_ENABLED=True,
+    )
+    def test_production_public_catalog_opt_in_serves_read_only_catalog_and_keeps_writes_closed(self):
+        platform_id = f"platform:{self.consumer.pk}"
+        VenueInteraction.objects.create(
+            venue_id=self.venue_id,
+            user_id=platform_id,
+            interaction_type="REVIEW",
+            content="공개 카탈로그 리뷰",
+            rating=5,
+        )
+        anon = Client(enforce_csrf_checks=True)
+        listing = anon.get("/api/venues", {"sigungu": "강남구"})
+        self.assertEqual(listing.status_code, 200)
+        self.assertTrue(listing.json()["venues"])
+
+        detail = anon.get(f"/api/venues/{self.venue_id}")
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json()["venue"]["recent_reviews"][0]["user_id"], "방문 회원")
+        self.assertNotContains(detail, platform_id)
+
+        events = anon.get("/api/venues/events/active", {"gu": "강남구"})
+        self.assertEqual(events.status_code, 200)
+        self.assertTrue(events.json()["success"])
+
+        anon.get("/api/auth/me")
+        csrf = anon.cookies[settings.CSRF_COOKIE_NAME].value
+        self.assertEqual(
+            anon.post(
+                f"/api/venues/{self.venue_id}/bookmark",
+                {},
+                content_type="application/json",
+                HTTP_ORIGIN="http://testserver",
+                HTTP_X_CSRFTOKEN=csrf,
+            ).status_code,
+            503,
+        )
+
+    @override_settings(
+        LOCAL_DEMO=False,
+        MEMBER_LOCAL_PREVIEW=False,
+        PLATFORM_ENABLED=True,
+        VENUE_PUBLIC_CATALOG_ENABLED=False,
+    )
+    def test_production_platform_enabled_allows_authenticated_consumer_without_local_preview(self):
+        anon = Client(enforce_csrf_checks=True)
+        self.assertEqual(anon.get("/api/venues", {"sigungu": "강남구"}).status_code, 401)
+
+        consumer_client = self.client_for(self.consumer)
+        listing = consumer_client.get("/api/venues", {"sigungu": "강남구"})
+        self.assertEqual(listing.status_code, 200)
+        self.assertTrue(listing.json()["venues"])
+        self.assertEqual(consumer_client.get(f"/api/venues/{self.venue_id}").status_code, 200)
+        self.assertEqual(consumer_client.get("/api/venues/events/active", {"gu": "강남구"}).status_code, 200)

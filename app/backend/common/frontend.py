@@ -18,7 +18,8 @@ def index(request):
     response = FileResponse((Path(settings.FRONTEND_DIST)/'index.html').open('rb'), content_type='text/html; charset=utf-8')
     response['Cache-Control'] = 'no-store'
     # Keep account/recovery/passkey routes strictly no-referrer, while allowing origin referrer for map tile CDNs on venue routes.
-    if request.path in ('/venues', '/platform/consumer'):
+    normalized_path = request.path.rstrip('/') or '/'
+    if normalized_path in ('/venues', '/platform/consumer') or normalized_path.startswith('/venues/'):
         response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     else:
         response['Referrer-Policy'] = 'no-referrer'
