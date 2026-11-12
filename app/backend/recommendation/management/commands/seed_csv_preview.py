@@ -71,7 +71,7 @@ class Command(BaseCommand):
             preview={**row,**decision,'genre_group_codes':genres,'theme_codes':[],
                      'occasion_decisions_sha256':decision_sha256,
                      'cover_image_url':None,'preview_clear_score_version':WEATHER_SCORE_VERSION}
-            fit=weather_fit(preview,'CLEAR') if genres and preview['speed'] else None
+            fit=weather_fit(preview,'CLEAR') if genres else None
             preview['preview_clear_w']=([fit['W'].numerator,fit['W'].denominator] if fit else None)
             rows.append(precompute_scores(preview))
         if not rows: raise CommandError('No GENERAL tracks; the existing catalog is preserved')
@@ -100,7 +100,7 @@ class Command(BaseCommand):
                      'playback_selection_version': selection_version, 'playback_selection_sha256': selection_sha256}
                     for index, key in enumerate(selection_ids, 1)]
         digest=hashlib.sha256(json.dumps(rows,ensure_ascii=False,sort_keys=True).encode()).hexdigest()
-        version=f'spotify-preview-{data["source_sha256"][:12]}-general-{decision_sha256[:12]}-scores-v3'
+        version=f'spotify-preview-{data["source_sha256"][:12]}-general-{decision_sha256[:12]}-scores-v4'
         if youtube_sha256: version += '-yt-' + youtube_sha256[:12]
         if selection_sha256: version += '-selection-' + selection_sha256[:12]
         source_ref = (f'local-preview:youtube-playback-selection:{source.name}' if selection_sha256

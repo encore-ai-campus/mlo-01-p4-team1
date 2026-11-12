@@ -5,7 +5,9 @@ def public_song_status(row):
         return '보류'
     if row.review_status == 'REJECTED':
         return '반려'
-    if row.catalog_version or row.pipeline_status == 'REGISTERED':
+    if row.catalog_version:
+        return '추천 카탈로그 반영 완료'
+    if row.pipeline_status == 'REGISTERED':
         return '등록 완료'
     if row.review_status == 'LINKED':
         return '기존 등록 곡 안내'

@@ -1,91 +1,134 @@
 import {useEffect, useRef, useState} from 'react';
-import {api} from '../../shared/api';
-import {loadYoutubeIframeApi, scopedYoutubeIframeEvents, watchYoutubeIframeReady, type YoutubeIframePlayer} from './youtubeIframeApi';
-import {YoutubePlaybackController, type PlaybackResolution, type PlaybackSnapshot, type PlaybackTrack} from './youtubePlayerController';
+import {api, csrfHeaders, requestJson} from '../../shared/api';
+import {loadYoutubeIframeApi} from './youtubeIframeApi';
+import {YoutubeMediaPool, type AudioResolution} from './youtubeMediaPool';
+import {YoutubePlaybackController, type PlaybackCandidate, type PlaybackResolution, type PlaybackSnapshot, type PlaybackTrack} from './youtubePlayerController';
 import './YoutubePlayer.css';
 
-export type YoutubePlayerProps = {playlistId: string; tracks: PlaybackTrack[]; blockReason?: string | null; mappingRevision?: number; onTrackChange?: (trackId: string | null) => void};
-const initial: PlaybackSnapshot = {index: 0, phase: 'idle', message: 'YouTube 플레이어를 준비하고 있어요.', candidate: null, skipped: [], playedTrackIds: []};
+export type YoutubePlayerProps = {playlistId: string; tracks: PlaybackTrack[]; blockReason?: string | null;
+  mappingRevision?: number; pauseRevision?: number; showSourceThumbnail?: boolean; allowTaggedPreview?: boolean;
+  onPlaybackActivityChange?: (playing: boolean) => void};
 
-export function YoutubePlayer({playlistId, tracks, blockReason, mappingRevision = 0, onTrackChange}: YoutubePlayerProps) {
-  const host = useRef<HTMLDivElement>(null), engine = useRef<YoutubePlaybackController | null>(null), player = useRef<YoutubeIframePlayer | null>(null);
-  const latest = useRef({blockReason, onTrackChange}); latest.current = {blockReason, onTrackChange};
-  const [state, setState] = useState<PlaybackSnapshot>(initial), [bootError, setBootError] = useState(''), [reload, setReload] = useState(0);
+const initial: PlaybackSnapshot = {index: 0, phase: 'idle', message: '', candidate: null, skipped: [], playedTrackIds: []};
+const defaultCover = '/default-cover.svg';
+const videoId = /^[A-Za-z0-9_-]{11}$/;
+
+export function sourceThumbnail(track: PlaybackTrack | undefined, enabled: boolean) {
+  const id = track?.youtube_video_id;
+  return enabled && typeof id === 'string' && videoId.test(id)
+    ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : null;
+}
+
+export function allowedPlaybackCandidate(track: PlaybackTrack, candidate: PlaybackCandidate, allowTaggedPreview: boolean) {
+  if (typeof candidate.video_id !== 'string' || !videoId.test(candidate.video_id)) return false;
+  if (candidate.source === 'TAGGED_JSON_PREVIEW') {
+    return allowTaggedPreview && candidate.match_status === 'CANDIDATE' && candidate.video_id === track.youtube_video_id;
+  }
+  return candidate.match_status === 'VERIFIED';
+}
+
+function PlaybackCover({track, showSourceThumbnail}: {track?: PlaybackTrack; showSourceThumbnail: boolean}) {
+  const cover = track?.cover_image_url || defaultCover;
+  const thumbnail = sourceThumbnail(track, showSourceThumbnail);
+  return <img className="youtube-player-cover" src={thumbnail || cover} alt={thumbnail ? '수집 영상 썸네일' : '곡 표지'}
+    onError={event => {
+      const image = event.currentTarget;
+      if (image.getAttribute('src') === defaultCover) return;
+      image.src = image.getAttribute('src') === thumbnail ? cover : defaultCover;
+      image.alt = '곡 표지';
+    }}/>;
+}
+
+export function YoutubePlayer({playlistId, tracks, blockReason, mappingRevision = 0, pauseRevision = 0,
+  showSourceThumbnail = false, allowTaggedPreview = false, onPlaybackActivityChange}: YoutubePlayerProps) {
+  const host = useRef<HTMLDivElement>(null), engine = useRef<YoutubePlaybackController | null>(null);
+  const userStarted = useRef(false), latestBlock = useRef(blockReason);
+  latestBlock.current = blockReason;
+  const [state, setState] = useState<PlaybackSnapshot>(initial);
   const queueKey = tracks.map(track => track.track_id).join('|');
+
   useEffect(() => {
-    let disposed = false;
-    let cancelReadyWait = () => {};
-    setState(initial); setBootError('');
+    if (!host.current) return;
+    setState(initial); userStarted.current = false;
     const currentTracks = [...tracks];
-    void loadYoutubeIframeApi().then(YT => {
-      if (disposed || !host.current) return;
-      const iframe = document.createElement('iframe');
-      iframe.title = 'YouTube 선곡표 삽입 재생';
-      iframe.src = `https://www.youtube.com/embed/?enablejsapi=1&playsinline=1&rel=0&origin=${encodeURIComponent(window.location.origin)}`;
-      iframe.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
-      iframe.allowFullscreen = true; iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-      host.current.replaceChildren(iframe);
-      let ready = false, failed = false;
-      const isCurrent = () => !disposed && player.current === instance;
-      const instance = new YT.Player(iframe, {events: scopedYoutubeIframeEvents(isCurrent, {
-        onReady: () => {
-          if (ready || failed) return;
-          ready = true; cancelReadyWait();
-          const controller = new YoutubePlaybackController(currentTracks, {load: id => instance.loadVideoById(id), play: () => instance.playVideo(), pause: () => instance.pauseVideo()},
-            (trackId, excludedVideoIds, signal) => api<PlaybackResolution>(`/api/playlists/${encodeURIComponent(playlistId)}/youtube-playback`, 'POST', {track_id: trackId, excluded_video_ids: excludedVideoIds}, undefined, signal),
-            next => {if (!disposed) {setState(next); latest.current.onTrackChange?.(currentTracks[next.index]?.track_id || null);}});
-          engine.current = controller;
-          if (latest.current.blockReason) controller.setBlocked(latest.current.blockReason);
-          else void controller.start();
-        },
-        onStateChange: event => engine.current?.onPlayerState(event.data),
-        onError: event => {
-          if (!ready) {
-            failed = true; cancelReadyWait();
-            setBootError(event.data === 153 ? 'YouTube가 이 페이지의 출처를 확인하지 못했어요(153). 대시보드를 새로고침해 주세요.' : `YouTube 플레이어를 준비하지 못했어요(오류 ${event.data}). 연결을 다시 확인해 주세요.`);
-            return;
-          }
-          engine.current?.onPlayerError(event.data);
-        },
-        onAutoplayBlocked: () => engine.current?.onAutoplayBlocked(),
-      })});
-      player.current = instance;
-      cancelReadyWait = watchYoutubeIframeReady(isCurrent, () => {
-        if (!ready && !failed) {
-          failed = true;
-          setBootError('YouTube 플레이어가 응답하지 않아요. 연결을 다시 확인해 주세요.');
-        }
-      });
-    }).catch(error => {if (!disposed) setBootError(error instanceof Error ? error.message : 'YouTube 플레이어 연결을 확인해 주세요.');});
-    return () => {disposed = true; cancelReadyWait(); engine.current?.destroy(); engine.current = null; player.current?.destroy(); player.current = null; host.current?.replaceChildren();};
-    // The immutable result ID and ordered track IDs identify the queue. An
-    // approval/feedback re-fetch must not restart the current song.
+    const tracksById = new Map(currentTracks.map(track => [track.track_id, track]));
+    const allowCandidate = (track: PlaybackTrack, candidate: PlaybackCandidate) => allowedPlaybackCandidate(track, candidate, allowTaggedPreview);
+    const pool = new YoutubeMediaPool({api: loadYoutubeIframeApi, host: host.current,
+      shouldAutoplay: () => userStarted.current,
+      allowCandidate,
+      current: () => {
+        const {candidate, index} = controller.snapshot();
+        return candidate && currentTracks[index] ? {candidate, track: currentTracks[index]} : null;
+      },
+      resolveAudio: (track, candidate, signal) => requestJson<AudioResolution>(
+        `/api/playlists/${encodeURIComponent(playlistId)}/youtube-audio`, {
+          method: 'POST', credentials: 'same-origin', cache: 'no-store', signal,
+          headers: {'Content-Type': 'application/json', ...csrfHeaders()},
+          body: JSON.stringify({track_id: track.track_id, video_id: candidate.video_id}),
+        }, 25000),
+      onState: value => {
+        if (value === 1) userStarted.current = true;
+        controller.onPlayerState(value);
+      },
+      onError: code => controller.onPlayerError(code),
+      onAutoplayBlocked: () => controller.onAutoplayBlocked(),
+      onRoute: () => {},
+    });
+    const controller: YoutubePlaybackController = new YoutubePlaybackController(currentTracks, pool, async (trackId, excludedVideoIds, signal) => {
+      const result = await api<PlaybackResolution>(`/api/playlists/${encodeURIComponent(playlistId)}/youtube-playback`,
+        'POST', {track_id: trackId, excluded_video_ids: excludedVideoIds}, undefined, signal);
+      const track = tracksById.get(trackId);
+      return {...result, candidates: track ? result.candidates.filter(candidate => allowCandidate(track, candidate)) : []};
+    }, setState, () => allowTaggedPreview || userStarted.current);
+    engine.current = controller;
+    if (latestBlock.current) controller.setBlocked(latestBlock.current);
+    else if (currentTracks.length) void controller.start();
+    return () => {controller.destroy(); pool.destroy(); engine.current = null;};
+    // Refetching the same immutable playlist after approval or feedback keeps its media active.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playlistId, queueKey, reload]);
-  useEffect(() => {engine.current?.setBlocked(blockReason || null);}, [blockReason]);
+  }, [playlistId, queueKey, mappingRevision, allowTaggedPreview]);
+
+  const wasBlocked = useRef(false);
   useEffect(() => {
-    if (state.phase !== 'loading') return;
-    const timer = window.setTimeout(() => {if ((player.current?.getCurrentTime() || 0) === 0) engine.current?.onLoadingDelayed();}, 15000);
-    return () => clearTimeout(timer);
-  }, [state.phase, state.candidate?.video_id]);
+    const controller = engine.current;
+    if (blockReason) {wasBlocked.current = true; userStarted.current = false; controller?.setBlocked(blockReason); return;}
+    if (!wasBlocked.current) return;
+    wasBlocked.current = false;
+    controller?.setBlocked(null);
+    if (controller && !controller.snapshot().candidate) void controller.start(controller.snapshot().index);
+  }, [blockReason]);
+
+  const lastPause = useRef(pauseRevision);
+  useEffect(() => {
+    if (lastPause.current === pauseRevision) return;
+    lastPause.current = pauseRevision; userStarted.current = false;
+    engine.current?.pause();
+  }, [pauseRevision]);
+
+  const playing = !blockReason && state.phase === 'playing';
+  useEffect(() => {
+    onPlaybackActivityChange?.(playing);
+    return () => {if (playing) onPlaybackActivityChange?.(false);};
+  }, [playing, onPlaybackActivityChange]);
+
   const track = tracks[state.index];
-  const blocked = !!blockReason;
-  const busy = state.phase === 'resolving' || state.phase === 'idle';
-  const message = blockReason || bootError || state.message;
+  const busy = state.phase === 'idle' || state.phase === 'resolving';
+  const failed = state.phase === 'error' || state.phase === 'unavailable';
+  const message = blockReason || (failed ? '재생 연결을 확인해 주세요.' : busy || state.phase === 'loading' ? '재생 준비 중…'
+    : state.phase === 'blocked' ? '재생을 눌러 주세요.' : state.phase === 'complete' ? '선곡표 재생 완료' : '');
   return <section className="youtube-player" aria-label="선곡표 연속 재생">
-    <div className="youtube-player-heading"><strong>YouTube 연속 재생</strong><span>{Math.min(state.index + 1, tracks.length)}/{tracks.length}곡</span></div>
-    <div className="youtube-player-frame" ref={host}/>
-    {track && <div className="youtube-player-track"><strong>{track.track_name}</strong><span>{track.artists_name}</span></div>}
-    <p className="youtube-player-status" role="status">{message}</p>
-    <div className="youtube-player-controls">
-      <button type="button" disabled={blocked || busy || !state.index || !!bootError} onClick={() => engine.current?.previous()} aria-label="이전 곡">이전</button>
-      {state.phase === 'playing' ? <button type="button" disabled={blocked} onClick={() => engine.current?.pause()} aria-label="재생 일시 정지">일시 정지</button> : <button type="button" disabled={blocked || busy || !!bootError} onClick={() => engine.current?.play()} aria-label="YouTube 재생">재생</button>}
-      <button type="button" disabled={blocked || busy || state.index >= tracks.length - 1 || !!bootError} onClick={() => engine.current?.next()} aria-label="다음 곡">다음</button>
+    <div className="youtube-player-frame">
+      <PlaybackCover key={`${track?.track_id}:${track?.youtube_video_id}`} track={track} showSourceThumbnail={showSourceThumbnail}/>
+      <div ref={host} className="youtube-player-media" hidden={!!blockReason || !state.candidate || state.phase === 'error'}/>
     </div>
-    {(bootError || state.phase === 'error') && <button className="youtube-player-retry" type="button" disabled={blocked} onClick={() => bootError ? setReload(value => value + 1) : engine.current?.retry()}>연결 다시 확인</button>}
-    {!bootError && <button className="youtube-player-retry" type="button" disabled={blocked || busy} onClick={() => engine.current?.retry()}>{mappingRevision > 0 ? '영상 연결 갱신 · 현재 곡 다시 확인' : '현재 곡 영상 연결 다시 확인'}</button>}
-    {state.candidate && <small className="youtube-player-source">영상: {state.candidate.title} · {state.candidate.channel_title}</small>}
-    {!!state.skipped.length && <details className="youtube-player-skipped"><summary>재생하지 못한 곡 {state.skipped.length}곡</summary><ul>{state.skipped.map(item => <li key={item.track_id}><strong>{item.track_name}</strong> — {item.reason}</li>)}</ul><p>건너뛴 곡만큼 실제 재생시간이 짧아집니다. 원래 선곡표는 유지됩니다.</p></details>}
-    <small className="youtube-player-note">선곡표 순서대로 자동 연결합니다. 브라우저에서 자동 재생을 막으면 재생을 한 번 눌러 주세요. 광고·재생 가능 여부는 YouTube에 따릅니다.</small>
+    {track && <div className="youtube-player-track"><strong>{track.track_name}</strong><span>{track.artists_name}</span></div>}
+    {message && <p className="youtube-player-status" role="status">{message}</p>}
+    <div className="youtube-player-controls">
+      <button type="button" disabled={!!blockReason || busy || !state.index} onClick={() => engine.current?.previous()} aria-label="이전 곡">이전</button>
+      {playing ? <button type="button" onClick={() => {userStarted.current = false; engine.current?.pause();}} aria-label="재생 일시 정지">일시 정지</button>
+        : <button type="button" disabled={!!blockReason || busy || failed} onClick={() => {userStarted.current = true; engine.current?.play();}} aria-label="YouTube 재생">재생</button>}
+      <button type="button" disabled={!!blockReason || busy || state.index >= tracks.length - 1} onClick={() => engine.current?.next()} aria-label="다음 곡">다음</button>
+    </div>
+    {failed && <button className="youtube-player-retry" type="button" disabled={!!blockReason} onClick={() => {userStarted.current = false; engine.current?.retry();}}>재생 연결 다시 확인</button>}
   </section>;
 }

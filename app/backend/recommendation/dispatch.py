@@ -119,7 +119,7 @@ def begin_provider(job):
         require(current is not None, 'LEASE_LOST', '작업 실행 권한이 만료됐어요.', 409)
         require(not current.provider_attempted, 'PROVIDER_OUTCOME_UNKNOWN', '중단된 외부 호출 결과를 확인해야 해요.', 503)
         now = current.dispatch_now
-        occupied = Job.objects.exclude(pk=job.pk).filter(provider_lease_until__gt=Now())
+        occupied = Job.objects.exclude(pk=job.pk).filter(method='GEMINI_RECONFIGURE', provider_lease_until__gt=Now())
         if occupied.count() >= settings.GEMINI_MAX_CONCURRENT:
             return max(0.05, (occupied.order_by('provider_lease_until').first().provider_lease_until - now).total_seconds())
         if gate.next_provider_at and gate.next_provider_at > now:
@@ -139,3 +139,21 @@ def end_provider(job):
     # A confirmed response frees the permit. Ambiguous failure/crash keeps its deadline.
     Job.objects.filter(pk=job.pk, lease_token=job.lease_token,
                        lease_generation=job.lease_generation).update(provider_lease_until=None)
+
+
+@transaction.atomic
+def try_begin_hourly_provider(job, timeout_seconds):
+    """Do not wait behind another job if the optional ordering pool is full."""
+    locked_control('hourly-gpt')
+    current = active_job(job).select_for_update().annotate(dispatch_now=Now()).first()
+    require(current is not None, 'LEASE_LOST', '작업 실행 권한이 만료됐어요.', 409)
+    occupied = Job.objects.filter(method='RULE_BASED', provider_lease_until__gt=Now()).count()
+    if current.provider_attempted or occupied >= settings.HOURLY_GPT_MAX_CONCURRENT:
+        return False
+    current.provider_attempted = True
+    current.provider_started_at = current.dispatch_now
+    current.provider_lease_until = current.dispatch_now + timedelta(
+        seconds=timeout_seconds + settings.RECOMMENDATION_LEASE_SECONDS,
+    )
+    current.save(update_fields=['provider_attempted', 'provider_started_at', 'provider_lease_until'])
+    return True

@@ -22,12 +22,12 @@ def source_hash(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def stored_source(path, digest):
+def stored_source(path, digest, *, suffix='.csv'):
     directory=Path(settings.MUSIC_RAW_DIRECTORY)
     if not settings.MUSIC_RAW_DIRECTORY or not directory.is_absolute():
         raise CommandError('MUSIC_RAW_DIRECTORY must be an absolute directory')
     directory.mkdir(parents=True, exist_ok=True)
-    target=directory/(digest+'.csv')
+    target=directory/(digest+suffix)
     if target.exists():
         if source_hash(target)!=digest:raise CommandError('stored source hash mismatch')
         return target

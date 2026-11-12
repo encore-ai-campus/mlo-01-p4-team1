@@ -54,7 +54,9 @@ def propose(candidates, context, parent):
         # One attempt only. No implicit SDK retries or solver repair.
         client = genai.Client(api_key=os.environ['GEMINI_API_KEY'],http_options={
             'timeout':settings.GEMINI_TIMEOUT_MS,'retry_options':{'attempts':1}})
-        safe = [{k:v for k,v in t.items() if k != 'scores'} | {'scores':{k:float(v) if v is not None else None for k,v in t['scores'].items()}} for t in candidates]
+        safe = [{k:v for k,v in t.items() if k not in {'scores', 'speed'}} |
+                {'scores':{k:float(v) if v is not None else None for k,v in t['scores'].items()}}
+                for t in candidates]
         token_budget=int(os.environ.get('GEMINI_MAX_OUTPUT_TOKENS','0'))
         require(token_budget>0,'RECONFIGURATION_UNAVAILABLE','재설정 출력 예산 설정이 필요해요.',503)
         mode=context['options']['weather_influence_mode']
@@ -69,7 +71,7 @@ def propose(candidates, context, parent):
                 config={'response_mime_type':'application/json','response_json_schema':PROPOSAL_SCHEMA,'max_output_tokens':token_budget})
         usage=response.usage_metadata
         return json.loads(response.text),{
-            'model':'gemini-3.8-flash','prompt_version':'c-reconfigure-on-off-v2','schema_version':'GeminiProposal-v1','attempts':1,
+            'model':'gemini-3.8-flash','prompt_version':'c-reconfigure-on-off-v3','schema_version':'GeminiProposal-v1','attempts':1,
             'candidate_ids_sha256':hashlib.sha256(json.dumps([t['track_id'] for t in candidates]).encode()).hexdigest(),
             'input_tokens':getattr(usage,'prompt_token_count',None),'output_tokens':getattr(usage,'candidates_token_count',None)}
     except DomainError:

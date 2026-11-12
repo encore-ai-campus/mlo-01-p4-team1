@@ -1,4 +1,5 @@
 import csv
+import json
 import tempfile
 from datetime import datetime, timezone
 from fractions import Fraction
@@ -7,7 +8,7 @@ from unittest import TestCase
 from unittest.mock import patch, MagicMock
 from django.test import override_settings
 from pipeline.music.normalize import normalize, speed, instrumental, convert, RAW_SCHEMA, RESULT_SCHEMA
-from backend.recommendation.policy import score, initial_speeds, groups, eligible, profile, weather_fit, precompute_scores, theme_affinity, THEMES, WEATHER_WEIGHTS
+from backend.recommendation.policy import score, groups, eligible, profile, weather_fit, precompute_scores, theme_affinity, THEMES, WEATHER_WEIGHTS
 from backend.recommendation.inputs import DEFAULTS, options
 from backend.recommendation.provider import validate_proposal, candidate_window, propose
 from backend.recommendation.solver import choose, choose_preview, representatives
@@ -70,9 +71,9 @@ class PolicyTests(TestCase):
     def test_off_theme_formula_and_no_weather(self):
         track={'energy':7,'mode':False,'speed':'fast','genre_group_codes':['JAZZ'],'theme_codes':[]}
         off={**DEFAULTS,'weather_influence_mode':'OFF','selected_theme_codes':['CALM']}
-        self.assertEqual(score(track,off)['P'],Fraction(7550,95))
+        self.assertEqual(score(track,off)['P'],85)
         self.assertIsNone(score(track,off)['W'])
-        self.assertEqual(score(track,{**off,'tempo_preference':'fast'})['P'],Fraction(8300,95))
+        self.assertEqual(score(track,{**off,'tempo_preference':'fast'}),score(track,off))
     def test_primary_core_gate_does_not_reuse_its_higher_score(self):
         evidence=weather_fit({'raw_energy':'.843','raw_acousticness':'.5','raw_valence':'.53','mode':False},'CLOUDY')
         self.assertEqual(evidence['pattern'],'CLOUDY_SUPPORT')
@@ -96,9 +97,9 @@ class PolicyTests(TestCase):
            'speed':'slow','genre_group_codes':['JAZZ']}
         o={**DEFAULTS,'selected_theme_codes':['CALM'],'selected_genre_codes':['JAZZ'],'tempo_preference':'slow'}
         s=score(t,o,'CLEAR')
-        self.assertEqual(s['P'],(200+theme_affinity(t,'CALM'))/3)
+        self.assertEqual(s['P'],(100+theme_affinity(t,'CALM'))/2)
         self.assertEqual(s['S'],Fraction(3,4)*s['W']+Fraction(1,4)*s['P'])
-        self.assertGreater(s['P'],Fraction(200,3))
+        self.assertGreater(s['P'],50)
     def test_published_scores_match_live_formula_and_do_not_invent_mood(self):
         t={'energy':6,'raw_energy':'.6','raw_acousticness':'.5','raw_valence':'.7','mode':True,
            'speed':'slow','genre_group_codes':['JAZZ'],'theme_codes':[],'mood':None,'main_inst':None}
@@ -119,11 +120,13 @@ class PolicyTests(TestCase):
     def test_mode_null_no_redistribution(self):
         t={'raw_energy':'.6','raw_acousticness':'.5','raw_valence':'.7','mode':None,'theme_codes':[]}
         self.assertEqual(score(t,DEFAULTS,'CLEAR')['W'],95)
-    def test_mixed_first_speed_block_only_auto_fast(self):
-        self.assertEqual(initial_speeds('slow','MIXED'),['slow'])
-        self.assertEqual(initial_speeds('auto','MIXED'),['fast','fastest','medium','slow'])
-        self.assertEqual(initial_speeds('fast','RAIN'),['fast'])
-        self.assertEqual(initial_speeds('fast','CLEAR'),['fast','fastest'])
+    def test_legacy_tempo_without_other_preferences_does_not_change_score(self):
+        track={'raw_energy':'.6','raw_acousticness':'.5','raw_valence':'.7','mode':True}
+        for mode in ('ON','OFF'):
+            opts={**DEFAULTS,'weather_influence_mode':mode}
+            for legacy_tempo in ('slow','fast'):
+                with self.subTest(mode=mode, tempo=legacy_tempo):
+                    self.assertEqual(score(track,{**opts,'tempo_preference':legacy_tempo},'CLEAR'),score(track,opts,'CLEAR'))
     def test_genres(self):
         self.assertEqual(groups(['j-rock']),['J-POP','ROCK'])
         self.assertEqual(groups(['ambient','study']),[])
@@ -273,12 +276,15 @@ class ProviderTests(TestCase):
         error=type('BusyError',(Exception,),{'code':503})('test-key must not appear')
         client=MagicMock();client.models.generate_content.side_effect=error
         context={'options':{**DEFAULTS,'weather_influence_mode':'OFF'}}
+        candidate={'track_id':'legacy','speed':'medium','scores':{'S':Fraction(90)}}
         with patch('google.genai.Client',return_value=client),self.assertRaises(DomainError) as failure:
-            propose([],context,[])
+            propose([candidate],context,[])
         self.assertEqual(failure.exception.code,'PROVIDER_BUSY')
         self.assertEqual(failure.exception.details,{'provider_status':503})
         self.assertNotIn('test-key',failure.exception.message)
         client.models.generate_content.assert_called_once()
+        sent = json.loads(client.models.generate_content.call_args.kwargs['contents'])
+        self.assertNotIn('speed', sent['candidates'][0])
 
     def test_model_cannot_return_unoffered_ids_from_full_catalog(self):
         track={'track_id':'not-offered','duration_ms':10800000}

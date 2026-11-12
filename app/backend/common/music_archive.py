@@ -1,4 +1,4 @@
-"""음악 CSV 원본의 로컬/S3 이중 보관. 날씨 원천 파일에는 적용하지 않습니다."""
+"""음악 원본의 로컬/S3 이중 보관."""
 import base64
 import hashlib
 import re
@@ -7,7 +7,8 @@ from django.conf import settings
 from backend.recommendation.errors import DomainError, require
 
 
-def store(path, digest, client=None):
+def store(path, digest, client=None, *, suffix='.csv'):
+    content_type = {'.csv': 'text/csv', '.json': 'application/json'}[suffix]
     raw=Path(path).read_bytes()
     require(hashlib.sha256(raw).hexdigest()==digest,'SOURCE_CORRUPT','원본 해시를 확인해 주세요.',503)
     if settings.MUSIC_S3_ARCHIVE_DEFERRED:
@@ -19,7 +20,7 @@ def store(path, digest, client=None):
     if not bucket and settings.LOCAL_DEMO:return {'mode':'LOCAL_DEMO','sha256':digest}
     require(bool(bucket and region and prefix),'POLICY_NOT_READY','음악 S3 보관 설정이 필요합니다.',503)
     require(not any(part in ('.','..') for part in prefix.split('/')))
-    key=prefix+'/'+digest+'.csv'
+    key=prefix+'/'+digest+suffix
     try:
         if client is None:
             import boto3
@@ -31,7 +32,7 @@ def store(path, digest, client=None):
         try:
             client.put_object(Bucket=bucket,Key=key,Body=raw,IfNoneMatch='*',
                 ChecksumSHA256=base64.b64encode(bytes.fromhex(digest)).decode(),
-                Metadata={'sha256':digest},ContentType='text/csv')
+                Metadata={'sha256':digest},ContentType=content_type)
         except ClientError as error:
             if error.response.get('ResponseMetadata',{}).get('HTTPStatusCode')!=412:raise
         found=client.head_object(Bucket=bucket,Key=key)

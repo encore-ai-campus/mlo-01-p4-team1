@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.test import TransactionTestCase, Client, override_settings
 from django.core.management import call_command
 from django.utils import timezone
-from backend.recommendation.models import Job, Playlist, PendingEvent, Family, DemoFeedback, Catalog
+from backend.recommendation.models import Job, Playlist, PendingEvent, Family, DemoFeedback, Catalog, Idempotency
 from backend.recommendation.worker import run_one, verified_catalog, warm_current_catalog
 from backend.recommendation.service import current_catalog
 from backend.recommendation.errors import DomainError
@@ -108,10 +108,17 @@ class ApiTests(TransactionTestCase):
         p=Playlist.objects.get(job_id=j)
         self.assertEqual(len(p.snapshot['items']),45)
         self.assertEqual(p.snapshot['total_ms'],10800000)
-        self.assertEqual(p.family.allowed_genres,['JAZZ']);self.assertEqual(p.family.allowed_speeds,['medium'])
+        self.assertEqual(p.family.allowed_genres,['JAZZ'])
+        self.assertNotIn('allowed_speed_codes', p.snapshot['context'])
+        self.assertNotIn('speed', p.snapshot['items'][0])
         other=Client()
         self.assertEqual(other.get(f'/api/playlists/{p.pk}').status_code,404)
-        changed=self.post('/api/recommendation-jobs',{'region_id':'demo-region','tempo_preference':'slow'})
+        saved = Idempotency.objects.get(scope='basic', key='key')
+        saved.body['tempo_preference'] = 'fast'
+        saved.save(update_fields=['body'])
+        legacy=self.post('/api/recommendation-jobs',{'region_id':'demo-region','tempo_preference':'slow'})
+        self.assertEqual((legacy.status_code, legacy.json()['job_id']), (202, j))
+        changed=self.post('/api/recommendation-jobs',{'region_id':'demo-region','vocal_option':'instrumental_only'})
         self.assertEqual(changed.status_code,409)
     def test_off_mode_does_not_depend_on_weather(self):
         with patch('backend.recommendation.service.obtain',side_effect=RuntimeError('weather unavailable')):
@@ -163,7 +170,7 @@ class ApiTests(TransactionTestCase):
         self.assertEqual(repeated.json(),approval.json())
     def test_cycle_change_409_before_provider_and_failure_preserves_parent(self):
         p=self.result()
-        r=self.post(f'/api/playlists/{p.pk}/regenerations',{'exclusion_revision':0,'tempo_preference':'slow'},'regen')
+        r=self.post(f'/api/playlists/{p.pk}/regenerations',{'exclusion_revision':0,'vocal_option':'instrumental_only'},'regen')
         self.assertEqual(r.status_code,409,r.content)
         r=self.post(f'/api/playlists/{p.pk}/regenerations',{'exclusion_revision':0},'regen2')
         self.assertEqual(r.status_code,503,r.content)
@@ -172,6 +179,10 @@ class ApiTests(TransactionTestCase):
     @patch.dict(os.environ,{'GEMINI_API_KEY':'test-only','GEMINI_MAX_OUTPUT_TOKENS':'8192'})
     def test_csv_uses_gemini_and_preserves_catalog_seed_and_local_approval(self):
         p=self.result()
+        family = p.family
+        family.options['tempo_preference'] = 'slow'
+        family.allowed_speeds = ['slow']
+        family.save(update_fields=['options', 'allowed_speeds'])
         catalog=p.job.catalog
         catalog.source_ref='local-preview:spotify_dataset.csv';catalog.save(update_fields=['source_ref'])
         p.snapshot['preview_only']=True;p.snapshot['validation_passed']=False;p.save(update_fields=['snapshot'])
@@ -182,6 +193,8 @@ class ApiTests(TransactionTestCase):
         self.assertEqual(job.parent_id,p.pk)
         self.assertEqual(job.catalog_id,catalog.pk)
         self.assertEqual(job.input['seed'],p.job.input['seed'])
+        self.assertNotIn('tempo_preference', job.input['options'])
+        self.assertNotIn('allowed_speed_codes', job.input)
         parent_ids={t['track_id'] for t in p.snapshot['items']}
         def proposal(candidates,context,ids):
             ordered=sorted(candidates,key=lambda t:t['track_id'] in parent_ids)[:45]

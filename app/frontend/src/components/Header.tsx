@@ -31,7 +31,7 @@ export function Header({login=false,showGuide,isDemo=false,musicSource,weatherIs
         <button type="button" onClick={showGuide}>사용 안내</button>
         <a href={account?.platform_enabled?(account?.role==='USER'?'/platform/account':'/platform/login'):(account?.role==='USER'?'/mypage':'/login')} className="muther-nav-account">{account?.role==='USER'?`${account.nickname} · 마이페이지`:'로그인'}</a>
       </nav>}
-    {isDemo&&!login&&<span className="demo-note" title={'음악: '+(musicSource==='CSV'?'제공 CSV의 실제 곡 정보':'로컬 자료')+' · 날씨: '+(weatherSource||'지역 선택 후 조회')}>
+    {isDemo&&!login&&<span className="demo-note" title={'음악: '+(musicSource==='TAGGED_JSON'?'태깅 JSON의 곡 정보':musicSource==='CSV'?'제공 CSV의 실제 곡 정보':'로컬 자료')+' · 날씨: '+(weatherSource||'지역 선택 후 조회')}>
       로컬 데모 · {weatherSource||'날씨 확인 전'}
     </span>}
   </header>;
