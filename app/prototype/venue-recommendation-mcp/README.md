@@ -121,7 +121,7 @@ py -3.14 -m venv .local/venue-mcp
 - `catalog_metadata.preview_only`, `source_basis`, `budget_basis` 등은 시연 자료 여부와 근거를 나타냅니다.
 - 웹 AI 질문은 `POST /api/venues/ai-concierge/chat`에 JSON `{ "message": "질문", "region": "선택 지역" }`를 보냅니다. 같은 출처와 CSRF 검사를 적용하며 `{success, mcp, llm}`을 반환합니다.
 
-Django의 내장 MCP 연결은 기본적으로 `C_LOCAL_DEMO=1`인 로컬 시연에서 활성화됩니다. 비시연 환경에서는 `VENUE_MCP_SERVICE_ENABLED=1`과 공개 카탈로그 경로를 명시해야 하며, 시연 전용 카탈로그는 허용하지 않습니다. 이 설정은 MCP 호스트만 켜며 실제 운영의 인증·플랫폼 접근 정책·프로세스 관리·LLM API 연결과 매장 공개 승인을 완료했다는 뜻은 아닙니다. 독립 MCP 서버는 `venue_recommendation_mcp.py --public-catalog <스냅샷>`으로 실행하며 stdio로 연결합니다.
+Django의 내장 MCP 연결은 `C_LOCAL_DEMO=1`인 로컬 시연에서 사용할 수 있습니다. 비시연 환경에서는 `VENUE_MCP_SERVICE_ENABLED=1`과 공개 승인 카탈로그 경로를 명시해야 하며, 로그인한 계정에 활성 `CONSUMER` 권한이 있어야 합니다. 시연 전용 카탈로그는 거부합니다. 자연어 질문에 필요한 Gemini 설정과 운영 확인 절차는 [앱 운영 이미지 안내](../../docker/PRODUCTION.md)를 따릅니다. 독립 MCP 서버는 `venue_recommendation_mcp.py --public-catalog <스냅샷>`으로 실행하며 stdio로 연결합니다.
 
 ## 검증
 

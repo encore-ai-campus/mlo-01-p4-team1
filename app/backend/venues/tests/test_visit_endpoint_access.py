@@ -51,3 +51,25 @@ class VisitEndpointAccessTests(TestCase):
         # anonymous write before the endpoint can inspect its session.
         self.assertEqual(client.post(path, {'mcp': {}}, content_type='application/json',
                                      HTTP_X_CSRFTOKEN=token).status_code, 403)
+
+    @override_settings(LOCAL_DEMO=False, PLATFORM_ENABLED=False, MEMBER_LOCAL_PREVIEW=False,
+                       VENUE_MCP_SERVICE_ENABLED=False)
+    def test_operational_mcp_requires_explicit_opt_in(self):
+        self.client.force_login(self.visit_guest)
+        options = self.client.get('/api/venues/ai-concierge/options')
+        self.assertEqual(options.status_code, 404)
+
+    @override_settings(LOCAL_DEMO=False, PLATFORM_ENABLED=False, MEMBER_LOCAL_PREVIEW=False,
+                       VENUE_MCP_SERVICE_ENABLED=True)
+    def test_operational_mcp_checks_membership_before_runtime(self):
+        options = '/api/venues/ai-concierge/options'
+        self.assertEqual(self.client.get(options).status_code, 401)
+        self.client.force_login(self.visit_owner)
+        self.assertEqual(self.client.get(options).status_code, 403)
+        self.client.force_login(self.visit_guest)
+        response = self.client.get(options)
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()['code'], 'VENUE_MCP_UNAVAILABLE')
+        self.assertIn('no-store', response.headers['Cache-Control'])
+        ServiceMembership.objects.filter(user=self.visit_guest).update(status='SUSPENDED')
+        self.assertEqual(self.client.get(options).status_code, 403)

@@ -41,6 +41,7 @@ FROM development AS production
 ARG APP_REVISION
 RUN python -c 'import re,sys;sys.exit(0 if re.fullmatch("[0-9a-f]{40}|[0-9a-f]{64}",sys.argv[1]) else 2)' "$APP_REVISION"
 ENV APP_REVISION=$APP_REVISION APP_KIND=web DJANGO_SETTINGS_MODULE=backend.cafe.settings C_LOCAL_DEMO=0 FRONTEND_REQUIRED=1
+ENV VENUE_MCP_SERVER=/workspace/app/prototype/venue-recommendation-mcp/venue_recommendation_mcp.py
 COPY --from=frontend --chown=mlo:mlo /frontend/dist /workspace/app/frontend/dist
 COPY --chmod=0555 docker/runtime/serve.py /opt/mlo/bin/serve
 COPY --chmod=0555 docker/runtime/readiness.py /opt/mlo/bin/readiness
