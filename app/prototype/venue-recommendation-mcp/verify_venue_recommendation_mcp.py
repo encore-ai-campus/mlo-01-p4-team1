@@ -375,6 +375,117 @@ async def verify_unverified_intent():
             print("PASS 미확인 목적·제외·선택 조건·모호한 예산에는 카드 없이 확인 안내 · 모임 전 커피는 정상 추천")
 
 
+async def verify_visit_purposes_and_cost():
+    common = {
+        "address": "서울특별시 마포구 검증로 1", "region_id": "region:1144066000",
+        "venue_category": "PUB", "is_public": True,
+    }
+    def venue(venue_id, name, budget, **details):
+        return {**common, "venue_id": venue_id, "name": name, "avg_budget_krw": budget, **details}
+
+    def review(description, seating=""):
+        return {"description": description, "seating": seating, "sources": ["https://example.com/visit"]}
+
+    rows = [
+        venue("01", "단비어린이집", 9000),
+        venue("02", "검증 술집", 23000, research=review("혼자 한 잔 하기 좋았다는 방문 후기.")),
+        venue("03", "저렴한 술집", 14000, research=review("바 좌석이 있다.", "단체석이 있다.")),
+        venue("04", "가격 미확인 술집", None),
+        venue("05", "혼술 후기 미확인 술집", 18000, research={"description": "혼술하기 좋은 곳"}),
+        venue("06", "혼술이 어려운 술집", 19000, research=review("혼술하기 좋지 않았다는 후기.")),
+        venue("07", "자료 확인 카페", 8000, venue_category="CAFE",
+              research=review("혼자 커피 마시기 좋고 노트북 작업하기 편한 카페.")),
+        venue("08", "공통 태그만 있는 카페", 7000, venue_category="CAFE",
+              mood_tag_ids=["mood_work_friendly"]),
+    ]
+    menus = [{
+        "menu_id": "daycare-menu", "venue_id": "01", "name": "생맥주",
+        "menu_type_tag_ids": ["menu_draft_beer"], "is_public": True,
+    }]
+    with TemporaryDirectory() as directory:
+        path = Path(directory) / "visit-purposes.json"
+        path.write_text(json.dumps({"version": "test", "preview_only": True, "venues": rows, "menus": menus}),
+                        encoding="utf-8")
+        async with session_for("--public-catalog", str(path), "--allow-preview-catalog") as client:
+            def ids(result):
+                return [row["venue_id"] for row in result["ranked"]]
+
+            async def search(query):
+                return await call(client, "recommend_venues", {"query": query})
+
+            tags = await call(client, "list_venue_tags", {"kind": "VISIT_PURPOSE"})
+            assert {tag["label"] for tag in tags["tags"]} == {"혼술", "혼카페", "단체 모임", "데이트", "2차"}
+            assert ids(await search("서교동 술집")) == ["02", "03", "04", "05", "06"]
+            value = await search("서교동 가성비 술집 ㅊㅊ좀")
+            assert ids(value) == ["03", "05", "06", "02"], value
+            assert value["request"]["prefer_lower_budget"] and value["request"]["budget"] is None
+            assert ids(await search("서교동 1만8천원 이하 가성비 술집")) == ["03", "05"]
+            structured = await call(client, "recommend_venues", {
+                "request_text": "서교동 가성비 술집ㅊㅊ좀", "venue_category": "CAFE",
+                "budget": {"max_krw": 10000}, "budget_mode": "REQUIRE",
+            })
+            assert ids(structured) == ids(value) and structured["request"]["budget"] is None, structured
+            solo = await search("서교동 혼자 가기 좋은 술집 ㅊㅊ좀")
+            assert ids(solo) == ["02"] and solo["ranked"][0]["matched_purposes"][0]["label"] == "혼술", solo
+            assert ids(await search("서교동 혼커")) == ["07"]
+            assert ids(await search("서교동 카공하기 좋은 카페")) == ["07"]
+            assert ids(await search("서교동 단체 모임 술집")) == ["03"]
+            assert ids(await search("서교동 회식 전 카페")) == ["07", "08"]
+            missing = await search("서교동 데이트 술집")
+            assert missing["empty_reason"] == "NO_VISIT_PURPOSE" and not ids(missing), missing
+            assert not ids(await search("서교동 생맥주 술집"))
+            print("PASS 원본 업종 오류 차단 · 비용 비교 · 방문 목적은 출처가 있는 긍정 근거로만 추천")
+
+
+async def verify_second_round():
+    def venue(venue_id, description, price, category="PUB"):
+        return {
+            "venue_id": venue_id, "name": venue_id, "address": "서울특별시 마포구 검증로 1",
+            "region_id": "region:1144066000", "venue_category": category, "is_public": True, "avg_budget_krw": price,
+            "research": {"description": description, "sources": ["https://example.com/visit"]},
+        }
+
+    def menu(venue_id, menu_id, name, tag):
+        return {"venue_id": venue_id, "menu_id": menu_id, "name": name, "menu_type_tag_ids": [tag], "is_public": True}
+
+    rows = [
+        venue("review-pub", "방문자는 2차로 들렀으며 안주를 주문했다.", 18000),
+        venue("sourced-menu", "방문 후기에 메뉴가 소개된 곳이다.", 14000),
+        venue("copied-menu", "방문 당시 좌석이 차 있어서 기다렸다.", 13000),
+        venue("review-cafe", "식사 후 차를 마시기 좋았다고 기록한 카페이다.", 8000, "CAFE"),
+    ]
+    menus = [
+        menu("sourced-menu", "research-beer", "생맥주", "menu_draft_beer"),
+        menu("sourced-menu", "research-fries", "감자튀김", "menu_fries"),
+        menu("copied-menu", "csv-beer", "생맥주 (매장 메뉴판 미확인)", "menu_draft_beer"),
+        menu("copied-menu", "csv-fries", "감자튀김 (매장 메뉴판 미확인)", "menu_fries"),
+    ]
+    with TemporaryDirectory() as directory:
+        path = Path(directory) / "second-round.json"
+        path.write_text(json.dumps({"version": "test", "preview_only": True, "venues": rows, "menus": menus}),
+                        encoding="utf-8")
+        async with session_for("--public-catalog", str(path), "--allow-preview-catalog") as client:
+            async def search(query):
+                return await call(client, "recommend_venues", {"query": query})
+
+            for query in ("서교동 2차ㅊㅊ좀", "서교동에서3차 갈만한 데", "서교동 밥 먹고 한 잔 더"):
+                result = await search(query)
+                review, suggested = result["ranked"]
+                assert review["venue_id"] == "review-pub", result
+                assert review["matched_purposes"] == [{"id": "visit_second_round", "label": "2차"}], result
+                assert suggested["venue_id"] == "sourced-menu", result
+                assert suggested["matched_purposes"][0]["menu_names"] == ["생맥주", "감자튀김"], result
+            cafe = await search("서교동 2차 카페")
+            assert [row["venue_id"] for row in cafe["ranked"]] == ["review-cafe"], cafe
+            budget = await search("서교동 1만5천원 이하 2차 술집")
+            assert [row["venue_id"] for row in budget["ranked"]] == ["sourced-menu"], budget
+            no_pair = await search("서교동 2차 생맥주만 파는 술집")
+            assert no_pair["empty_reason"] == "NO_SECOND_ROUND" and not no_pair["ranked"], no_pair
+            not_round = await search("서교동 현대2차 앞 술집")
+            assert "visit_purposes" not in not_round["request"] and not_round["counts"]["ranked"] == 3, not_round
+            print("PASS 2차·3차·한 잔 더 · 술집/카페 선택 · 후기와 메뉴 근거 구분 · 예산·메뉴 조건 유지")
+
+
 async def verify_search_location_and_budget():
     sample_path = SAMPLE_DATA / "seoul_venues_demo_sample.csv"
     visit = (datetime.now(KST) + timedelta(hours=1)).isoformat()
@@ -911,6 +1022,8 @@ async def verify_offline():
     await verify_csv_sample()
     await verify_concierge_ranking()
     await verify_unverified_intent()
+    await verify_visit_purposes_and_cost()
+    await verify_second_round()
     await verify_search_location_and_budget()
     await verify_seoul_place_index()
     await verify_curated_recommendations()

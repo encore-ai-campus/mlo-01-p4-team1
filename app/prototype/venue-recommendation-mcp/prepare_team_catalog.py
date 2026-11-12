@@ -13,13 +13,13 @@ from tempfile import NamedTemporaryFile
 from urllib.parse import urlsplit
 
 
-from venue_csv_catalog import CONFIRMED_PUB_SUBTYPES
+from venue_csv_catalog import CONFIRMED_PUB_SUBTYPES, is_out_of_scope_facility
 from venue_nearby import PROVINCE_ALIASES, PROVINCE_LABELS, SeoulPlaceIndex, district_contains, dong_key
-from venue_recommendation_mcp import TAG_FILE
 from venue_search_intent import CALM_WORDS
 from verify_tag_weather import normalize, read_tags
 
 
+TAG_FILE = Path(__file__).with_name("공통_태그_목록_v0.2.csv")
 EXPLICIT_PUB_SUBTYPES = {
     "살얼음맥주/가성비호프", "경성레트로펍/파스타맥주", "야키토리/이자카야", "매운닭발/정통포차",
     "수제맥주펍", "캐주얼와인바", "포장마차", "오션뷰펍", "숙성생맥주펍", "살얼음생맥주/포차",
@@ -231,6 +231,8 @@ def prepare(source_dir, areas=None):
             )
             if reason is None and venue_category is None:
                 reason = "ambiguous_or_unsupported_venue_category"
+            if reason is None and is_out_of_scope_facility(raw["매장명"]):
+                reason = "out_of_scope_facility"
             if reason:
                 excluded_venues[reason] += 1
                 reasons_by_venue[venue_id] = reason
@@ -306,7 +308,10 @@ def prepare(source_dir, areas=None):
                                                  if repetition[signatures[key]] > 1),
             **totals, "excluded_venues": dict(excluded_venues), "excluded_menus": dict(excluded_menus),
         }
-    fingerprint = hashlib.sha256("".join(row["sha256"] for row in sources).encode()).hexdigest()[:12]
+    fingerprint_input = "".join(row["sha256"] for row in sources)
+    if any(item["excluded_venues"].get("out_of_scope_facility") for item in audit.values()):
+        fingerprint_input += "\nout_of_scope_facility"
+    fingerprint = hashlib.sha256(fingerprint_input.encode()).hexdigest()[:12]
     snapshot = {
         "version": f"drive-preview-{fingerprint}", "preview_only": True,
         "source_basis": "팀 Drive CSV의 매장·메뉴 값. 반복 메뉴의 매장별 메뉴판 출처 미확인.",

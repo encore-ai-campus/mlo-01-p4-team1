@@ -75,7 +75,9 @@ export const VenueExplorePage: React.FC<{ readOnly?: boolean; allowFeedback?: bo
     const controller = new AbortController();
     fetchVisitOptions(controller.signal)
       .then(options => {
-        if (!controller.signal.aborted) setConcierge({ status: 'ready', options });
+        if (!controller.signal.aborted) {
+          setConcierge(options === null ? { status: 'unavailable' } : { status: 'ready', options });
+        }
       })
       .catch(() => {
         if (!controller.signal.aborted) setConcierge({ status: 'error' });

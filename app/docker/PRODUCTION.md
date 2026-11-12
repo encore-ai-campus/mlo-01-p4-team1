@@ -67,9 +67,21 @@ Control A/B의 공통 API에는 `ES_URL`, `WEATHER_INDEX`, `ES_USERNAME`, `ES_PA
 지정합니다. Elasticsearch TLS 주소와 지정 인덱스에 문서 읽기 및 인덱스 메타데이터 조회 권한을 부여합니다.
 각 Control에서 대표 지역의 `/api/weather`가 200을 반환하고 `recommendation_ready=true`인지 확인합니다.
 
-매장 MCP는 기본 비활성입니다. `VENUE_MCP_SERVICE_ENABLED=1`과 `VENUE_MCP_PUBLIC_CATALOG`를
-설정하면 로그인 세션과 활성 `CONSUMER` 권한이 있는 계정에서 호출할 수 있습니다. 승인된
-`preview_only=false` 스냅샷을 담은 디렉터리를 컨테이너에 읽기 전용으로 마운트합니다.
+매장 MCP는 기본 비활성입니다. `VENUE_MCP_SERVICE_ENABLED=1`을 설정하면 로그인 세션과
+활성 `CONSUMER` 권한이 있는 계정에서 호출할 수 있습니다. 운영 카탈로그는
+[팀 CSV 변환 명령](../prototype/venue-recommendation-mcp/README.md#팀-csv-준비)으로 준비합니다.
+각 Control의 호스트 디렉터리에 검증한 동일 버전의 `catalog.sqlite3`을 전달합니다. 웹 프로세스의
+UID 10001이 디렉터리를 탐색하고 파일을 읽을 수 있어야 합니다.
+
+호스트 경로를 `VENUE_MCP_CATALOG_DIR`로 지정하고 승인할 web Compose를 다음과 같이 렌더링합니다.
+
+```bash
+docker compose -f "$WEB_COMPOSE" -f app/docker/venue-catalog.compose.yml config --format json
+```
+
+이 결과를 각 호스트의 승인된 web revision binding에 사용합니다. 카탈로그 디렉터리는
+`/data/venue-catalog`에 읽기 전용으로 연결됩니다. 보호 설정에 카탈로그 경로를 이미 지정했다면
+`/data/venue-catalog/catalog.sqlite3`으로 맞춥니다. 카탈로그와 팀 원본은 Git 및 이미지에서 제외합니다.
 갱신할 때는 호스트의 같은 디렉터리에서 완성된 파일로 원자 교체합니다. JSON 파일을 단독으로 마운트한
 경우 교체한 파일을 보려면 컨테이너를 재생성해야 합니다. `VENUE_WEATHER_BASE_URL`은
 MCP 프로세스에서 직접 연결할 수 있는 공통 API 주소를 사용합니다. 자연어 질문까지 사용하려면

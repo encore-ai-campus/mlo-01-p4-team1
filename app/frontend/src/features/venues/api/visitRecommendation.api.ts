@@ -3,7 +3,7 @@ import type { VenueBudgetExample } from '../types/venue.types';
 
 export interface VenueTag {
   id: string;
-  kind: 'MOOD' | 'CUISINE' | 'MENU_TYPE';
+  kind: 'MOOD' | 'CUISINE' | 'MENU_TYPE' | 'VISIT_PURPOSE';
   label: string;
 }
 
@@ -31,7 +31,7 @@ export interface VisitOptionsResponse {
 }
 
 export type VenueRecommendationConnection =
-  | { status: 'checking' | 'error' }
+  | { status: 'checking' | 'error' | 'unavailable' }
   | { status: 'ready'; options: VisitOptionsResponse };
 
 export interface VisitConditions {
@@ -55,6 +55,7 @@ export interface VisitVenue {
   distance_m?: number;
   weather_match?: { label: string; source: 'TAG_MATCH' };
   matched_moods: Array<{ id: string; label: string }>;
+  matched_purposes?: Array<{ id: string; label: string; menu_names?: string[] }>;
   matched_orders: Array<Array<{ menu_id: string; name: string }>>;
   paired_menu?: { menu_id: string; name: string };
   forecast: {
@@ -85,6 +86,8 @@ export interface VenueLlmConditions {
   budget_mode?: 'PREFER' | 'REQUIRE';
   required_moods?: string[] | null;
   preferred_moods?: string[] | null;
+  visit_purposes?: string[] | null;
+  prefer_lower_budget?: boolean;
   orders?: Array<{ cuisine?: string | null; types?: string[] | null }> | null;
   unverified_conditions?: UnverifiedVenueCondition[] | null;
 }
@@ -99,6 +102,8 @@ export interface VisitRecommendation {
     budget_mode?: 'PREFER' | 'REQUIRE';
     required_moods?: string[];
     preferred_moods?: string[];
+    visit_purposes?: string[];
+    prefer_lower_budget?: boolean;
     location?: {
       label: string;
       kind: 'CITY' | 'DISTRICT' | 'DONG' | 'STATION' | 'EXIT' | 'LANDMARK';
@@ -135,7 +140,7 @@ export interface VenueChatResponse {
 const endpoint = '/api/venues/ai-concierge';
 const unconfiguredLlm = { configured: false, provider: null };
 
-export async function fetchVisitOptions(signal: AbortSignal): Promise<VisitOptionsResponse> {
+export async function fetchVisitOptions(signal: AbortSignal): Promise<VisitOptionsResponse | null> {
   try {
     const data = await requestJson<{ mcp: VisitOptions | null; llm?: VenueLlmAvailability }>(
       endpoint + '/options', { signal, cache: 'no-store' }, 20_000,
@@ -145,7 +150,7 @@ export async function fetchVisitOptions(signal: AbortSignal): Promise<VisitOptio
     }
     return { mcp: data.mcp, llm: data.llm ?? unconfiguredLlm };
   } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return { mcp: null, llm: unconfiguredLlm };
+    if (error instanceof ApiError && error.status === 404) return null;
     throw error;
   }
 }
