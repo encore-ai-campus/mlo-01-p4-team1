@@ -112,6 +112,8 @@ class PrivateDemoEnrollmentTests(TestCase):
                 self.assertTrue(public.get("/api/accounts/policy").json()["ready"])
                 self.assertEqual(public.get("/api/accounts/policy").json()["documents"], docs)
                 self.assertEqual(admin.get(path).status_code, 200)
+                menus = admin.get('/api/auth/me').json()['allowed_menus']
+                self.assertIn('/platform/review', [menu['path'] for menu in menus])
                 self.assertTrue(ClaimDecision.objects.filter(claim_id=claim["id"], decision="APPROVE").exists())
                 self.assertFalse(private_demo.available())
                 body = {"username": "publicfixture", "nickname": "공개회원", "password": PASSWORD,
