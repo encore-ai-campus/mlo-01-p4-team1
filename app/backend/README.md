@@ -1,14 +1,15 @@
 # 추천 API와 서비스 조회 코드
 
 - 작성일: 2026-10-16
-- 수정일: 2026-10-16
+- 수정일: 2026-11-12
 
 | 위치 | 책임 |
 |---|---|
-| cafe/ | 추천 API 호스트의 Django 설정·URL |
+| cafe/ | 통합 호스트의 Django 설정·URL (`/api/venues/*`, `/api/platform/v1/*`, `/api/phase4/*`, `/platform/*`) |
 | recommendation/ | 추천 요청·작업/결과·제외/승인·평가 |
 | music/ | 음악 모델·CSV 등록 명령·카탈로그 발행·migration |
 | weather/ | 지역/도로명 검색·저장된 최신 날씨 조회 함수 |
+| venues/ | Track 2 매장 탐색·Option A 제휴/직접등록(`VenueOwnerBridge`·`VenueCatalogRecord`)·폐업 검수·이벤트/QR·`sync_venues_catalog` |
 
 날씨 HTTP는 `backend.weather.adapter.display`, 추천 bundle은 `backend.weather.adapter.obtain(region_id, as_of)`로 연결합니다. PostgreSQL 매핑 → ES 최신 자료·공통 특징을 읽고 조회 때 만료를 재검사합니다. 원문 `weather_for_region`을 추천 provider로 바로 지정하지 않습니다. `common/`은 guest·ADMIN·피드백/outbox·음악 관리·광고 인증 어댑터를 제공합니다. 실제 운영 저장소 연결은 설정 후 별도로 검증합니다.
 

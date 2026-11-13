@@ -45,6 +45,7 @@ class LakehouseAndRuntimeTests(TestCase):
                 json.dumps({
                     'DJANGO_SECRET_KEY': 'test-key',
                     'PLATFORM_LOCAL_MVP': '1',
+                    'VENUE_PUBLIC_CATALOG_ENABLED': '1',
                     'VENUE_DATA_DIR': '/data/venues',
                     'VENUE_KAFKA_BOOTSTRAP': 'kafka:9092',
                     'VENUE_KAFKA_TOPIC': 'venue.events.v1',
