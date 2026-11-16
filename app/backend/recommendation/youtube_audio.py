@@ -15,7 +15,7 @@ from django.core.cache import cache
 from . import youtube_registry
 from .errors import require
 from .youtube_audio_worker import VIDEO_ID, REASONS, trusted_url
-from .youtube_playback import tagged_preview_candidate
+from .youtube_playback import preview_registry_candidates, tagged_preview_candidate
 
 
 _lock = threading.Lock()
@@ -76,7 +76,7 @@ def authorized_video(track, video_id, *, playlist=None):
         native_verified = row.get('native_verified') and row.get('native_source') == 'OPERATOR_NATIVE_REPORTED_PLAYING'
         if iframe_verified or native_verified:
             return True
-    return False
+    return playlist is not None and bool(preview_registry_candidates(playlist, track, rows))
 
 
 def _reserve_owner(owner_id):

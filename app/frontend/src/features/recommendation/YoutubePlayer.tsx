@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import {api, csrfHeaders, requestJson} from '../../shared/api';
+import type {Playlist, PreviewPlaybackSource} from '../../shared/types';
 import {loadYoutubeIframeApi} from './youtubeIframeApi';
 import {YoutubeMediaPool, type AudioResolution} from './youtubeMediaPool';
 import {YoutubePlaybackController, type PlaybackCandidate, type PlaybackResolution, type PlaybackSnapshot, type PlaybackTrack} from './youtubePlayerController';
@@ -7,11 +8,22 @@ import './YoutubePlayer.css';
 
 export type YoutubePlayerProps = {playlistId: string; tracks: PlaybackTrack[]; blockReason?: string | null;
   mappingRevision?: number; pauseRevision?: number; showSourceThumbnail?: boolean; allowTaggedPreview?: boolean;
+  allowCsvPreview?: boolean;
   onPlaybackActivityChange?: (playing: boolean) => void};
 
 const initial: PlaybackSnapshot = {index: 0, phase: 'idle', message: '', candidate: null, skipped: [], playedTrackIds: []};
 const defaultCover = '/default-cover.svg';
 const videoId = /^[A-Za-z0-9_-]{11}$/;
+
+export function resolvePreviewPlaybackSource(
+  playlist: Pick<Playlist, 'is_test' | 'preview_only' | 'preview_playback_source'> | null,
+  isDemo: boolean,
+  musicSource?: string,
+): PreviewPlaybackSource | null {
+  if (playlist?.is_test !== true || playlist.preview_only !== true) return null;
+  if (playlist.preview_playback_source !== undefined) return playlist.preview_playback_source;
+  return isDemo && musicSource === 'TAGGED_JSON' ? 'TAGGED_JSON_PREVIEW' : null;
+}
 
 export function sourceThumbnail(track: PlaybackTrack | undefined, enabled: boolean) {
   const id = track?.youtube_video_id;
@@ -19,10 +31,13 @@ export function sourceThumbnail(track: PlaybackTrack | undefined, enabled: boole
     ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : null;
 }
 
-export function allowedPlaybackCandidate(track: PlaybackTrack, candidate: PlaybackCandidate, allowTaggedPreview: boolean) {
+export function allowedPlaybackCandidate(track: PlaybackTrack, candidate: PlaybackCandidate, allowTaggedPreview: boolean, allowCsvPreview = false) {
   if (typeof candidate.video_id !== 'string' || !videoId.test(candidate.video_id)) return false;
   if (candidate.source === 'TAGGED_JSON_PREVIEW') {
     return allowTaggedPreview && candidate.match_status === 'CANDIDATE' && candidate.video_id === track.youtube_video_id;
+  }
+  if (candidate.source === 'CSV_PREVIEW') {
+    return allowCsvPreview && candidate.match_status === 'CANDIDATE';
   }
   return candidate.match_status === 'VERIFIED';
 }
@@ -40,7 +55,7 @@ function PlaybackCover({track, showSourceThumbnail}: {track?: PlaybackTrack; sho
 }
 
 export function YoutubePlayer({playlistId, tracks, blockReason, mappingRevision = 0, pauseRevision = 0,
-  showSourceThumbnail = false, allowTaggedPreview = false, onPlaybackActivityChange}: YoutubePlayerProps) {
+  showSourceThumbnail = false, allowTaggedPreview = false, allowCsvPreview = false, onPlaybackActivityChange}: YoutubePlayerProps) {
   const host = useRef<HTMLDivElement>(null), engine = useRef<YoutubePlaybackController | null>(null);
   const userStarted = useRef(false), latestBlock = useRef(blockReason);
   latestBlock.current = blockReason;
@@ -52,7 +67,8 @@ export function YoutubePlayer({playlistId, tracks, blockReason, mappingRevision 
     setState(initial); userStarted.current = false;
     const currentTracks = [...tracks];
     const tracksById = new Map(currentTracks.map(track => [track.track_id, track]));
-    const allowCandidate = (track: PlaybackTrack, candidate: PlaybackCandidate) => allowedPlaybackCandidate(track, candidate, allowTaggedPreview);
+    const allowCandidate = (track: PlaybackTrack, candidate: PlaybackCandidate) =>
+      allowedPlaybackCandidate(track, candidate, allowTaggedPreview, allowCsvPreview);
     const pool = new YoutubeMediaPool({api: loadYoutubeIframeApi, host: host.current,
       shouldAutoplay: () => userStarted.current,
       allowCandidate,
@@ -79,14 +95,14 @@ export function YoutubePlayer({playlistId, tracks, blockReason, mappingRevision 
         'POST', {track_id: trackId, excluded_video_ids: excludedVideoIds}, undefined, signal);
       const track = tracksById.get(trackId);
       return {...result, candidates: track ? result.candidates.filter(candidate => allowCandidate(track, candidate)) : []};
-    }, setState, () => allowTaggedPreview || userStarted.current);
+    }, setState, () => allowTaggedPreview || allowCsvPreview || userStarted.current);
     engine.current = controller;
     if (latestBlock.current) controller.setBlocked(latestBlock.current);
     else if (currentTracks.length) void controller.start();
     return () => {controller.destroy(); pool.destroy(); engine.current = null;};
     // Refetching the same immutable playlist after approval or feedback keeps its media active.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playlistId, queueKey, mappingRevision, allowTaggedPreview]);
+  }, [playlistId, queueKey, mappingRevision, allowTaggedPreview, allowCsvPreview]);
 
   const wasBlocked = useRef(false);
   useEffect(() => {

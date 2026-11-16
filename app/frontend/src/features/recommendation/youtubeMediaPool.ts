@@ -187,7 +187,7 @@ export class YoutubeMediaPool implements PlaybackAdapter {
     if (this.destroyed || signal.aborted || !this.options.allowCandidate(track, candidate)) return 'unknown';
     this.discardPrepared();
     const slot = this.makeSlot(candidate, track, true, signal); this.warming = slot;
-    if (candidate.playback_hint === 'AUDIO' && candidate.source !== 'TAGGED_JSON_PREVIEW') void this.startAudio(slot); else this.startIframe(slot);
+    if (candidate.playback_hint === 'AUDIO' && candidate.match_status === 'VERIFIED') void this.startAudio(slot); else this.startIframe(slot);
     return slot.promise;
   }
   preparedLifetimeMs() {return this.prepared ? Math.max(0, this.prepared.expiresAt - Date.now()) : 0;}
@@ -210,7 +210,7 @@ export class YoutubeMediaPool implements PlaybackAdapter {
     this.discardPrepared(); if (this.active) this.dispose(this.active);
     const next = this.makeSlot(current.candidate, current.track, false); this.active = next;
     this.options.onRoute('iframe');
-    if (current.candidate.playback_hint === 'AUDIO' && current.candidate.source !== 'TAGGED_JSON_PREVIEW') void this.startAudio(next); else this.startIframe(next);
+    if (current.candidate.playback_hint === 'AUDIO' && current.candidate.match_status === 'VERIFIED') void this.startAudio(next); else this.startIframe(next);
   }
   play() {
     const slot = this.active; if (!slot || slot.disposed) return;

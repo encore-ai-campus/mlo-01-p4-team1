@@ -100,9 +100,9 @@ class TaggedPreviewPlaybackTests(TestCase):
         candidate = self.playback().json()['candidates'][0]
         self.assertEqual((candidate['video_id'], candidate['match_status']), (OTHER_VIDEO, 'VERIFIED'))
         self.assertEqual(self.audio().status_code, 409)
-        for status, reason in (('CANDIDATE', 'PENDING'), ('BLOCKED', 'BLOCKED')):
+        for status, reason, video_id in (('CANDIDATE', 'PENDING', OTHER_VIDEO), ('BLOCKED', 'BLOCKED', VIDEO)):
             with self.subTest(status=status):
-                self.registry.return_value = {'revision': 2, 'mappings': [{**approved, 'video_id': VIDEO,
+                self.registry.return_value = {'revision': 2, 'mappings': [{**approved, 'video_id': video_id,
                                                                            'status': status}]}
                 self.assertEqual(self.playback().json()['reason'], reason)
                 self.assertEqual(self.audio().status_code, 409)
@@ -110,6 +110,49 @@ class TaggedPreviewPlaybackTests(TestCase):
         self.assertEqual(self.playback().json()['reason'], 'REGISTRY_UNAVAILABLE')
         self.assertEqual(self.audio().status_code, 503)
         self.worker.assert_not_called()
+
+    def test_matching_collected_tagged_video_can_play_and_prepare_audio(self):
+        self.registry.return_value = {'revision': 1, 'mappings': [
+            {'video_id': OTHER_VIDEO, 'status': 'CANDIDATE'},
+            {'video_id': VIDEO, 'status': 'CANDIDATE'},
+        ]}
+        detail = self.client.get(f'/api/playlists/{self.playlist.pk}').json()
+        self.assertEqual(detail['preview_playback_source'], 'TAGGED_JSON_PREVIEW')
+        candidates = self.playback().json()['candidates']
+        self.assertEqual([(row['video_id'], row['source'], row['match_status']) for row in candidates],
+                         [(VIDEO, 'TAGGED_JSON_PREVIEW', 'CANDIDATE')])
+        self.assertEqual(self.audio(video_id=OTHER_VIDEO).status_code, 409)
+        self.assertEqual(self.audio().status_code, 200)
+        self.worker.assert_called_once_with(VIDEO)
+
+    def test_csv_preview_uses_only_its_tracks_unblocked_collected_video(self):
+        job = self.playlist.job
+        job.catalog = Catalog.objects.create(
+            version='spotify-preview-test-general-test-scores-v4', tracks=[], sha256='d' * 64,
+            source_ref='local-preview:tracks.csv', source_sha256='b' * 64, ready=True, is_test=True,
+        )
+        job.save(update_fields=['catalog'])
+        track = self.playlist.snapshot['items'][0]
+        track.pop('youtube_video_id')
+        track['play_url'] = 'https://open.spotify.com/track/example'
+        self.playlist.save(update_fields=['snapshot'])
+        self.registry.return_value = {'revision': 2, 'mappings': [
+            {'video_id': OTHER_VIDEO, 'status': 'CANDIDATE', 'native_source': 'OPERATOR_NATIVE_BLOCK'},
+            {'video_id': VIDEO, 'status': 'CANDIDATE'},
+        ]}
+        detail = self.client.get(f'/api/playlists/{self.playlist.pk}').json()
+        self.assertEqual(detail['preview_playback_source'], 'CSV_PREVIEW')
+        candidates = self.playback().json()['candidates']
+        self.assertEqual([(row['video_id'], row['source'], row['match_status']) for row in candidates],
+                         [(VIDEO, 'CSV_PREVIEW', 'CANDIDATE')])
+        self.assertEqual(self.playback(excluded_video_ids=[VIDEO]).json()['reason'], 'PENDING')
+        self.assertEqual(self.audio(video_id=OTHER_VIDEO).status_code, 409)
+        self.assertEqual(self.audio().status_code, 200)
+        with override_settings(LOCAL_DEMO=False, YOUTUBE_REGISTRY_BACKEND='database'), \
+                patch.object(Endpoint, 'owner', return_value=OWNER):
+            self.assertIsNone(self.client.get(f'/api/playlists/{self.playlist.pk}').json()['preview_playback_source'])
+            self.assertEqual(self.playback().json()['reason'], 'PENDING')
+            self.assertEqual(self.audio().status_code, 409)
 
     def test_other_test_catalog_and_operating_mode_never_receive_preview_access(self):
         catalog = self.playlist.job.catalog

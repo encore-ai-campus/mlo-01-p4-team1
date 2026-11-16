@@ -1,5 +1,6 @@
 """Submit a bounded playlist proposal request to OpenAI."""
 import hashlib
+from heapq import nsmallest
 import json
 import os
 from fractions import Fraction
@@ -20,6 +21,12 @@ PROPOSAL_SCHEMA = {'type':'object','properties':{
     'track_reasons':{'type':'array','items':{'type':'object','properties':{'track_id':{'type':'string'},'reason':{'type':'string'}},
         'required':['track_id','reason'],'additionalProperties':False}}},
     'required':['track_ids','summary','track_reasons'],'additionalProperties':False}
+COMPACT_PROPOSAL_SCHEMA = {
+    'type': 'object',
+    'properties': {'track_ids': {'type': 'array', 'items': {'type': 'integer'}}, 'summary': {'type': 'string'}},
+    'required': ['track_ids', 'summary'],
+    'additionalProperties': False,
+}
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -39,8 +46,10 @@ def candidate_window(candidates, context, parent=None):
     def rank(track):
         tie=hashlib.sha256((seed+'\0'+track['track_id']).encode()).digest() if off else b''
         return -Fraction(track['scores']['S'] or 0),tie,track['track_id']
-    ordered=sorted(candidates,key=rank)
     selected=context['options']['selected_genre_codes']
+    if not selected and parent is None:
+        return nsmallest(limit, candidates, key=rank)
+    ordered=sorted(candidates,key=rank)
     # Reserve selected-genre material before optional complementary genres.
     if off and selected:
         ordered.sort(key=lambda t:0 if set(t['genre_group_codes']) & set(selected) else 1)
@@ -109,7 +118,7 @@ def _parse_openai_response(raw):
                       for key in ('input_tokens', 'output_tokens')}
 
 
-def propose(candidates, context, parent=None):
+def propose(candidates, context, parent=None, *, compact=False):
     api_key = os.environ.get('OPENAI_API_KEY', '').strip()
     timeout_ms = settings.OPENAI_PLAYLIST_TIMEOUT_MS
     token_budget = settings.OPENAI_PLAYLIST_MAX_OUTPUT_TOKENS
@@ -126,10 +135,13 @@ def propose(candidates, context, parent=None):
     trigger = context.get('recommendation_trigger')
     if trigger not in ('initial', 'regeneration', 'weather_refresh'):
         trigger = 'initial' if parent is None else 'regeneration'
+    track_ids = [track['track_id'] for track in candidates]
+    aliases = {track_id: index for index, track_id in enumerate(track_ids)} if compact else {}
     instructions = [
         f'Choose only supplied track IDs, without duplicates, for a {MINIMUM // 60000}–{MAXIMUM // 60000} minute playlist.',
         'Order adjacent tracks for a natural transition while respecting the supplied preferences and weather mode.',
-        'Return a concise Korean summary and exactly one short Korean reason per selected track.',
+        'Return a concise Korean summary.' if compact
+        else 'Return a concise Korean summary and exactly one short Korean reason per selected track.',
         'Use only the supplied information. Do not invent a track, audio feature, or weather condition.',
     ]
     if selected:
@@ -144,7 +156,7 @@ def propose(candidates, context, parent=None):
         'selected_themes': options.get('selected_theme_codes', []),
         'vocal_option': options.get('vocal_option'),
         'candidates': [{
-            'track_id': track['track_id'], 'duration_ms': track['duration_ms'],
+            'track_id': aliases.get(track['track_id'], track['track_id']), 'duration_ms': track['duration_ms'],
             'genre_group_codes': track.get('genre_group_codes', []), 'theme_codes': track.get('theme_codes', []),
             'scores': {key: float(value) if value is not None else None
                        for key, value in track.get('scores', {}).items() if key in ('W', 'P', 'S')},
@@ -152,25 +164,33 @@ def propose(candidates, context, parent=None):
     }
     if parent is not None:
         previous = list(dict.fromkeys(parent))
-        data['parent_track_ids'] = previous
+        data['parent_track_ids'] = [aliases[track_id] for track_id in previous if track_id in aliases] if compact else previous
         instructions.append(f'Choose at least {max(1, len(previous) // 5)} track IDs absent from the parent playlist.')
+    format_name = 'playlist_compact_v1' if compact else 'playlist_proposal_v1'
     payload = {
         'model': OPENAI_PLAYLIST_MODEL, 'store': False, 'instructions': ' '.join(instructions),
-        'input': json.dumps(data, ensure_ascii=False, allow_nan=False),
+        'input': json.dumps(data, ensure_ascii=False, allow_nan=False, separators=(',', ':') if compact else None),
         'reasoning': {'effort': 'low'}, 'max_output_tokens': token_budget,
-        'text': {'format': {'type': 'json_schema', 'name': 'playlist_proposal_v1',
-                            'strict': True, 'schema': PROPOSAL_SCHEMA}},
+        'text': {'format': {'type': 'json_schema', 'name': format_name,
+                            'strict': True, 'schema': COMPACT_PROPOSAL_SCHEMA if compact else PROPOSAL_SCHEMA}},
     }
     proposal, usage = _parse_openai_response(_request_openai(payload, api_key, timeout_ms))
+    if compact:
+        selected_ids = proposal.get('track_ids')
+        require(set(proposal) == {'track_ids', 'summary'} and type(selected_ids) is list
+                and all(type(index) is int and 0 <= index < len(track_ids) for index in selected_ids),
+                'PROVIDER_RESPONSE_INVALID', 'GPT 선곡 응답 검증에 실패했어요.')
+        proposal = {'track_ids': [track_ids[index] for index in selected_ids],
+                    'summary': proposal['summary'], 'track_reasons': []}
     return proposal, {
-        'model': OPENAI_PLAYLIST_MODEL, 'prompt_version': 'c-gpt-playlist-v1',
-        'schema_version': 'OpenAIPlaylistProposal-v1', 'attempts': 1,
-        'candidate_ids_sha256': hashlib.sha256(json.dumps([t['track_id'] for t in candidates]).encode()).hexdigest(),
+        'model': OPENAI_PLAYLIST_MODEL, 'prompt_version': 'c-gpt-playlist-compact-v1' if compact else 'c-gpt-playlist-v1',
+        'schema_version': 'OpenAIPlaylistCompact-v1' if compact else 'OpenAIPlaylistProposal-v1', 'attempts': 1,
+        'candidate_ids_sha256': hashlib.sha256(json.dumps(track_ids).encode()).hexdigest(),
         **usage,
     }
 
 
-def validate_proposal(proposal, candidates, parent, options, all_candidates=None):
+def validate_proposal(proposal, candidates, parent, options, all_candidates=None, *, compact=False):
     fail = lambda condition: require(condition,'PROVIDER_RESPONSE_INVALID','GPT 선곡 응답 검증에 실패했어요.')
     fail(type(proposal) is dict and set(proposal)=={'track_ids','summary','track_reasons'})
     ids, reasons = proposal['track_ids'], proposal['track_reasons']
@@ -180,7 +200,7 @@ def validate_proposal(proposal, candidates, parent, options, all_candidates=None
     fail(set(ids)<=lookup.keys() and type(proposal['summary']) is str and type(reasons) is list)
     fail(all(type(r) is dict and set(r)=={'track_id','reason'} and type(r['track_id']) is str
              and type(r['reason']) is str and bool(r['reason'].strip()) for r in reasons))
-    fail(len(reasons)==len(ids) and {r['track_id'] for r in reasons}==set(ids))
+    fail(not reasons if compact else len(reasons)==len(ids) and {r['track_id'] for r in reasons}==set(ids))
     tracks = [lookup[x] for x in ids]
     fail(MINIMUM <= sum(t['duration_ms'] for t in tracks) <= MAXIMUM)
     selected=options['selected_genre_codes']
