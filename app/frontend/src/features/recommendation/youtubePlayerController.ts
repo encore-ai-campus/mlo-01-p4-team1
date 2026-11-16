@@ -1,5 +1,5 @@
 export type PlaybackTrack = {track_id: string; track_name: string; artists_name: string; cover_image_url?: string | null; youtube_video_id?: string};
-export type PlaybackCandidate = {video_id: string; title: string; channel_title: string; duration_seconds: number; source: 'CATALOG_MAPPING' | 'YOUTUBE_API' | 'MAPPING_REGISTRY' | 'TAGGED_JSON_PREVIEW'; match_status?: 'VERIFIED' | 'CANDIDATE'; playback_hint?: 'AUDIO'};
+export type PlaybackCandidate = {video_id: string; title: string; channel_title: string; duration_seconds: number; source: 'CATALOG_MAPPING' | 'YOUTUBE_API' | 'MAPPING_REGISTRY' | 'TAGGED_JSON_PREVIEW' | 'CSV_PREVIEW'; match_status?: 'VERIFIED' | 'CANDIDATE'; playback_hint?: 'AUDIO'};
 export type PlaybackResolution = {track_id: string; status: 'READY' | 'SEARCH_UNAVAILABLE' | 'NO_MATCH' | 'MAPPING_REQUIRED'; candidates: PlaybackCandidate[]; reason?: 'UNMAPPED' | 'PENDING' | 'BLOCKED'; message?: string};
 export type PlaybackPhase = 'idle' | 'resolving' | 'loading' | 'playing' | 'paused' | 'blocked' | 'unavailable' | 'complete' | 'error';
 export type PlaybackSnapshot = {index: number; phase: PlaybackPhase; message: string; candidate: PlaybackCandidate | null; skipped: {track_id: string; track_name: string; reason: string}[]; playedTrackIds: string[]};
@@ -262,7 +262,8 @@ export class YoutubePlaybackController {
       if (this.candidates.length && this.attempted.length < 5) this.loadNextCandidate();
       else if (this.requests < 2 && this.attempted.length < 5) void this.findCandidates();
       else void this.skipUnavailable(`YouTube 삽입 재생 불가(오류 ${code})로 이 곡을 건너뛰었어요.`);
-    } else if (this.state.candidate.source === 'TAGGED_JSON_PREVIEW' && this.autoSkipUnavailable()) {
+    } else if ((this.state.candidate.source === 'TAGGED_JSON_PREVIEW' || this.state.candidate.source === 'CSV_PREVIEW')
+      && this.autoSkipUnavailable()) {
       void this.skipUnavailable(`이 곡의 재생을 확인하지 못했어요(오류 ${code}).`);
     } else {
       this.adapter.pause();

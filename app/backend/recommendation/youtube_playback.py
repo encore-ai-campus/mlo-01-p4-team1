@@ -62,20 +62,58 @@ def validate_playback_request(body):
 
 def tagged_preview_candidate(playlist, track):
     """Return the original video only for a local tagging-JSON test snapshot."""
-    if not (settings.LOCAL_DEMO and not settings.INTEGRATION_ENABLED
-            and playlist.snapshot.get('is_test') is True and playlist.snapshot.get('preview_only') is True):
+    if settings.INTEGRATION_ENABLED or preview_playback_source(playlist) != 'TAGGED_JSON_PREVIEW':
         return None
+    return _tagged_snapshot_candidate(track)
+
+
+def _tagged_snapshot_candidate(track):
     video_id = track.get('youtube_video_id')
     duration_ms = track.get('duration_ms')
     if (not isinstance(video_id, str) or not VIDEO_ID.fullmatch(video_id)
             or track.get('play_url') != f'https://www.youtube.com/watch?v={video_id}'
             or type(duration_ms) is not int or duration_ms <= 0):
         return None
-    if not Catalog.objects.filter(job__playlist=playlist, is_test=True, ready=True,
-                                  source_ref__startswith='local-preview:tagged-json:').exists():
-        return None
     return {'video_id': video_id, 'title': track['track_name'], 'channel_title': track['artists_name'],
             'duration_seconds': duration_ms / 1000, 'source': 'TAGGED_JSON_PREVIEW', 'match_status': 'CANDIDATE'}
+
+
+def preview_playback_source(playlist):
+    if not (settings.LOCAL_DEMO and playlist.snapshot.get('is_test') is True
+            and playlist.snapshot.get('preview_only') is True):
+        return None
+    catalog = Catalog.objects.filter(job__playlist=playlist, is_test=True, ready=True).values_list(
+        'version', 'source_ref',
+    ).first()
+    if catalog is None:
+        return None
+    version, source_ref = catalog
+    if source_ref.startswith('local-preview:tagged-json:'):
+        return 'TAGGED_JSON_PREVIEW'
+    if version.startswith('spotify-preview-') and source_ref.startswith('local-preview:') and source_ref.lower().endswith('.csv'):
+        return 'CSV_PREVIEW'
+    return None
+
+
+def preview_registry_candidates(playlist, track, mappings):
+    eligible_ids = [
+        row['video_id'] for row in mappings
+        if row.get('status') == 'CANDIDATE' and row.get('native_source') != 'OPERATOR_NATIVE_BLOCK'
+        and isinstance(row.get('video_id'), str) and VIDEO_ID.fullmatch(row['video_id'])
+    ]
+    if not eligible_ids:
+        return []
+    source = preview_playback_source(playlist)
+    if source == 'TAGGED_JSON_PREVIEW':
+        candidate = _tagged_snapshot_candidate(track)
+        return [candidate] if candidate and candidate['video_id'] in eligible_ids else []
+    if source == 'CSV_PREVIEW':
+        return [
+            {'video_id': video_id, 'title': track['track_name'], 'channel_title': track['artists_name'],
+             'duration_seconds': track['duration_ms'] / 1000, 'source': source, 'match_status': 'CANDIDATE'}
+            for video_id in eligible_ids
+        ]
+    return []
 
 
 def _text(value):
@@ -267,10 +305,10 @@ def _lookup(track, owner_id, api_key):
         cache.delete(lock_key)
 
 
-def resolve_playback_candidates(track, excluded_video_ids=(), owner_id=''):
+def resolve_playback_candidates(track, excluded_video_ids=(), owner_id='', *, playlist=None):
     """Read-only, lazy resolution for one authorized immutable result item."""
     if getattr(settings, 'YOUTUBE_PLAYBACK_MODE', 'KEYLESS') == 'KEYLESS':
-        return _keyless_candidates(track, excluded_video_ids)
+        return _keyless_candidates(track, excluded_video_ids, playlist)
     excluded = set(excluded_video_ids)
     mapped = _catalog_candidate(track)
     if mapped and mapped['video_id'] not in excluded:
@@ -294,7 +332,7 @@ def resolve_playback_candidates(track, excluded_video_ids=(), owner_id=''):
             'message': '검색한 후보에서 원곡명·아티스트·길이가 맞는 한국 재생 가능 삽입 영상을 찾지 못했어요.'}
 
 
-def _keyless_candidates(track, excluded_video_ids):
+def _keyless_candidates(track, excluded_video_ids, playlist=None):
     """Never fall through to native metadata or remote search in keyless mode."""
     from .errors import DomainError
     if not settings.LOCAL_DEMO and getattr(settings,'YOUTUBE_REGISTRY_BACKEND','disabled') != 'database':
@@ -327,6 +365,12 @@ def _keyless_candidates(track, excluded_video_ids):
     if native:
         return {'track_id': track['track_id'], 'status': 'READY', 'candidates': native[:5],
                 'mapping_revision': registered['revision']}
+    if playlist is not None:
+        preview = [candidate for candidate in preview_registry_candidates(playlist, track, registered['mappings'])
+                   if candidate['video_id'] not in excluded]
+        if preview:
+            return {'track_id': track['track_id'], 'status': 'READY', 'candidates': preview[:5],
+                    'mapping_revision': registered['revision']}
     reason = ('UNMAPPED' if not registered['mappings'] else
               'PENDING' if any(row['status'] == 'CANDIDATE' for row in registered['mappings']) else 'BLOCKED')
     return {'track_id': track['track_id'], 'status': 'MAPPING_REQUIRED', 'candidates': [],

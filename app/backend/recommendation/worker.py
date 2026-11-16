@@ -64,34 +64,35 @@ def _index_for(catalog, raw):
 
 
 def _collect_candidates(catalog, raw, context):
-    if len(raw) >= 5000:
+    options = context['options']
+    allowed_genres = context['allowed_genre_group_codes']
+    excluded = set(context['excluded_track_ids'])
+    on = options['weather_influence_mode'] == 'ON'
+    has_off_preference = bool(options['selected_theme_codes'] or options['selected_genre_codes'])
+    if on and len(raw) >= 5000:
         index = _index_for(catalog, raw)
-        common_count = index.common_count(context['options'], context['allowed_genre_group_codes'],
-                                          (), context['excluded_track_ids'])
+        common_count = index.common_count(options, allowed_genres, (), excluded)
         selective_limit = max(1, min(5000, len(raw) // 10))
-        if context['options']['weather_influence_mode'] == 'ON' and common_count < selective_limit:
-            return index.candidates(context['options'], context['weather_code'],
-                                    context['allowed_genre_group_codes'], (),
-                                    context['excluded_track_ids'])
+        if common_count < selective_limit:
+            return index.candidates(options, context['weather_code'], allowed_genres, (), excluded)
 
-    on = context['options']['weather_influence_mode'] == 'ON'
     candidates = []
     audit = {'catalog_count': len(raw), 'common_eligible_count': 0, 'common_rejected_count': 0,
              'common_eligible_total_ms': 0, 'weather_rejected_count': 0,
              'off_missing_preference_count': 0}
     for track in raw:
-        if not eligible(track, context['options'], context['allowed_genre_group_codes'],
-                        (), context['excluded_track_ids']):
+        if not eligible(track, options, allowed_genres, (), excluded):
             audit['common_rejected_count'] += 1
             continue
         audit['common_eligible_count'] += 1
         audit['common_eligible_total_ms'] += track['duration_ms']
-        scored = score(track, context['options'], context['weather_code'])
+        # With weather off and no selected preferences, scoring cannot use any track features.
+        scored = (score(track, options, context['weather_code']) if on or has_off_preference
+                  else {'W': None, 'P': None, 'S': None})
         if scored is None:
             audit['weather_rejected_count'] += 1
             continue
-        if (not on and scored['P'] is None and (context['options']['selected_theme_codes']
-                or context['options']['selected_genre_codes'])):
+        if not on and has_off_preference and scored['P'] is None:
             audit['off_missing_preference_count'] += 1
             continue
         candidates.append(dict(track, scores=scored))
@@ -174,6 +175,7 @@ def run_one(queue=None, worker_id=None):
     job = claim(queue, worker_id)
     if not job: return False
     started, cpu_started = time.monotonic(), time.process_time()
+    stage_ms = {}
     outcome = 'UNKNOWN'
     logger.info(json.dumps({'event': 'recommendation_claimed', 'job_id': job.pk,
                            'worker_id': job.worker_id, 'method': job.method,
@@ -193,8 +195,13 @@ def run_one(queue=None, worker_id=None):
                 'POLICY_NOT_READY','이 사이클의 고정 정책 구현을 확인해야 해요.',503)
         if context.get('hourly'):
             from .hourly_jobs import prepare
+            stage_started = time.monotonic()
             catalog = Catalog.objects.defer('tracks').get(pk=job.catalog_id)
-            save_hourly(job, catalog, context, *prepare(job, context, catalog))
+            prepared = prepare(job, context, catalog)
+            stage_ms['hourly_prepare'] = round((time.monotonic() - stage_started) * 1000)
+            stage_started = time.monotonic()
+            save_hourly(job, catalog, context, *prepared)
+            stage_ms['result_commit'] = round((time.monotonic() - stage_started) * 1000)
             outcome = 'SUCCEEDED'
             return True
         on=context['options']['weather_influence_mode']=='ON'
@@ -202,14 +209,19 @@ def run_one(queue=None, worker_id=None):
             if now >= instant(context['weather']['valid_until']):
                 raise DomainError('JOB_EXPIRED','대기 중 예보가 만료됐어요.',410)
             validate(context['weather'],now)
+        stage_started = time.monotonic()
         catalog = Catalog.objects.defer('tracks').get(pk=job.catalog_id)
         raw = verified_catalog(catalog)
+        stage_ms['catalog'] = round((time.monotonic() - stage_started) * 1000)
+        stage_started = time.monotonic()
         candidates, candidate_audit = _collect_candidates(catalog, raw, context)
+        stage_ms['candidate_collection'] = round((time.monotonic() - stage_started) * 1000)
         preview=settings.LOCAL_DEMO and catalog.source_ref.startswith('local-preview:')
         search_diagnostics={}
         diagnostics=None
         model=None
         if job.method=='RULE_BASED':
+            stage_started = time.monotonic()
             if preview:
                 parent_ids={t['track_id'] for t in Playlist.objects.get(pk=job.parent_id).snapshot['items']} if job.parent_id else set()
                 tracks,search_diagnostics=choose_preview(candidates,context['options']['weather_influence_mode'],
@@ -225,24 +237,39 @@ def run_one(queue=None, worker_id=None):
                      '실제 CSV의 미검수 곡으로 만든 로컬 프리뷰예요.' if preview else
                      '날씨와 선택하신 취향을 반영했어요.' if on else '선택하신 취향을 반영했어요.')
             reasons={}
+            stage_ms['rule_selection'] = round((time.monotonic() - stage_started) * 1000)
         else:
+            stage_started = time.monotonic()
             ids=None
             if job.parent_id and context.get('recommendation_trigger') != 'weather_refresh':
                 parent=Playlist.objects.get(pk=job.parent_id)
                 ids=[t['track_id'] for t in parent.snapshot['items']]
+            compact = preview and catalog.is_test
+            proposal_options = {'compact': True} if compact else {}
             offered=candidate_window(candidates,context,ids)
+            stage_ms['candidate_window'] = round((time.monotonic() - stage_started) * 1000)
+            stage_started = time.monotonic()
             while True:
                 delay = dispatch.begin_provider(job)
                 if delay == 0: break
                 time.sleep(min(delay, 0.25))
-            proposal,diagnostics=propose(offered,context,ids)
+            stage_ms['provider_wait'] = round((time.monotonic() - stage_started) * 1000)
+            stage_started = time.monotonic()
+            try:
+                proposal,diagnostics=propose(offered,context,ids,**proposal_options)
+            finally:
+                stage_ms['provider_round_trip'] = round((time.monotonic() - stage_started) * 1000)
             dispatch.end_provider(job)
             diagnostics.update({'eligible_candidate_count':len(candidates),'offered_candidate_count':len(offered),
                                 'searched_full_pool':len(offered)==len(candidates)})
             active_job(job).update(provider_diagnostics=diagnostics)
-            tracks=validate_proposal(proposal,offered,ids,context['options'],all_candidates=candidates)
+            stage_started = time.monotonic()
+            tracks=validate_proposal(proposal,offered,ids,context['options'],all_candidates=candidates,
+                                     **proposal_options)
+            stage_ms['provider_validation'] = round((time.monotonic() - stage_started) * 1000)
             model=OPENAI_PLAYLIST_MODEL
             summary=proposal['summary']; reasons={r['track_id']:r['reason'] for r in proposal['track_reasons']}
+        stage_started = time.monotonic()
         total=sum(t['duration_ms'] for t in tracks)
         if on:
             checked_at=timezone.now()
@@ -265,6 +292,8 @@ def run_one(queue=None, worker_id=None):
             items.append({**item,'scores':{k:display(v) for k,v in t['scores'].items()},'scores_exact':exact(t['scores']),
                           'score_evidence':exact(evidence),
                           'reason':reasons.get(t['track_id'])})
+        stage_ms['result_preparation'] = round((time.monotonic() - stage_started) * 1000)
+        stage_started = time.monotonic()
         with transaction.atomic():
             current=Job.objects.select_for_update().annotate(dispatch_now=Now()).get(pk=job.pk)
             require(current.status=='RUNNING' and current.lease_token==job.lease_token and current.lease_generation==job.lease_generation
@@ -288,7 +317,8 @@ def run_one(queue=None, worker_id=None):
                 event('PLAYLIST_GENERATED',f,job.request_id,{'source_playlist_id':result.pk,'context_snapshot':fixed,
                                                            'track_snapshots':items})
             current.status='SUCCEEDED'; current.error=None; current.finished_at=current.dispatch_now; current.save()
-            outcome = 'SUCCEEDED'
+        stage_ms['result_commit'] = round((time.monotonic() - stage_started) * 1000)
+        outcome = 'SUCCEEDED'
     except DomainError as exc:
         if exc.code in ('CANDIDATE_SHORTAGE','SEARCH_INCOMPLETE','NO_MEANINGFUL_CHANGE') and 'candidate_audit' in locals():
             exc.details.update(candidate_audit)
@@ -306,5 +336,6 @@ def run_one(queue=None, worker_id=None):
         logger.info(json.dumps({'event': 'recommendation_finished', 'job_id': job.pk,
                                'worker_id': job.worker_id, 'method': job.method, 'status': outcome,
                                'run_seconds': round(time.monotonic() - started, 3),
-                               'cpu_seconds': round(time.process_time() - cpu_started, 3)}))
+                               'cpu_seconds': round(time.process_time() - cpu_started, 3),
+                               'stage_ms': stage_ms}))
     return True

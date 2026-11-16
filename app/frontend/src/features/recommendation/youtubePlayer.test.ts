@@ -81,9 +81,9 @@ describe('embedded YouTube queue controller', () => {
     expect(unavailable.controller.snapshot().index).toBe(0);
   });
 
-  it('continues to the next local preview candidate after an unavailable iframe', async () => {
+  it.each(['TAGGED_JSON_PREVIEW', 'CSV_PREVIEW'] as const)('continues after an unavailable %s iframe', async source => {
     const resolver = vi.fn(async (id: string) => ready(id, [{...candidate(Number(id.at(-1))),
-      source: 'TAGGED_JSON_PREVIEW', match_status: 'CANDIDATE'}]));
+      source, match_status: 'CANDIDATE'}]));
     const {controller, adapter} = harness(resolver);
     await controller.start(); controller.onPlayerError(153); await settle();
     expect(controller.snapshot().skipped.map(item => item.track_id)).toEqual(['track-1']);

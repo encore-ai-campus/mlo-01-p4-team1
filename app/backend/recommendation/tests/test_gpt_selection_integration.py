@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from time import monotonic, sleep
 from unittest.mock import patch
@@ -115,7 +116,16 @@ class GptSelectionIntegrationTests(TestCase):
         return Playlist.objects.get(job=job)
 
     def test_initial_regeneration_and_changed_weather_use_the_same_approved_candidate_provider(self):
-        first = self.first_playlist()
+        with self.assertLogs('recommendation.worker', level='INFO') as worker_logs:
+            first = self.first_playlist()
+        finished = json.loads(worker_logs.records[-1].getMessage())
+        self.assertEqual(finished['event'], 'recommendation_finished')
+        timings = finished['stage_ms']
+        self.assertEqual(set(timings), {
+            'catalog', 'candidate_collection', 'candidate_window', 'provider_wait',
+            'provider_round_trip', 'provider_validation', 'result_preparation', 'result_commit',
+        })
+        self.assertTrue(all(type(value) is int and value >= 0 for value in timings.values()))
         regen = self.enqueue(
             f'/api/playlists/{first.pk}/regenerations', {'exclusion_revision': 0}, 'regeneration',
         )

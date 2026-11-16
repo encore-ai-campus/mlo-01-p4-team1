@@ -260,6 +260,40 @@ class SolverTests(TestCase):
 
 
 class ProviderTests(TestCase):
+    @override_settings(OPENAI_PLAYLIST_MAX_CANDIDATES=10)
+    @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'})
+    def test_compact_preview_returns_original_ids_without_reasking_for_reasons(self):
+        parent = ['old-track', 'unoffered-parent-track']
+        tracks = [{'track_id': track_id, 'duration_ms': 5400000} for track_id in ('old-track', 'new-track')]
+        context = {'options': DEFAULTS}
+        with patch('backend.recommendation.provider._request_openai') as request, \
+                patch('backend.recommendation.provider._parse_openai_response',
+                      return_value=({'track_ids': [1, 0], 'summary': '요약'}, {})):
+            proposal, diagnostics = propose(tracks, context, parent, compact=True)
+        payload = request.call_args.args[0]
+        data = json.loads(payload['input'])
+        self.assertEqual([track['track_id'] for track in data['candidates']], [0, 1])
+        self.assertEqual(data['parent_track_ids'], [0])
+        self.assertEqual(set(payload['text']['format']['schema']['properties']), {'track_ids', 'summary'})
+        self.assertEqual(proposal, {'track_ids': ['new-track', 'old-track'], 'summary': '요약', 'track_reasons': []})
+        self.assertEqual(diagnostics['schema_version'], 'OpenAIPlaylistCompact-v1')
+        self.assertEqual(validate_proposal(proposal, tracks, parent, DEFAULTS, compact=True), [tracks[1], tracks[0]])
+        with self.assertRaises(DomainError):
+            validate_proposal(proposal, tracks, parent, DEFAULTS)
+
+    @override_settings(OPENAI_PLAYLIST_MAX_CANDIDATES=10)
+    @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'})
+    def test_compact_preview_rejects_unsupplied_and_noninteger_aliases(self):
+        tracks = [{'track_id': 'valid', 'duration_ms': 10800000}]
+        with patch('backend.recommendation.provider._request_openai'), \
+                patch('backend.recommendation.provider._parse_openai_response') as parse:
+            for index in (-1, 1, True, '0'):
+                with self.subTest(index=index):
+                    parse.return_value = ({'track_ids': [index], 'summary': '요약'}, {})
+                    with self.assertRaises(DomainError) as error:
+                        propose(tracks, {'options': DEFAULTS}, compact=True)
+                    self.assertEqual(error.exception.code, 'PROVIDER_RESPONSE_INVALID')
+
     @override_settings(OPENAI_PLAYLIST_MAX_CANDIDATES=200)
     def test_large_csv_window_is_bounded_and_reserves_new_and_genre_tracks(self):
         tracks=[{'track_id':str(i),'genre_group_codes':['JAZZ' if i<299 else 'POP'],

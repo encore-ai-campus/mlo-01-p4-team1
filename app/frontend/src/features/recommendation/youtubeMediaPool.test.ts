@@ -60,6 +60,8 @@ function harness(resolve = vi.fn(async (_track: PlaybackTrack, value: PlaybackCa
     allowCandidate: (track, value) => allowedPlaybackCandidate(track, value, false), resolveAudio: resolve, ...callbacks, ...options});
   return {pool, host, audios, resolve, ...callbacks, select: (n: number, audio = false, verified = true) => {
     current = verified ? {candidate: candidate(n, audio), track: track(n)} : {candidate: localCandidate(n), track: localTrack(n)};
+  }, selectPreview: (candidate: PlaybackCandidate, track: PlaybackTrack) => {
+    current = {candidate, track};
   }};
 }
 async function warmIframe(h: ReturnType<typeof harness>, n = 2) {
@@ -254,14 +256,18 @@ describe('two-slot media preparation', () => {
     expect(frame.loadVideoById).not.toHaveBeenCalled(); expect(h.onState).not.toHaveBeenCalled(); h.pool.destroy();
   });
 
-  it('buffers the matching tagged local candidate on 150 and activates that audio without a second request', async () => {
-    const h = harness(undefined, {allowCandidate: permitLocal});
-    const abort = new AbortController(), prepared = h.pool.prepare(localCandidate(2), localTrack(2), abort.signal);
+  it.each(['TAGGED_JSON_PREVIEW', 'CSV_PREVIEW'] as const)(
+    'buffers the %s fallback on 150 and activates that audio without a second request', async previewSource => {
+    const isCsv = previewSource === 'CSV_PREVIEW';
+    const h = harness(undefined, {allowCandidate: (song, video) => allowedPlaybackCandidate(song, video, !isCsv, isCsv)});
+    const previewCandidate = {...localCandidate(2), source: previewSource};
+    const previewTrack = isCsv ? track(2) : localTrack(2);
+    const abort = new AbortController(), prepared = h.pool.prepare(previewCandidate, previewTrack, abort.signal);
     const frame = FakePlayer.players[0]; frame.ready(); frame.error(150);
     await settle(); const audio = h.audios[0];
     expect(audio.controls).toBe(false); expect(audio.play).not.toHaveBeenCalled();
     audio.readyState = 3; audio.ranges = [[0, 2]]; audio.emit('canplay'); expect(await prepared).toBe('ready');
-    h.select(2, false, false); h.pool.load(candidate(2).video_id); abort.abort();
+    h.selectPreview(previewCandidate, previewTrack); h.pool.load(previewCandidate.video_id); abort.abort();
     expect(h.resolve).toHaveBeenCalledOnce(); expect(audio.controls).toBe(true); expect(audio.play).toHaveBeenCalledOnce();
     h.pool.destroy();
   });

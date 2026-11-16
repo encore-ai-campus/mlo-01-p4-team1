@@ -11,7 +11,7 @@ import type {RegionOption} from '../region-weather/RegionPicker';
 import {Icon} from '../../components/Icons';
 import {TagPicker} from '../music-options/TagPicker';
 import {YoutubeTrackLink} from './YoutubeLinks';
-import {YoutubePlayer} from './YoutubePlayer';
+import {resolvePreviewPlaybackSource,YoutubePlayer} from './YoutubePlayer';
 import {YoutubeReviewPanel} from './YoutubeReviewPanel';
 import {YoutubeNativePlayback} from './YoutubeNativePlayback';
 import type {YoutubeMappingSnapshot} from './youtubeDestinations';
@@ -263,14 +263,17 @@ export function PublicPage(){
     dirty?'제외 설정에 저장하지 않은 변경이 있어요. 먼저 저장해 주세요.':
     result&&!applied?'제외 설정이 아직 이 선곡표에 반영되지 않았어요. 새 선곡표를 먼저 받아 주세요.':null;
   const showLoading=busy&&!cancelling&&!error;
-  const previewSource=musicSource==='TAGGED_JSON'?'태깅 JSON':'CSV';
+  const playbackSource=resolvePreviewPlaybackSource(result,isDemo,musicSource);
+  const previewMusicSource=playbackSource==='TAGGED_JSON_PREVIEW'?'TAGGED_JSON':
+    playbackSource==='CSV_PREVIEW'?'CSV':musicSource;
+  const previewSource=previewMusicSource==='TAGGED_JSON'?'태깅 JSON':previewMusicSource==='CSV'?'CSV':null;
   const status=cancelling?'선곡표 준비를 취소하고 있어요.':showLoading?'선곡표를 준비하고 있어요.':
     busy?'취소 여부를 확인하지 못했어요.':weatherMismatch?'날씨가 변경됐어요 · 갱신 전 선곡표':changed||dirty||!applied&&result?'변경 사항 미반영 · 변경 전 결과':
-    result?.approved_playlist_id===result?.playlist_id&&result?result.preview_only?previewSource+' 검증용 선곡표를 승인했어요.':'승인한 선곡표예요.':
-    result?.preview_only?previewSource+'에서 가져온 곡의 검증용 선곡표예요.':result?'선곡표를 확인해 주세요.':effectiveMode==='OFF'?'지역 없이 취향으로 선곡표를 받아 보세요.':'지역을 선택하고 선곡표를 받아 보세요.';
+    result?.approved_playlist_id===result?.playlist_id&&result?result.preview_only?(previewSource?previewSource+' ':'')+'검증용 선곡표를 승인했어요.':'승인한 선곡표예요.':
+    result?.preview_only?(previewSource?previewSource+'에서 가져온 곡의 ':'')+'검증용 선곡표예요.':result?'선곡표를 확인해 주세요.':effectiveMode==='OFF'?'지역 없이 취향으로 선곡표를 받아 보세요.':'지역을 선택하고 선곡표를 받아 보세요.';
   return <>
     <div className={`muther-app${page === 'home' ? ' muther-home-font-preview' : ''}`} inert={guide}>
-      <Header showGuide={openGuide} isDemo={isDemo} musicSource={musicSource} weatherIsTest={weather?.is_test}
+      <Header showGuide={openGuide} isDemo={isDemo} musicSource={previewMusicSource} weatherIsTest={weather?.is_test}
         currentPage={page} onNavigate={navigate}/>
       <Banner placement="top" blocked={guide} onReady={()=>setAdContextReady(true)}/>
       <main className="public-main">
@@ -328,8 +331,9 @@ export function PublicPage(){
             {result?<>
               <YoutubePlayer key={result.playlist_id} playlistId={result.playlist_id} tracks={result.items}
                 blockReason={youtubeBlockReason} mappingRevision={mappingRevision} pauseRevision={pausePlaybackRevision}
-                showSourceThumbnail={result.is_test&&!!result.preview_only&&musicSource==='TAGGED_JSON'}
-                allowTaggedPreview={isDemo&&result.is_test&&!!result.preview_only&&musicSource==='TAGGED_JSON'}
+                showSourceThumbnail={playbackSource==='TAGGED_JSON_PREVIEW'}
+                allowTaggedPreview={playbackSource==='TAGGED_JSON_PREVIEW'}
+                allowCsvPreview={playbackSource==='CSV_PREVIEW'}
                 onPlaybackActivityChange={setIframePlaying}/>
               <YoutubeNativePlayback playlistId={result.playlist_id} tracks={result.items} blockReason={youtubeBlockReason}
                 mappingRevision={mappingRevision} onMappings={setLiveYoutubeMappings} onOpen={()=>setPausePlaybackRevision(value=>value+1)}/>
@@ -407,7 +411,7 @@ export function PublicPage(){
               {canSavePlaylist&&<button disabled={!result||busy} onClick={()=>{if(result)void api('/api/me/playlists','POST',{playlist_id:result.playlist_id}).then(()=>setJobNotice('내 선곡표에 저장했습니다. 마이페이지에서 확인해 주세요.')).catch(e=>setError(e.message));}}>내 선곡표에 저장</button>}
             </div>}
             {result&&!canSavePlaylist&&<p className="playlist-hint">저장하려면 <a href="/login">로그인</a>한 뒤 새 선곡표를 받아 주세요.</p>}
-            <small className="playlist-hint">{result?.preview_only?previewSource+' 검증용 결과입니다. 좋아요·싫어요·별점·제외·승인은 이 PC의 로컬 데이터에 저장돼요.':'조건을 바꾸면 새 선곡표를 받아 확인해 주세요.'}</small>
+            <small className="playlist-hint">{result?.preview_only?(previewSource?previewSource+' ':'')+'검증용 결과입니다. 좋아요·싫어요·별점·제외·승인은 이 PC의 로컬 데이터에 저장돼요.':'조건을 바꾸면 새 선곡표를 받아 확인해 주세요.'}</small>
           </section>
         </div>
         {result&&isDemo&&reviewOpen&&<div id="youtube-review-panel"><YoutubeReviewPanel key={result.playlist_id} playlistId={result.playlist_id} onUpdated={()=>setMappingRevision(value=>value+1)} onPreviewActive={setReviewPreview} blocked={guide||locked}/></div>}

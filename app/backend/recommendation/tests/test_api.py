@@ -200,11 +200,11 @@ class ApiTests(TransactionTestCase):
         self.assertNotIn('tempo_preference', job.input['options'])
         self.assertNotIn('allowed_speed_codes', job.input)
         parent_ids={t['track_id'] for t in p.snapshot['items']}
-        def proposal(candidates,context,ids):
+        def proposal(candidates,context,ids,*,compact=False):
             ordered=sorted(candidates,key=lambda t:t['track_id'] in parent_ids)[:45]
             selected=[t['track_id'] for t in ordered]
-            return {'track_ids':selected,'summary':'GPT 응답 검증',
-                    'track_reasons':[{'track_id':x,'reason':'선호 반영'} for x in selected]}, {'attempts':1}
+            self.assertTrue(compact)
+            return {'track_ids':selected,'summary':'GPT 응답 검증','track_reasons':[]}, {'attempts':1}
         with patch('backend.recommendation.worker.propose',side_effect=proposal) as provider:
             self.assertTrue(run_one())
         provider.assert_called_once()
@@ -212,6 +212,8 @@ class ApiTests(TransactionTestCase):
         result=Playlist.objects.get(job=job)
         self.assertEqual(result.snapshot['generation_method'],'GPT_SELECTION')
         self.assertEqual(result.snapshot['model'],'gpt-6-luna')
+        self.assertEqual(result.snapshot['summary'],'GPT 응답 검증')
+        self.assertTrue(all(item['reason'] is None for item in result.snapshot['items']))
         self.assertGreaterEqual(len({t['track_id'] for t in result.snapshot['items']}-parent_ids),9)
         approval=self.post(f'/api/playlists/{p.pk}/approval',{'approval_revision':0,'exclusion_revision':0},'csv-approval')
         self.assertEqual(approval.status_code,200,approval.content)

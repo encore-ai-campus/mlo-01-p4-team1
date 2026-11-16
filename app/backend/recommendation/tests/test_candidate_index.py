@@ -1,4 +1,5 @@
 from unittest import TestCase
+from unittest.mock import patch
 
 from backend.recommendation.candidate_index import CandidateIndex, WEATHERS
 from backend.recommendation.inputs import DEFAULTS, options as normalize_options
@@ -6,6 +7,7 @@ from backend.recommendation.policy import (
     GENRES, OFF_THEMES, SPEEDS,
     eligible, precompute_scores, score,
 )
+from backend.recommendation.worker import _collect_candidates
 
 
 def track(index):
@@ -59,6 +61,23 @@ def expected(rows, options, weather, allowed_genres, allowed_speeds, excluded):
 
 
 class CandidateIndexTests(TestCase):
+    def test_weather_off_collection_matches_policy_without_loading_weather_index(self):
+        templates = [track(index) for index in range(6)]
+        rows = [{**templates[index % len(templates)], 'track_id': f'pool-{index}'}
+                for index in range(5000)]
+        exclusions = ['pool-0', 'pool-25']
+        for themes, genres in (([], []), (['CALM'], ['JAZZ'])):
+            with self.subTest(themes=themes, genres=genres):
+                options = {**DEFAULTS, 'weather_influence_mode': 'OFF',
+                           'selected_theme_codes': themes, 'selected_genre_codes': genres,
+                           'vocal_option': 'instrumental_only'}
+                context = {'options': options, 'allowed_genre_group_codes': ['JAZZ'],
+                           'excluded_track_ids': exclusions, 'weather_code': None}
+                with patch('backend.recommendation.worker._index_for') as weather_index:
+                    actual = _collect_candidates(None, rows, context)
+                weather_index.assert_not_called()
+                self.assertEqual(actual, expected(rows, options, None, ['JAZZ'], (), exclusions))
+
     def test_index_matches_policy_and_audit_for_inherited_filters(self):
         rows = [track(index) for index in range(48)]
         rows[1]['score_cache']['weather_version'] = 'OLD'
